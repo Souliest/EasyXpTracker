@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>XP Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
+  :root {
+    --bg: #0a0c10;
+    --panel: #111520;
+    --border: #1e2a3a;
+    --accent: #00e5ff;
+    --accent2: #ff6b35;
+    --accent3: #7fff6b;
+    --text: #c8d8e8;
+    --muted: #4a6070;
+    --input-bg: #0d1117;
+    --stat-bg: #0d1117;
+    --glow: 0 0 12px rgba(0,229,255,0.4);
+  }
+
+  body.light {
+    --bg: #eef2f7;
+    --panel: #ffffff;
+    --border: #ccd6e0;
+    --accent: #0077aa;
+    --accent2: #cc4400;
+    --accent3: #2a8a00;
+    --text: #1a2a3a;
+    --muted: #7a9ab0;
+    --input-bg: #f5f8fb;
+    --stat-bg: #f0f4f8;
+    --glow: 0 0 12px rgba(0,119,170,0.25);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    padding: 12px;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: 1.1rem;
+    font-weight: 900;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    text-shadow: var(--glow);
+    text-align: center;
+    margin-bottom: 14px;
+    text-transform: uppercase;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  .panel-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  /* Input row */
+  .input-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  input[type="tel"] {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--accent);
+    font-family: 'Orbitron', monospace;
+    font-size: 1.4rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 10px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input[type="tel"]:focus {
+    border-color: var(--accent);
+    box-shadow: var(--glow);
+  }
+
+  .btn {
+    border: none;
+    border-radius: 7px;
+    font-family: 'Orbitron', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 10px 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.95); opacity: 0.8; }
+
+  .btn-enter {
+    background: var(--accent);
+    color: #000;
+    flex-shrink: 0;
+  }
+  .btn-reset {
+    background: transparent;
+    color: var(--accent2);
+    border: 1px solid var(--accent2);
+    flex-shrink: 0;
+  }
+
+  /* Stats row */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .stat-box {
+    background: var(--stat-bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px;
+    text-align: center;
+  }
+  .stat-label {
+    font-size: 0.5rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .stat-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  /* Chart containers */
+  canvas {
+    display: block;
+    width: 100%;
+  }
+
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  .legend-dot {
+    width: 8px;
+    height: 3px;
+    border-radius: 2px;
+  }
+
+  .theme-toggle {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.9rem;
+    padding: 2px 7px;
+    cursor: pointer;
+    vertical-align: middle;
+    margin-left: 8px;
+    transition: background 0.2s;
+  }
+  .theme-toggle:active { opacity: 0.7; }
+
+  body, .panel, input, .stat-box, .entry-chip {
+    transition: background 0.25s, color 0.25s, border-color 0.25s;
+  }
+  .entries-list {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+  .entry-chip {
+    background: var(--stat-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-size: 0.65rem;
+    color: var(--text);
+    animation: pop 0.2s ease;
+  }
+  @keyframes pop {
+    from { transform: scale(0.7); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .empty-msg {
+    color: var(--muted);
+    font-size: 0.65rem;
+    text-align: center;
+    padding: 20px 0;
+    letter-spacing: 0.1em;
+  }
+
+  /* Custom confirm dialog */
+  .confirm-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .confirm-overlay.active { display: flex; }
+  .confirm-box {
+    background: var(--panel);
+    border: 1px solid var(--accent2);
+    border-radius: 12px;
+    padding: 24px 20px;
+    max-width: 280px;
+    width: 90%;
+    text-align: center;
+  }
+  .confirm-box p {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .confirm-box small {
+    font-size: 0.6rem;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 20px;
+  }
+  .confirm-btns {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  /* Average stat boxes under gain chart */
+  .avg-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .avg-stat-box {
+    background: var(--stat-bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px;
+    text-align: center;
+  }
+  .avg-stat-label {
+    font-size: 0.5rem;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .avg-stat-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  /* Entry log */
+  .log-scroll {
+    max-height: 260px;
+    overflow-y: auto;
+    margin-top: 8px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+  }
+  .log-scroll::-webkit-scrollbar { width: 4px; }
+  .log-scroll::-webkit-scrollbar-track { background: transparent; }
+  .log-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .log-entry {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    animation: pop 0.2s ease;
+  }
+  .log-entry:last-child { border-bottom: none; }
+
+  .log-index {
+    font-size: 0.55rem;
+    color: var(--muted);
+    min-width: 26px;
+    text-align: right;
+  }
+  .log-time {
+    font-size: 0.6rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .log-xp {
+    font-family: 'Orbitron', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent);
+    flex: 1;
+    text-align: right;
+  }
+  .log-dots {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    min-width: 36px;
+    justify-content: flex-end;
+  }
+  .log-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<h1>⚡ XP Tracker <button class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark">🌙</button></h1>
+
+<!-- Input Panel -->
+<div class="panel">
+  <div class="panel-title">Log XP Gain</div>
+  <div class="input-row">
+    <input type="tel" id="xpInput" placeholder="0" inputmode="numeric" pattern="[0-9]*">
+    <button class="btn btn-enter" onclick="addXP()">Enter</button>
+    <button class="btn btn-reset" onclick="resetAll()">Reset</button>
+  </div>
+
+  <!-- Quick stats -->
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="stat-label">Total XP</div>
+      <div class="stat-value" id="statTotal">—</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Entries</div>
+      <div class="stat-value" id="statCount">0</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Avg/gain</div>
+      <div class="stat-value" id="statAvg">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- XP Gains Chart -->
+<div class="panel">
+  <div class="panel-title">XP Per Gain + Averages</div>
+  <div class="chart-wrap">
+    <canvas id="gainChart" height="180"></canvas>
+  </div>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#00e5ff"></div>Each gain</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ff6b35"></div>Total avg</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#7fff6b"></div>Smooth 5</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ffcc00"></div>Smooth 10</div>
+  </div>
+  <div id="chipArea" class="entries-list"></div>
+
+  <!-- Average value boxes -->
+  <div class="avg-stats-grid">
+    <div class="avg-stat-box">
+      <div class="avg-stat-label">Total Avg</div>
+      <div class="avg-stat-value" id="avgTotal" style="color:#ff6b35">—</div>
+    </div>
+    <div class="avg-stat-box">
+      <div class="avg-stat-label">Smooth 5</div>
+      <div class="avg-stat-value" id="avgSmooth5" style="color:#7fff6b">—</div>
+    </div>
+    <div class="avg-stat-box">
+      <div class="avg-stat-label">Smooth 10</div>
+      <div class="avg-stat-value" id="avgSmooth10" style="color:#ffcc00">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Time Chart -->
+<div class="panel">
+  <div class="panel-title">XP Accumulator &nbsp;<span style="font-size:0.5rem;color:var(--muted)">~ = estimated rate</span></div>
+  <div class="chart-wrap">
+    <canvas id="timeChart" height="180"></canvas>
+  </div>
+  <div class="stats-grid" style="margin-top:10px">
+    <div class="stat-box">
+      <div class="stat-label">/ Min</div>
+      <div class="stat-value" id="tMin">—</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">/ 15 Min</div>
+      <div class="stat-value" id="t15">—</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">/ Hour</div>
+      <div class="stat-value" id="tHour">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Entry Log -->
+<div class="panel">
+  <div class="panel-title">Entry Log &nbsp;<span style="font-size:0.5rem;color:var(--muted)">🟢 in smooth 5 &nbsp; 🟠 in smooth 10</span></div>
+  <div class="log-scroll" id="entryLog">
+    <div style="padding:20px;text-align:center;color:var(--muted);font-size:0.65rem;">No entries yet.</div>
+  </div>
+</div>
+
+<!-- Custom Reset Confirm Dialog -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <p>RESET ALL DATA?</p>
+    <small>This will erase all entries and cannot be undone.</small>
+    <div class="confirm-btns">
+      <button class="btn btn-reset" onclick="confirmReset()">Yes, reset</button>
+      <button class="btn btn-enter" onclick="cancelReset()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- Data ----
+let gains = [];
+let startTime = null;
+
+function saveData() {
+  try {
+    localStorage.setItem('xptracker_gains', JSON.stringify(gains));
+    localStorage.setItem('xptracker_start', startTime ? String(startTime) : '');
+  } catch(e) {}
+}
+
+function loadData() {
+  try {
+    const g = localStorage.getItem('xptracker_gains');
+    const s = localStorage.getItem('xptracker_start');
+    if (g) gains = JSON.parse(g);
+    if (s) startTime = parseInt(s) || null;
+  } catch(e) {}
+}
+
+loadData();
+
+function addXP() {
+  const input = document.getElementById('xpInput');
+  const val = parseInt(input.value.replace(/[^0-9]/g, ''));
+  if (!val || val <= 0) { input.focus(); return; }
+  if (!startTime) startTime = Date.now();
+  gains.push({ xp: val, ts: Date.now() });
+  input.value = '';
+  input.focus();
+  saveData();
+  updateAll();
+}
+
+document.getElementById('xpInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addXP();
+});
+
+function toggleTheme() {
+  const body = document.body;
+  const btn = document.querySelector('.theme-toggle');
+  body.classList.toggle('light');
+  btn.textContent = body.classList.contains('light') ? '🌕' : '🌙';
+  updateAll(); // redraw charts with new colors
+}
+
+function resetAll() {
+  if (gains.length === 0) return;
+  document.getElementById('confirmOverlay').classList.add('active');
+}
+
+function confirmReset() {
+  document.getElementById('confirmOverlay').classList.remove('active');
+  gains = [];
+  startTime = null;
+  saveData();
+  updateAll();
+}
+
+function cancelReset() {
+  document.getElementById('confirmOverlay').classList.remove('active');
+}
+
+// ---- Helpers ----
+function fmt(n) {
+  if (n === null || isNaN(n)) return '—';
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+  return Math.round(n).toString();
+}
+
+function movingAvg(arr, n) {
+  return arr.map((_, i) => {
+    const slice = arr.slice(Math.max(0, i - n + 1), i + 1);
+    return slice.reduce((a, b) => a + b, 0) / slice.length;
+  });
+}
+
+// ---- Update all ----
+function updateAll() {
+  updateStats();
+  updateChips();
+  updateAvgStats();
+  updateEntryLog();
+  drawGainChart();
+  drawTimeChart();
+}
+
+function updateStats() {
+  const total = gains.reduce((s, g) => s + g.xp, 0);
+  const count = gains.length;
+  document.getElementById('statTotal').textContent = count ? fmt(total) : '—';
+  document.getElementById('statCount').textContent = count;
+  document.getElementById('statAvg').textContent = count ? fmt(total / count) : '—';
+}
+
+function updateChips() {
+  const area = document.getElementById('chipArea');
+  area.innerHTML = '';
+  const recent = gains.slice(-20);
+  recent.forEach(g => {
+    const chip = document.createElement('div');
+    chip.className = 'entry-chip';
+    chip.textContent = '+' + fmt(g.xp);
+    area.appendChild(chip);
+  });
+}
+
+function updateAvgStats() {
+  const allXP = gains.map(g => g.xp);
+  const n = allXP.length;
+  if (n === 0) {
+    document.getElementById('avgTotal').textContent   = '—';
+    document.getElementById('avgSmooth5').textContent  = '—';
+    document.getElementById('avgSmooth10').textContent = '—';
+    return;
+  }
+  const totalAvgNow = allXP.reduce((a, b) => a + b, 0) / n;
+  const s5  = movingAvg(allXP, 5)[n - 1];
+  const s10 = movingAvg(allXP, 10)[n - 1];
+  document.getElementById('avgTotal').textContent   = fmt(totalAvgNow);
+  document.getElementById('avgSmooth5').textContent  = fmt(s5);
+  document.getElementById('avgSmooth10').textContent = fmt(s10);
+}
+
+function fmtTime(ts) {
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return hh + ':' + mm + ':' + ss;
+}
+
+function updateEntryLog() {
+  const log = document.getElementById('entryLog');
+  if (gains.length === 0) {
+    log.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:0.65rem;">No entries yet.</div>';
+    return;
+  }
+  const n = gains.length;
+  // Newest first — ri=0 is newest (globalIdx = n), ri=n-1 is oldest (globalIdx = 1)
+  const rows = [...gains].reverse().map((g, ri) => {
+    const globalIdx = n - ri; // 1-based, newest = n
+
+    // Position from the END of the array (0 = newest, 1 = second newest...)
+    const posFromEnd = ri;
+    const inSmooth5  = posFromEnd < 5;
+    const inSmooth10 = posFromEnd >= 5 && posFromEnd < 10;
+
+    let dots = '';
+    if (inSmooth5)       dots += '<div class="log-dot" style="background:#7fff6b" title="In Smooth 5"></div>';
+    else if (inSmooth10) dots += '<div class="log-dot" style="background:#ffcc00" title="In Smooth 10"></div>';
+
+    return `<div class="log-entry">
+      <span class="log-index">#${globalIdx}</span>
+      <span class="log-time">${fmtTime(g.ts)}</span>
+      <span class="log-xp">+${g.xp.toLocaleString()}</span>
+      <span class="log-dots">${dots}</span>
+    </div>`;
+  });
+  log.innerHTML = rows.join('');
+}
+
+// ---- Canvas drawing ----
+function getCanvas(id) {
+  const canvas = document.getElementById(id);
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const w = rect.width;
+  const h = canvas.height;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, w, h };
+}
+
+function getCSSVar(name) {
+  return getComputedStyle(document.body).getPropertyValue(name).trim();
+}
+
+function drawAxes(ctx, w, h, pad, minY, maxY, labels) {
+  ctx.strokeStyle = getCSSVar('--border');
+  ctx.lineWidth = 1;
+
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const y = pad.top + (h - pad.top - pad.bottom) * (i / steps);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(w - pad.right, y);
+    ctx.stroke();
+
+    const val = maxY - (maxY - minY) * (i / steps);
+    ctx.fillStyle = getCSSVar('--muted');
+    ctx.font = '9px Share Tech Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(fmt(val), pad.left - 3, y + 3);
+  }
+
+  if (labels && labels.length) {
+    const chartW = w - pad.left - pad.right;
+    ctx.fillStyle = getCSSVar('--muted');
+    ctx.font = '9px Share Tech Mono, monospace';
+    ctx.textAlign = 'center';
+    // slotCount is passed in so labels align with bar slot centres
+    const slotCount = labels._slotCount || labels.length;
+    labels.forEach((lbl, i) => {
+      const x = pad.left + (i + 0.5) * (chartW / slotCount);
+      ctx.fillText(lbl, x, h - pad.bottom + 12);
+    });
+  }
+}
+
+function drawLine(ctx, data, minY, maxY, w, h, pad, color, dash = []) {
+  if (data.length < 2) return;
+  const chartW = w - pad.left - pad.right;
+  const chartH = h - pad.top - pad.bottom;
+  const step = chartW / Math.max(data.length - 1, 1);
+  const range = maxY - minY || 1;
+
+  ctx.setLineDash(dash);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = pad.left + i * step;
+    const y = pad.top + chartH * (1 - (v - minY) / range);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawDots(ctx, data, minY, maxY, w, h, pad, color) {
+  const chartW = w - pad.left - pad.right;
+  const chartH = h - pad.top - pad.bottom;
+  const step = chartW / Math.max(data.length - 1, 1);
+  const range = maxY - minY || 1;
+  ctx.fillStyle = color;
+  data.forEach((v, i) => {
+    const x = pad.left + i * step;
+    const y = pad.top + chartH * (1 - (v - minY) / range);
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawGainChart() {
+  const { ctx, w, h } = getCanvas('gainChart');
+  ctx.clearRect(0, 0, w, h);
+
+  if (gains.length === 0) {
+    ctx.fillStyle = getCSSVar('--muted');
+    ctx.font = '11px Share Tech Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data yet — enter your first XP gain!', w / 2, h / 2);
+    return;
+  }
+
+  const allXP = gains.map(g => g.xp);
+
+  // Averages always computed from FULL history
+  const fullTotalAvg = allXP.map((_, i) => {
+    const slice = allXP.slice(0, i + 1);
+    return slice.reduce((a, b) => a + b, 0) / slice.length;
+  });
+  const fullSmooth5  = movingAvg(allXP, 5);
+  const fullSmooth10 = movingAvg(allXP, 10);
+
+  // Display window: last 10 entries only
+  const WINDOW = 10;
+  const startIdx = Math.max(0, allXP.length - WINDOW);
+  const xpVals   = allXP.slice(startIdx);
+  const totalAvg = fullTotalAvg.slice(startIdx);
+  const smooth5  = fullSmooth5.slice(startIdx);
+  const smooth10 = fullSmooth10.slice(startIdx);
+
+  const all = [...xpVals, ...totalAvg, ...smooth5, ...smooth10];
+  const minY = 0;
+  const maxY = Math.max(...all) * 1.15;
+
+  const pad = { top: 8, bottom: 20, left: 36, right: 8 };
+  const labels = xpVals.map((_, i) => '#' + (startIdx + i + 1));
+  labels._slotCount = WINDOW;
+
+  drawAxes(ctx, w, h, pad, minY, maxY, labels);
+
+  const chartW = w - pad.left - pad.right;
+  const chartH = h - pad.top - pad.bottom;
+  const slotW  = chartW / WINDOW;
+  const barW   = Math.max(4, slotW * 0.6);
+  const range  = maxY - minY || 1;
+
+  xpVals.forEach((v, i) => {
+    const slotCentre = pad.left + (i + 0.5) * slotW;
+    const x = slotCentre - barW / 2;
+    const barH = chartH * (v / range);
+    const y = pad.top + chartH - barH;
+    ctx.fillStyle = 'rgba(0,229,255,0.18)';
+    ctx.strokeStyle = 'rgba(0,229,255,0.6)';
+    ctx.lineWidth = 1;
+    ctx.fillRect(x, y, barW, barH);
+    ctx.strokeRect(x, y, barW, barH);
+  });
+
+  // Lines aligned to slot centres
+  function drawAligned(data, color, dash = []) {
+    if (data.length < 1) return;
+    ctx.setLineDash(dash);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.8;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    data.forEach((v, i) => {
+      const x = pad.left + (i + 0.5) * slotW;
+      const y = pad.top + chartH * (1 - (v - minY) / range);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  drawAligned(totalAvg, '#ff6b35', [4, 3]);
+  drawAligned(smooth5,  '#7fff6b');
+  drawAligned(smooth10, '#ffcc00', [2, 2]);
+}
+
+function drawTimeChart() {
+  const { ctx, w, h } = getCanvas('timeChart');
+  ctx.clearRect(0, 0, w, h);
+
+  if (gains.length === 0) {
+    ctx.fillStyle = getCSSVar('--muted');
+    ctx.font = '11px Share Tech Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('No data yet.', w / 2, h / 2);
+    ['tMin','t15','tHour'].forEach(id => document.getElementById(id).textContent = '—');
+    return;
+  }
+
+  const now = Date.now();
+  const elapsed = (now - startTime) / 60000;
+  const total   = gains.reduce((s, g) => s + g.xp, 0);
+
+  // Stat boxes: true if enough real time has passed, else extrapolate
+  function isReal(windowMin) { return elapsed >= windowMin; }
+  function rateForWindow(windowMin) {
+    if (isReal(windowMin)) {
+      const cutoff = now - windowMin * 60000;
+      const sum = gains.filter(g => g.ts >= cutoff).reduce((s, g) => s + g.xp, 0);
+      return sum / windowMin;
+    }
+    return elapsed > 0 ? total / elapsed : 0;
+  }
+  function fmtRate(windowMin, rate) {
+    return (isReal(windowMin) ? '' : '~') + fmt(rate * windowMin);
+  }
+  const rMin  = rateForWindow(1);
+  const r15   = rateForWindow(15);
+  const rHour = rateForWindow(60);
+  document.getElementById('tMin').textContent  = fmtRate(1,  rMin);
+  document.getElementById('t15').textContent   = fmtRate(15, r15);
+  document.getElementById('tHour').textContent = fmtRate(60, rHour);
+
+  // Build cumulative XP series — origin always at session start (0,0)
+  let cumulative = 0;
+  const points = gains.map(g => {
+    cumulative += g.xp;
+    return { min: (g.ts - startTime) / 60000, cum: cumulative };
+  });
+
+  // Always prepend true origin at t=0
+  const series = [{ min: 0, cum: 0 }, ...points];
+
+  // For single entry: extend x-axis a little so the dot isn't at the far right edge
+  const lastMin = points[points.length - 1].min;
+  const maxMin  = Math.max(lastMin * 1.15, 0.1);
+
+  const minY = 0;
+  const maxY = cumulative * 1.12;
+  const pad  = { top: 8, bottom: 20, left: 40, right: 8 };
+  const chartW = w - pad.left - pad.right;
+  const chartH = h - pad.top - pad.bottom;
+  const range  = maxY || 1;
+
+  // Axes
+  ctx.strokeStyle = getCSSVar('--border');
+  ctx.lineWidth = 1;
+  const ySteps = 4;
+  for (let i = 0; i <= ySteps; i++) {
+    const y = pad.top + chartH * (i / ySteps);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+    const val = maxY * (1 - i / ySteps);
+    ctx.fillStyle = getCSSVar('--muted');
+    ctx.font = '9px Share Tech Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(fmt(val), pad.left - 3, y + 3);
+  }
+
+  // X labels — evenly spaced across the time range, not per-entry
+  const xSteps = 5;
+  ctx.fillStyle = getCSSVar('--muted');
+  ctx.font = '9px Share Tech Mono, monospace';
+  for (let i = 0; i <= xSteps; i++) {
+    const t   = (maxMin / xSteps) * i;
+    const x   = pad.left + (t / maxMin) * chartW;
+    const lbl = i === 0 ? '0' : (t < 1 ? t.toFixed(1) + 'm' : Math.round(t) + 'm');
+    ctx.textAlign = i === 0 ? 'left' : i === xSteps ? 'right' : 'center';
+    ctx.fillText(lbl, x, h - pad.bottom + 12);
+  }
+
+  // Shaded area under the line
+  ctx.beginPath();
+  series.forEach((pt, i) => {
+    const x = pad.left + (pt.min / maxMin) * chartW;
+    const y = pad.top  + chartH * (1 - pt.cum / range);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(pad.left + (series[series.length-1].min / maxMin) * chartW, pad.top + chartH);
+  ctx.lineTo(pad.left, pad.top + chartH);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(0,229,255,0.07)';
+  ctx.fill();
+
+  // Main cumulative line
+  ctx.beginPath();
+  ctx.strokeStyle = '#00e5ff';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  series.forEach((pt, i) => {
+    const x = pad.left + (pt.min / maxMin) * chartW;
+    const y = pad.top  + chartH * (1 - pt.cum / range);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dots at each gain entry (skip the origin point at index 0)
+  ctx.fillStyle = '#00e5ff';
+  series.slice(1).forEach(pt => {
+    const x = pad.left + (pt.min / maxMin) * chartW;
+    const y = pad.top  + chartH * (1 - pt.cum / range);
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // "~ estimating" watermark when early
+  if (!isReal(1)) {
+    ctx.fillStyle = getCSSVar('--muted');
+    ctx.font = '9px Share Tech Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('~ estimating', w - pad.right - 2, pad.top + 10);
+  }
+}
+
+// Initial draw
+updateAll();
+
+// Redraw on resize
+window.addEventListener('resize', updateAll);
+</script>
+</body>
+</html>
