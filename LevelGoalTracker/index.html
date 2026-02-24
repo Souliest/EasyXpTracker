@@ -35,17 +35,25 @@
       padding: 4px 10px;
       transition: color 0.2s, border-color 0.2s;
       white-space: nowrap;
+      flex-shrink: 0;
     }
     .back-link:hover { color: var(--accent); border-color: var(--accent); }
 
+    .back-label { display: none; }
+    @media (min-width: 400px) {
+      .back-label { display: inline; }
+    }
+
     h1 {
       font-family: 'Orbitron', sans-serif;
-      font-size: 1.2rem;
+      font-size: clamp(0.8rem, 3.5vw, 1.2rem);
       font-weight: 700;
       color: var(--accent);
       text-shadow: var(--glow);
       letter-spacing: 0.05em;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     button.theme-toggle {
@@ -516,7 +524,7 @@
   <!-- Header -->
   <header>
     <div class="header-left">
-      <a class="back-link" href="../">← Tools</a>
+      <a class="back-link" href="../">←<span class="back-label"> Tools</span></a>
       <h1>Level Goal Tracker</h1>
     </div>
     <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
@@ -543,10 +551,6 @@
     <div class="form-group">
       <label>Game Name</label>
       <input type="text" id="fName" placeholder="e.g. Arrow Maze">
-    </div>
-    <div class="form-group">
-      <label>Starting Level</label>
-      <input type="number" id="fStartLevel" placeholder="e.g. 387" min="0" value="1">
     </div>
     <div class="form-group">
       <label>Current Level</label>
@@ -934,7 +938,6 @@ function openAddModal() {
   editingGameId = null;
   document.getElementById('modalTitle').textContent = 'Add Game';
   document.getElementById('fName').value = '';
-  document.getElementById('fStartLevel').value = '1';
   document.getElementById('fCurrentLevel').value = '1';
   document.getElementById('fDays').value = '';
   document.getElementById('tierRows').innerHTML = '';
@@ -949,7 +952,6 @@ function openEditModal(id) {
   editingGameId = id;
   document.getElementById('modalTitle').textContent = 'Edit Game';
   document.getElementById('fName').value = game.name;
-  document.getElementById('fStartLevel').value = game.startLevel;
   document.getElementById('fCurrentLevel').value = game.snapshot.currentLevel;
 
   // Recalculate days remaining from deadline
@@ -980,8 +982,7 @@ function addTierRow(level = '', reward = '') {
 
 function saveGame() {
   const name = document.getElementById('fName').value.trim();
-  const startLevel = parseInt(document.getElementById('fStartLevel').value) || 1;
-  const currentLevel = parseInt(document.getElementById('fCurrentLevel').value) || startLevel;
+  const currentLevel = parseInt(document.getElementById('fCurrentLevel').value) || 1;
   const days = parseInt(document.getElementById('fDays').value);
 
   if (!name) { alert('Please enter a game name.'); return; }
@@ -1009,7 +1010,6 @@ function saveGame() {
     const game = data.games.find(g => g.id === editingGameId);
     if (!game) return;
     game.name = name;
-    game.startLevel = startLevel;
     game.tiers = tiers;
     game.deadlineDate = deadlineDate;
     // Update snapshot current level, recalc daily target
@@ -1022,7 +1022,7 @@ function saveGame() {
     const game = {
       id: 'game_' + Date.now(),
       name,
-      startLevel,
+      startLevel: currentLevel,
       createdDate: today,
       deadlineDate,
       tiers,
