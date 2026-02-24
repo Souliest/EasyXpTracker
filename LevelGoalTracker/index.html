@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Level Goal Tracker</title>
+  <link rel="stylesheet" href="../common/theme.css">
+  <style>
+    /* ── Layout ── */
+    .container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 12px;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      gap: 10px;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .back-link {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      transition: color 0.2s, border-color 0.2s;
+      white-space: nowrap;
+    }
+    .back-link:hover { color: var(--accent); border-color: var(--accent); }
+
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-shadow: var(--glow);
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    button.theme-toggle {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 1.1rem;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      flex-shrink: 0;
+    }
+    button.theme-toggle:hover { border-color: var(--accent); }
+
+    /* ── Game selector bar ── */
+    .selector-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      align-items: center;
+    }
+    select#gameSelect {
+      flex: 1;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    select#gameSelect:focus { outline: none; border-color: var(--accent); }
+
+    .btn {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.85rem;
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+      font-weight: bold;
+    }
+    .btn-primary:hover { opacity: 0.85; box-shadow: var(--glow); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text);
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-danger {
+      background: transparent;
+      color: #ff4444;
+      border-color: #ff4444;
+    }
+    .btn-danger:hover { background: rgba(255,68,68,0.1); }
+    .btn-warn {
+      background: transparent;
+      color: var(--accent2);
+      border-color: var(--accent2);
+    }
+    .btn-warn:hover { background: rgba(255,107,53,0.1); }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center;
+      color: var(--muted);
+      padding: 60px 20px;
+      font-size: 0.95rem;
+      line-height: 1.8;
+    }
+    .empty-state .big { font-size: 2.5rem; margin-bottom: 12px; }
+
+    /* ── Panel / card ── */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .panel-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* ── Status row ── */
+    .status-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    @media (min-width: 480px) {
+      .status-grid { grid-template-columns: repeat(4, 1fr); }
+    }
+    .stat-box {
+      background: var(--stat-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .stat-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .stat-value.warn { color: var(--accent2); }
+    .stat-value.good { color: var(--accent3); }
+    .stat-value.muted { color: var(--muted); }
+
+    /* ── On track indicator ── */
+    .track-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--stat-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    .track-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .track-detail { flex: 1; }
+    .track-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 2px;
+    }
+    .track-numbers { font-size: 0.95rem; }
+    .track-delta {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .track-delta.ahead { color: var(--accent3); }
+    .track-delta.behind { color: #ff4444; }
+    .track-delta.close { color: var(--accent2); }
+    .track-delta.neutral { color: var(--muted); }
+
+    /* ── Progress bar ── */
+    .progress-wrap {
+      margin-bottom: 12px;
+    }
+    .progress-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+    .progress-track {
+      height: 8px;
+      background: var(--stat-bg);
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--accent), var(--accent3));
+      transition: width 0.4s ease;
+      box-shadow: var(--glow);
+    }
+
+    /* ── Update level row ── */
+    .update-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .update-row input {
+      flex: 1;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 1rem;
+      transition: border-color 0.2s;
+    }
+    .update-row input:focus { outline: none; border-color: var(--accent); }
+
+    /* ── Pace row ── */
+    .pace-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .pace-chip {
+      background: var(--stat-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      flex: 1;
+      min-width: 140px;
+    }
+    .pace-chip span {
+      color: var(--text);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.8rem;
+    }
+
+    /* ── Next checkpoint ── */
+    .next-checkpoint {
+      background: var(--stat-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .next-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 2px; }
+    .next-value {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1rem;
+      color: var(--accent);
+    }
+    .next-reward {
+      font-size: 0.82rem;
+      color: var(--accent2);
+      white-space: nowrap;
+    }
+
+    /* ── Checkpoint table ── */
+    .checkpoint-list {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .checkpoint-list th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 4px 8px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .checkpoint-list td {
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .checkpoint-list tr:last-child td { border-bottom: none; }
+    .checkpoint-list tr.done td { color: var(--muted); text-decoration: line-through; }
+    .checkpoint-list tr.done .tier-reward { color: var(--accent3); text-decoration: none; }
+    .checkpoint-list tr.next-up td { color: var(--accent); }
+    .tier-check { font-size: 1rem; }
+    .tier-reward { color: var(--accent2); }
+
+    /* ── Rewards summary ── */
+    .rewards-summary {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 0;
+    }
+    .reward-chip {
+      flex: 1;
+      min-width: 120px;
+      background: var(--stat-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .reward-chip .rc-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .reward-chip .rc-value { font-family: 'Orbitron', sans-serif; font-size: 1rem; color: var(--accent2); font-weight: 700; }
+
+    /* ── Game action buttons ── */
+    .game-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 4px;
+    }
+
+    /* ── Modal overlay ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal h2 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1rem;
+      color: var(--accent);
+      margin-bottom: 16px;
+      letter-spacing: 0.05em;
+    }
+    .form-group { margin-bottom: 14px; }
+    .form-group label {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 5px;
+    }
+    .form-group input {
+      width: 100%;
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 12px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.95rem;
+      transition: border-color 0.2s;
+    }
+    .form-group input:focus { outline: none; border-color: var(--accent); }
+
+    /* Tier table in modal */
+    .tier-editor { margin-bottom: 14px; }
+    .tier-editor-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr 32px;
+      gap: 6px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+      padding: 0 2px;
+    }
+    .tier-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 32px;
+      gap: 6px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+    .tier-row input {
+      background: var(--input-bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.9rem;
+      width: 100%;
+      transition: border-color 0.2s;
+    }
+    .tier-row input:focus { outline: none; border-color: var(--accent); }
+    .tier-remove {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 5px;
+      transition: color 0.2s, border-color 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tier-remove:hover { color: #ff4444; border-color: #ff4444; }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Confirm dialog ── */
+    .confirm-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .confirm-overlay.open { display: flex; }
+    .confirm-box {
+      background: var(--panel);
+      border: 1px solid #ff4444;
+      border-radius: 10px;
+      padding: 20px;
+      max-width: 340px;
+      width: 100%;
+      text-align: center;
+    }
+    .confirm-box p { margin-bottom: 16px; line-height: 1.5; font-size: 0.95rem; }
+    .confirm-box strong { color: var(--accent); }
+    .confirm-actions { display: flex; gap: 8px; justify-content: center; }
+
+    /* ── Completed state ── */
+    .completed-banner {
+      text-align: center;
+      padding: 20px;
+      background: var(--stat-bg);
+      border: 1px solid var(--accent3);
+      border-radius: 10px;
+      margin-bottom: 12px;
+      color: var(--accent3);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1rem;
+      box-shadow: 0 0 16px rgba(127,255,107,0.2);
+    }
+
+    /* ── Deadline warning ── */
+    .deadline-warn {
+      font-size: 0.8rem;
+      color: var(--accent2);
+      text-align: center;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <a class="back-link" href="../">← Tools</a>
+      <h1>Level Goal Tracker</h1>
+    </div>
+    <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+  </header>
+
+  <!-- Selector bar -->
+  <div class="selector-bar">
+    <select id="gameSelect" onchange="selectGame(this.value)">
+      <option value="">— select a game —</option>
+    </select>
+    <button class="btn btn-primary" onclick="openAddModal()">+ Add</button>
+  </div>
+
+  <!-- Main content area -->
+  <div id="mainContent"></div>
+
+</div>
+
+<!-- ── Add / Edit Modal ── -->
+<div class="modal-overlay" id="gameModal">
+  <div class="modal">
+    <h2 id="modalTitle">Add Game</h2>
+
+    <div class="form-group">
+      <label>Game Name</label>
+      <input type="text" id="fName" placeholder="e.g. Arrow Maze">
+    </div>
+    <div class="form-group">
+      <label>Starting Level</label>
+      <input type="number" id="fStartLevel" placeholder="e.g. 387" min="0" value="1">
+    </div>
+    <div class="form-group">
+      <label>Current Level</label>
+      <input type="number" id="fCurrentLevel" placeholder="e.g. 387" min="0" value="1">
+    </div>
+    <div class="form-group">
+      <label>Days Remaining</label>
+      <input type="number" id="fDays" placeholder="e.g. 74" min="1">
+    </div>
+
+    <div class="tier-editor">
+      <div class="tier-editor-header">
+        <span>Checkpoint Level</span>
+        <span>Reward (optional)</span>
+        <span></span>
+      </div>
+      <div id="tierRows"></div>
+      <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="addTierRow()">+ Add Checkpoint</button>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGame()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm Delete Modal ── -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <p>Delete <strong id="confirmGameName"></strong>?<br>This cannot be undone.</p>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="../common/theme.js"></script>
+<script>
+// ═══════════════════════════════════════════════
+// Storage helpers
+// ═══════════════════════════════════════════════
+const STORAGE_KEY = 'levelGoalTracker_v1';
+
+function loadData() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { games: [] }; }
+  catch { return { games: [] }; }
+}
+
+function saveData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+// ═══════════════════════════════════════════════
+// Date helpers
+// ═══════════════════════════════════════════════
+function todayStr() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function daysBetween(dateStrA, dateStrB) {
+  // positive = B is after A
+  const a = new Date(dateStrA), b = new Date(dateStrB);
+  return Math.round((b - a) / 86400000);
+}
+
+// ═══════════════════════════════════════════════
+// Snapshot logic
+// ═══════════════════════════════════════════════
+function maybeRollSnapshot(game) {
+  const today = todayStr();
+  if (game.snapshot.date === today) return false; // already current
+
+  // Roll: new initialDailyLevel = currentLevel from previous snapshot
+  game.snapshot.initialDailyLevel = game.snapshot.currentLevel;
+  game.snapshot.date = today;
+
+  // Recalculate daily target
+  game.snapshot.dailyTarget = calcDailyTarget(game);
+  return true;
+}
+
+function calcDailyTarget(game) {
+  const deadline = game.deadlineDate;
+  const today = todayStr();
+  const daysLeft = daysBetween(today, deadline);
+  if (daysLeft <= 0) return game.tiers[game.tiers.length - 1].level;
+  const finalLevel = game.tiers[game.tiers.length - 1].level;
+  const remaining = finalLevel - game.snapshot.currentLevel;
+  if (remaining <= 0) return game.snapshot.currentLevel;
+  return Math.ceil(game.snapshot.currentLevel + remaining / daysLeft);
+}
+
+// ═══════════════════════════════════════════════
+// Computed display values
+// ═══════════════════════════════════════════════
+function computeStats(game) {
+  const today = todayStr();
+  const finalLevel = game.tiers[game.tiers.length - 1].level;
+  const currentLevel = game.snapshot.currentLevel;
+  const daysLeft = Math.max(0, daysBetween(today, game.deadlineDate));
+  const daysElapsed = Math.max(0, daysBetween(game.createdDate, today));
+  const totalDays = daysBetween(game.createdDate, game.deadlineDate);
+
+  // Paces
+  const requiredPace = daysLeft > 0 ? (finalLevel - currentLevel) / daysLeft : Infinity;
+  const optimalPace = totalDays > 0 ? (finalLevel - game.startLevel) / totalDays : 0;
+
+  // Optimal expected level (where you'd be if perfectly on schedule from day 1)
+  const optimalExpected = Math.round(game.startLevel + optimalPace * daysElapsed);
+
+  // Daily target (snapshot-based required expected)
+  const dailyTarget = game.snapshot.dailyTarget;
+
+  // Delta vs daily target
+  const delta = currentLevel - dailyTarget;
+
+  // On-track status
+  let trackStatus, trackIcon;
+  if (daysElapsed < 3) {
+    trackStatus = 'neutral'; trackIcon = '⚪';
+  } else if (currentLevel >= finalLevel) {
+    trackStatus = 'done'; trackIcon = '✅';
+  } else if (delta >= 0) {
+    trackStatus = 'ahead'; trackIcon = '🟢';
+  } else if (delta >= -requiredPace * 0.2) {
+    trackStatus = 'close'; trackIcon = '🟡';
+  } else {
+    trackStatus = 'behind'; trackIcon = '🔴';
+  }
+
+  // Checkpoints
+  const completedTiers = game.tiers.filter(t => currentLevel >= t.level);
+  const nextTier = game.tiers.find(t => currentLevel < t.level) || null;
+  const levelsToNext = nextTier ? nextTier.level - currentLevel : 0;
+
+  // Rewards
+  const earnedRewards = completedTiers.reduce((s, t) => s + (t.reward || 0), 0);
+  const totalRewards = game.tiers.reduce((s, t) => s + (t.reward || 0), 0);
+  const rewardPct = totalRewards > 0 ? (earnedRewards / totalRewards * 100).toFixed(1) : null;
+  const hasRewards = totalRewards > 0;
+
+  // Overall progress
+  const levelProgress = finalLevel > game.startLevel
+    ? Math.min(100, ((currentLevel - game.startLevel) / (finalLevel - game.startLevel) * 100)).toFixed(1)
+    : 100;
+
+  const isCompleted = currentLevel >= finalLevel;
+
+  return {
+    currentLevel, finalLevel, daysLeft, daysElapsed, totalDays,
+    requiredPace, optimalPace, optimalExpected, dailyTarget, delta,
+    trackStatus, trackIcon,
+    completedTiers, nextTier, levelsToNext,
+    earnedRewards, totalRewards, rewardPct, hasRewards,
+    levelProgress, isCompleted
+  };
+}
+
+// ═══════════════════════════════════════════════
+// Render
+// ═══════════════════════════════════════════════
+let selectedGameId = null;
+
+function renderSelector() {
+  const data = loadData();
+  const sel = document.getElementById('gameSelect');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— select a game —</option>';
+  data.games.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g.id;
+    opt.textContent = g.name;
+    sel.appendChild(opt);
+  });
+  if (prev && data.games.find(g => g.id === prev)) sel.value = prev;
+  else if (selectedGameId && data.games.find(g => g.id === selectedGameId)) sel.value = selectedGameId;
+}
+
+function selectGame(id) {
+  selectedGameId = id;
+  renderMain();
+}
+
+function renderMain() {
+  const content = document.getElementById('mainContent');
+  if (!selectedGameId) {
+    const data = loadData();
+    if (data.games.length === 0) {
+      content.innerHTML = `
+        <div class="empty-state">
+          <div class="big">🎮</div>
+          No games yet.<br>Hit <strong>+ Add</strong> to track your first goal.
+        </div>`;
+    } else {
+      content.innerHTML = `<div class="empty-state">Select a game above.</div>`;
+    }
+    return;
+  }
+
+  const data = loadData();
+  let game = data.games.find(g => g.id === selectedGameId);
+  if (!game) { content.innerHTML = ''; return; }
+
+  // Roll snapshot if needed
+  if (maybeRollSnapshot(game)) {
+    saveData(data);
+  }
+
+  const s = computeStats(game);
+  const deadlineFmt = new Date(game.deadlineDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+  let html = '';
+
+  // Completed banner
+  if (s.isCompleted) {
+    html += `<div class="completed-banner">🏆 All checkpoints complete!</div>`;
+  }
+
+  // Deadline warning
+  if (s.daysLeft <= 7 && !s.isCompleted) {
+    html += `<div class="deadline-warn">⚠️ ${s.daysLeft} day${s.daysLeft !== 1 ? 's' : ''} remaining until deadline!</div>`;
+  }
+
+  // ── Stat boxes ──
+  html += `<div class="panel">
+    <div class="panel-title">Overview</div>
+    <div class="status-grid">
+      <div class="stat-box">
+        <div class="stat-label">Current</div>
+        <div class="stat-value">${s.currentLevel.toLocaleString()}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Goal</div>
+        <div class="stat-value muted">${s.finalLevel.toLocaleString()}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Days Left</div>
+        <div class="stat-value ${s.daysLeft <= 7 ? 'warn' : ''}">${s.daysLeft}</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Deadline</div>
+        <div class="stat-value muted" style="font-size:0.8rem">${deadlineFmt}</div>
+      </div>
+    </div>`;
+
+  // Progress bar
+  html += `<div class="progress-wrap">
+      <div class="progress-labels">
+        <span>Lv ${game.startLevel.toLocaleString()}</span>
+        <span>${s.levelProgress}%</span>
+        <span>Lv ${s.finalLevel.toLocaleString()}</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" style="width:${s.levelProgress}%"></div>
+      </div>
+    </div>`;
+
+  // Checkpoints count
+  html += `<div style="font-size:0.82rem;color:var(--muted);text-align:right;margin-bottom:4px">
+      ${s.completedTiers.length} / ${game.tiers.length} checkpoints
+    </div>`;
+
+  // Update level
+  html += `<div class="update-row">
+      <input type="number" id="levelInput" value="${s.currentLevel}" min="${game.startLevel}" placeholder="Current level">
+      <button class="btn btn-primary" onclick="updateLevel()">Update</button>
+    </div>
+  </div>`;
+
+  // ── On-track indicator ──
+  const deltaStr = s.delta >= 0 ? `+${s.delta.toLocaleString()}` : s.delta.toLocaleString();
+  const deltaClass = s.trackStatus === 'ahead' ? 'ahead' : s.trackStatus === 'close' ? 'close' : s.trackStatus === 'behind' ? 'behind' : 'neutral';
+
+  html += `<div class="panel">
+    <div class="panel-title">On Track</div>
+    <div class="track-bar">
+      <div class="track-icon">${s.trackIcon}</div>
+      <div class="track-detail">
+        <div class="track-label">Today's Target (required pace)</div>
+        <div class="track-numbers">Current <strong>${s.currentLevel.toLocaleString()}</strong> · Target <strong>${s.dailyTarget.toLocaleString()}</strong></div>
+      </div>
+      <div class="track-delta ${deltaClass}">${s.daysElapsed < 3 ? '—' : deltaStr}</div>
+    </div>`;
+
+  // Pace chips
+  html += `<div class="pace-row">
+      <div class="pace-chip">Required pace: <span>${s.daysLeft > 0 ? s.requiredPace.toFixed(1) : '—'}</span> lvl/day</div>
+      <div class="pace-chip">Optimal pace: <span>${s.optimalPace.toFixed(1)}</span> lvl/day</div>
+      <div class="pace-chip">Optimal expected now: <span>${s.optimalExpected.toLocaleString()}</span></div>
+    </div>
+  </div>`;
+
+  // ── Next checkpoint ──
+  if (s.nextTier && !s.isCompleted) {
+    html += `<div class="panel">
+      <div class="panel-title">Next Checkpoint</div>
+      <div class="next-checkpoint">
+        <div>
+          <div class="next-label">Target Level</div>
+          <div class="next-value">Lv ${s.nextTier.level.toLocaleString()}</div>
+        </div>
+        <div>
+          <div class="next-label">Levels to go</div>
+          <div class="next-value">${s.levelsToNext.toLocaleString()}</div>
+        </div>
+        ${s.nextTier.reward ? `<div class="next-reward">🏅 ${s.nextTier.reward} pts</div>` : ''}
+      </div>
+    </div>`;
+  }
+
+  // ── Checkpoints list ──
+  html += `<div class="panel">
+    <div class="panel-title">Checkpoints</div>`;
+
+  if (s.hasRewards) {
+    html += `<div class="rewards-summary" style="margin-bottom:12px">
+      <div class="reward-chip">
+        <div class="rc-label">Earned</div>
+        <div class="rc-value">${s.earnedRewards.toLocaleString()}</div>
+      </div>
+      <div class="reward-chip">
+        <div class="rc-label">Total</div>
+        <div class="rc-value">${s.totalRewards.toLocaleString()}</div>
+      </div>
+      <div class="reward-chip">
+        <div class="rc-label">Progress</div>
+        <div class="rc-value">${s.rewardPct}%</div>
+      </div>
+    </div>`;
+  }
+
+  html += `<table class="checkpoint-list">
+      <thead><tr>
+        <th></th>
+        <th>Level</th>
+        ${s.hasRewards ? '<th>Reward</th>' : ''}
+      </tr></thead><tbody>`;
+
+  game.tiers.forEach((t, i) => {
+    const done = s.currentLevel >= t.level;
+    const isNext = !done && (i === 0 || s.currentLevel >= game.tiers[i-1].level);
+    html += `<tr class="${done ? 'done' : isNext ? 'next-up' : ''}">
+      <td class="tier-check">${done ? '✅' : isNext ? '▶' : '○'}</td>
+      <td>Lv ${t.level.toLocaleString()}</td>
+      ${s.hasRewards ? `<td class="tier-reward">${t.reward ? t.reward + ' pts' : '—'}</td>` : ''}
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+
+  // ── Actions ──
+  html += `<div class="game-actions">
+    <button class="btn btn-warn" onclick="openEditModal('${game.id}')">✏️ Edit</button>
+    <button class="btn btn-danger" onclick="openConfirmDelete('${game.id}')">🗑 Delete</button>
+  </div>`;
+
+  content.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+// Update current level
+// ═══════════════════════════════════════════════
+function updateLevel() {
+  const input = document.getElementById('levelInput');
+  const newLevel = parseInt(input.value);
+  if (isNaN(newLevel)) return;
+
+  const data = loadData();
+  const game = data.games.find(g => g.id === selectedGameId);
+  if (!game) return;
+
+  game.snapshot.currentLevel = newLevel;
+  saveData(data);
+  renderMain();
+}
+
+// ═══════════════════════════════════════════════
+// Modal: Add / Edit
+// ═══════════════════════════════════════════════
+let editingGameId = null;
+
+function openAddModal() {
+  editingGameId = null;
+  document.getElementById('modalTitle').textContent = 'Add Game';
+  document.getElementById('fName').value = '';
+  document.getElementById('fStartLevel').value = '1';
+  document.getElementById('fCurrentLevel').value = '1';
+  document.getElementById('fDays').value = '';
+  document.getElementById('tierRows').innerHTML = '';
+  addTierRow();
+  document.getElementById('gameModal').classList.add('open');
+}
+
+function openEditModal(id) {
+  const data = loadData();
+  const game = data.games.find(g => g.id === id);
+  if (!game) return;
+  editingGameId = id;
+  document.getElementById('modalTitle').textContent = 'Edit Game';
+  document.getElementById('fName').value = game.name;
+  document.getElementById('fStartLevel').value = game.startLevel;
+  document.getElementById('fCurrentLevel').value = game.snapshot.currentLevel;
+
+  // Recalculate days remaining from deadline
+  const daysLeft = Math.max(0, daysBetween(todayStr(), game.deadlineDate));
+  document.getElementById('fDays').value = daysLeft;
+
+  const rows = document.getElementById('tierRows');
+  rows.innerHTML = '';
+  game.tiers.forEach(t => addTierRow(t.level, t.reward));
+  document.getElementById('gameModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('gameModal').classList.remove('open');
+}
+
+function addTierRow(level = '', reward = '') {
+  const rows = document.getElementById('tierRows');
+  const div = document.createElement('div');
+  div.className = 'tier-row';
+  div.innerHTML = `
+    <input type="number" class="tier-level" placeholder="Level" value="${level}" min="1">
+    <input type="number" class="tier-reward" placeholder="0.0" step="0.1" value="${reward}">
+    <button class="tier-remove" onclick="this.parentElement.remove()">✕</button>
+  `;
+  rows.appendChild(div);
+}
+
+function saveGame() {
+  const name = document.getElementById('fName').value.trim();
+  const startLevel = parseInt(document.getElementById('fStartLevel').value) || 1;
+  const currentLevel = parseInt(document.getElementById('fCurrentLevel').value) || startLevel;
+  const days = parseInt(document.getElementById('fDays').value);
+
+  if (!name) { alert('Please enter a game name.'); return; }
+  if (!days || days < 1) { alert('Please enter a valid number of days remaining.'); return; }
+
+  // Parse tiers
+  const tierRows = document.querySelectorAll('.tier-row');
+  const tiers = [];
+  for (const row of tierRows) {
+    const lvl = parseInt(row.querySelector('.tier-level').value);
+    const rew = parseFloat(row.querySelector('.tier-reward').value) || 0;
+    if (!isNaN(lvl) && lvl > 0) tiers.push({ level: lvl, reward: rew });
+  }
+  if (tiers.length === 0) { alert('Please add at least one checkpoint.'); return; }
+  tiers.sort((a, b) => a.level - b.level);
+
+  const data = loadData();
+
+  // Deadline = today + days
+  const deadline = new Date();
+  deadline.setDate(deadline.getDate() + days);
+  const deadlineDate = deadline.toISOString().slice(0, 10);
+
+  if (editingGameId) {
+    const game = data.games.find(g => g.id === editingGameId);
+    if (!game) return;
+    game.name = name;
+    game.startLevel = startLevel;
+    game.tiers = tiers;
+    game.deadlineDate = deadlineDate;
+    // Update snapshot current level, recalc daily target
+    game.snapshot.currentLevel = currentLevel;
+    game.snapshot.initialDailyLevel = currentLevel;
+    game.snapshot.date = todayStr();
+    game.snapshot.dailyTarget = calcDailyTarget(game);
+  } else {
+    const today = todayStr();
+    const game = {
+      id: 'game_' + Date.now(),
+      name,
+      startLevel,
+      createdDate: today,
+      deadlineDate,
+      tiers,
+      snapshot: {
+        date: today,
+        initialDailyLevel: currentLevel,
+        currentLevel: currentLevel,
+        dailyTarget: 0 // computed below
+      }
+    };
+    game.snapshot.dailyTarget = calcDailyTarget(game);
+    data.games.push(game);
+    selectedGameId = game.id;
+  }
+
+  saveData(data);
+  closeModal();
+  renderSelector();
+  document.getElementById('gameSelect').value = selectedGameId;
+  renderMain();
+}
+
+// ═══════════════════════════════════════════════
+// Delete
+// ═══════════════════════════════════════════════
+let pendingDeleteId = null;
+
+function openConfirmDelete(id) {
+  const data = loadData();
+  const game = data.games.find(g => g.id === id);
+  if (!game) return;
+  pendingDeleteId = id;
+  document.getElementById('confirmGameName').textContent = game.name;
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+
+function closeConfirm() {
+  pendingDeleteId = null;
+  document.getElementById('confirmOverlay').classList.remove('open');
+}
+
+function confirmDelete() {
+  if (!pendingDeleteId) return;
+  const data = loadData();
+  data.games = data.games.filter(g => g.id !== pendingDeleteId);
+  saveData(data);
+  if (selectedGameId === pendingDeleteId) selectedGameId = null;
+  closeConfirm();
+  renderSelector();
+  renderMain();
+}
+
+// ═══════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════
+initTheme();
+renderSelector();
+renderMain();
+</script>
+</body>
+</html>
