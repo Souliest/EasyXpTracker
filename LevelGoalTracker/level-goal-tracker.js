@@ -201,8 +201,7 @@ function renderDailyProgressPanel(s) {
         </div>
         <div class="pace-chip">
           <div class="pace-label">Baseline Target</div>
-          <div class="pace-val">${s.optimalExpected.toLocaleString()}</div>
-          <div class="pace-delta ${s.baselineDelta >= 0 ? 'pace-delta-good' : 'pace-delta-bad'}">${s.baselineDelta >= 0 ? '+' : ''}${s.baselineDelta.toLocaleString()}</div>
+          <div class="pace-val">${s.optimalExpected.toLocaleString()} <span class="pace-delta ${s.baselineDelta >= 0 ? 'pace-delta-good' : 'pace-delta-bad'}">(${s.baselineDelta >= 0 ? '+' : ''}${s.baselineDelta.toLocaleString()})</span></div>
         </div>
         <div class="pace-chip">
           <div class="pace-label">Baseline Rate</div>
