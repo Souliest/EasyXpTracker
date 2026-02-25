@@ -549,5 +549,13 @@ renderMain();
 setInterval(() => {
     renderMain();
     const dbg = document.getElementById('dbg');
-    if (dbg) dbg.textContent = 'Last tick: ' + new Date().toLocaleTimeString() + ' | game: ' + selectedGameId + ' | snapshot: ' + ((() => { const d = loadData(); const g = d.games.find(g => g.id === selectedGameId); return g ? g.snapshot.date : 'none' + ' | target: ' + ((() => { const d = loadData(); const g = d.games.find(g => g.id === selectedGameId); return g ? g.snapshot.dailyTarget : 'none'; })()); })());
+    if (dbg) {
+        const d = loadData();
+        const g = d.games.find(g => g.id === selectedGameId);
+        const snap = g ? g.snapshot : null;
+        dbg.textContent = 'Last tick: ' + new Date().toLocaleTimeString()
+            + ' | game: ' + selectedGameId
+            + ' | snapshot: ' + (snap ? snap.date : 'none')
+            + ' | target: ' + (snap ? snap.dailyTarget : 'none');
+    }
 }, 60000);
