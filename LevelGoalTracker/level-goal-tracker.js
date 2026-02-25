@@ -549,5 +549,5 @@ renderMain();
 setInterval(() => {
     renderMain();
     const dbg = document.getElementById('dbg');
-    if (dbg) dbg.textContent = 'Last tick: ' + new Date().toLocaleTimeString();
+    if (dbg) dbg.textContent = 'Last tick: ' + new Date().toLocaleTimeString() + ' | game: ' + selectedGameId;
 }, 60000);
