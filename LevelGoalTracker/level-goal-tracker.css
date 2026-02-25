@@ -557,3 +557,12 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
 .backdate-fields.visible {
   display: block;
 }
+
+/* ── Baseline delta ── */
+.pace-delta {
+  font-size: 0.72rem;
+  font-family: 'Share Tech Mono', monospace;
+  margin-top: 2px;
+}
+.pace-delta-good { color: var(--accent3); }
+.pace-delta-bad  { color: #ff4444; }

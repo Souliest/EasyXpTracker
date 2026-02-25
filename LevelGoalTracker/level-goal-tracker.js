@@ -99,6 +99,7 @@ function computeStats(game) {
     return {
         currentLevel, finalLevel, daysLeft, daysElapsed, totalDays,
         requiredPace, optimalPace, optimalExpected, dailyTarget, delta,
+        baselineDelta: currentLevel - optimalExpected,
         trackStatus, trackIcon,
         completedTiers, nextTier, levelsToNext,
         earnedRewards, totalRewards, rewardPct, hasRewards,
@@ -201,6 +202,7 @@ function renderDailyProgressPanel(s) {
         <div class="pace-chip">
           <div class="pace-label">Baseline Target</div>
           <div class="pace-val">${s.optimalExpected.toLocaleString()}</div>
+          <div class="pace-delta ${s.baselineDelta >= 0 ? 'pace-delta-good' : 'pace-delta-bad'}">${s.baselineDelta >= 0 ? '+' : ''}${s.baselineDelta.toLocaleString()}</div>
         </div>
         <div class="pace-chip">
           <div class="pace-label">Baseline Rate</div>
