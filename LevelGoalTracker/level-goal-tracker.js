@@ -549,5 +549,5 @@ renderMain();
 setInterval(() => {
     renderMain();
     const dbg = document.getElementById('dbg');
-    if (dbg) dbg.textContent = 'Last tick: ' + new Date().toLocaleTimeString() + ' | game: ' + selectedGameId;
+    if (dbg) dbg.textContent = 'Last tick: ' + new Date().toLocaleTimeString() + ' | game: ' + selectedGameId + ' | snapshot: ' + ((() => { const d = loadData(); const g = d.games.find(g => g.id === selectedGameId); return g ? g.snapshot.date : 'none'; })());
 }, 60000);
