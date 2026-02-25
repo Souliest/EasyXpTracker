@@ -186,37 +186,42 @@
     .stat-value.good { color: var(--accent3); }
     .stat-value.muted { color: var(--muted); }
 
-    /* ── On track indicator ── */
-    .track-bar {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    /* ── Target level box ── */
+    .target-box {
       background: var(--stat-bg);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 12px 14px;
+      padding: 14px;
       margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
     }
-    .track-icon { font-size: 1.4rem; flex-shrink: 0; }
-    .track-detail { flex: 1; }
-    .track-label {
-      font-size: 0.75rem;
+    .target-icon { font-size: 1.5rem; flex-shrink: 0; }
+    .target-main { flex: 1; }
+    .target-label {
+      font-size: 0.72rem;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 2px;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
     }
-    .track-numbers { font-size: 0.95rem; }
-    .track-delta {
+    .target-levels {
       font-family: 'Orbitron', sans-serif;
-      font-size: 0.85rem;
+      font-size: 1.2rem;
       font-weight: 700;
-      flex-shrink: 0;
+      color: var(--text);
+      margin-bottom: 3px;
     }
-    .track-delta.ahead { color: var(--accent3); }
-    .track-delta.behind { color: #ff4444; }
-    .track-delta.close { color: var(--accent2); }
-    .track-delta.neutral { color: var(--muted); }
+    .target-levels .current { color: var(--accent); }
+    .target-levels .sep { color: var(--muted); font-size: 0.9rem; margin: 0 4px; }
+    .target-levels .goal { color: var(--muted); }
+    .target-sub {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .target-sub.reached { color: var(--accent3); }
+    .target-sub.behind { color: #ff4444; }
 
     /* ── Progress bar ── */
     .progress-wrap {
@@ -249,9 +254,11 @@
       display: flex;
       gap: 8px;
       align-items: center;
+      flex-wrap: wrap;
     }
     .update-row input {
       flex: 1;
+      min-width: 120px;
       background: var(--input-bg);
       color: var(--text);
       border: 1px solid var(--border);
@@ -262,28 +269,41 @@
       transition: border-color 0.2s;
     }
     .update-row input:focus { outline: none; border-color: var(--accent); }
+    .update-row .btn { flex-shrink: 0; }
 
     /* ── Pace row ── */
     .pace-row {
       display: flex;
-      gap: 10px;
-      margin-bottom: 12px;
+      gap: 8px;
       flex-wrap: wrap;
     }
     .pace-chip {
+      flex: 1;
+      min-width: 90px;
       background: var(--stat-bg);
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 6px 12px;
-      font-size: 0.82rem;
-      color: var(--muted);
-      flex: 1;
-      min-width: 140px;
+      padding: 8px 10px;
+      text-align: center;
     }
-    .pace-chip span {
-      color: var(--text);
+    .pace-label {
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 4px;
+    }
+    .pace-val {
       font-family: 'Orbitron', sans-serif;
-      font-size: 0.8rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .pace-unit {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      font-weight: normal;
     }
 
     /* ── Next checkpoint ── */
@@ -549,16 +569,16 @@
     <h2 id="modalTitle">Add Game</h2>
 
     <div class="form-group">
-      <label>Game Name</label>
-      <input type="text" id="fName" placeholder="e.g. Arrow Maze">
+      <label>Game Title</label>
+      <input type="text" id="fName" placeholder="Title">
     </div>
     <div class="form-group">
       <label>Current Level</label>
-      <input type="number" id="fCurrentLevel" placeholder="e.g. 387" min="0" value="1">
+      <input type="number" id="fCurrentLevel" placeholder="Starting level" min="0" value="0">
     </div>
     <div class="form-group">
       <label>Days Remaining</label>
-      <input type="number" id="fDays" placeholder="e.g. 74" min="1">
+      <input type="number" id="fDays" placeholder="Days remaining" min="1">
     </div>
 
     <div class="tier-editor">
@@ -642,7 +662,7 @@ function calcDailyTarget(game) {
   const finalLevel = game.tiers[game.tiers.length - 1].level;
   const remaining = finalLevel - game.snapshot.currentLevel;
   if (remaining <= 0) return game.snapshot.currentLevel;
-  return Math.ceil(game.snapshot.currentLevel + remaining / daysLeft);
+  return Math.min(finalLevel, Math.ceil(game.snapshot.currentLevel + remaining / daysLeft));
 }
 
 // ═══════════════════════════════════════════════
@@ -661,7 +681,7 @@ function computeStats(game) {
   const optimalPace = totalDays > 0 ? (finalLevel - game.startLevel) / totalDays : 0;
 
   // Optimal expected level (where you'd be if perfectly on schedule from day 1)
-  const optimalExpected = Math.round(game.startLevel + optimalPace * daysElapsed);
+  const optimalExpected = Math.min(finalLevel, Math.ceil(game.startLevel + optimalPace * (daysElapsed + 1)));
 
   // Daily target (snapshot-based required expected)
   const dailyTarget = game.snapshot.dailyTarget;
@@ -671,9 +691,7 @@ function computeStats(game) {
 
   // On-track status
   let trackStatus, trackIcon;
-  if (daysElapsed < 3) {
-    trackStatus = 'neutral'; trackIcon = '⚪';
-  } else if (currentLevel >= finalLevel) {
+  if (currentLevel >= finalLevel) {
     trackStatus = 'done'; trackIcon = '✅';
   } else if (delta >= 0) {
     trackStatus = 'ahead'; trackIcon = '🟢';
@@ -822,26 +840,39 @@ function renderMain() {
     </div>
   </div>`;
 
-  // ── On-track indicator ──
-  const deltaStr = s.delta >= 0 ? `+${s.delta.toLocaleString()}` : s.delta.toLocaleString();
-  const deltaClass = s.trackStatus === 'ahead' ? 'ahead' : s.trackStatus === 'close' ? 'close' : s.trackStatus === 'behind' ? 'behind' : 'neutral';
+  // ── Target level ──
+  let targetSubText, targetSubClass;
+  if (s.isCompleted) {
+    targetSubText = 'All done!';
+    targetSubClass = 'reached';
+  } else if (s.delta >= 0) {
+    targetSubText = `Daily target reached! (+${s.delta.toLocaleString()})`;
+    targetSubClass = 'reached';
+  } else {
+    targetSubText = `${Math.abs(s.delta).toLocaleString()} level${Math.abs(s.delta) !== 1 ? 's' : ''} to go today`;
+    targetSubClass = s.trackStatus === 'behind' ? 'behind' : '';
+  }
 
   html += `<div class="panel">
-    <div class="panel-title">On Track</div>
-    <div class="track-bar">
-      <div class="track-icon">${s.trackIcon}</div>
-      <div class="track-detail">
-        <div class="track-label">Today's Target (required pace)</div>
-        <div class="track-numbers">Current <strong>${s.currentLevel.toLocaleString()}</strong> · Target <strong>${s.dailyTarget.toLocaleString()}</strong></div>
+    <div class="panel-title">Daily Progress</div>
+    <div class="target-box">
+      <div class="target-icon">${s.trackIcon}</div>
+      <div class="target-main">
+        <div class="target-label">Today's Target</div>
+        <div class="target-levels">
+          <span class="current">${s.currentLevel.toLocaleString()}</span>
+          <span class="sep">/</span>
+          <span class="goal">${s.dailyTarget.toLocaleString()}</span>
+        </div>
+        <div class="target-sub ${targetSubClass}">${targetSubText}</div>
       </div>
-      <div class="track-delta ${deltaClass}">${s.daysElapsed < 3 ? '—' : deltaStr}</div>
     </div>`;
 
   // Pace chips
   html += `<div class="pace-row">
-      <div class="pace-chip">Required pace: <span>${s.daysLeft > 0 ? s.requiredPace.toFixed(1) : '—'}</span> lvl/day</div>
-      <div class="pace-chip">Optimal pace: <span>${s.optimalPace.toFixed(1)}</span> lvl/day</div>
-      <div class="pace-chip">Optimal expected now: <span>${s.optimalExpected.toLocaleString()}</span></div>
+      <div class="pace-chip"><div class="pace-label">Revised Rate</div><div class="pace-val">${s.daysLeft > 0 ? s.requiredPace.toFixed(1) : '—'} <span class="pace-unit">lvl/day</span></div></div>
+      <div class="pace-chip"><div class="pace-label">Baseline Target</div><div class="pace-val">${s.optimalExpected.toLocaleString()}</div></div>
+      <div class="pace-chip"><div class="pace-label">Baseline Rate</div><div class="pace-val">${s.optimalPace.toFixed(1)} <span class="pace-unit">lvl/day</span></div></div>
     </div>
   </div>`;
 
@@ -938,7 +969,7 @@ function openAddModal() {
   editingGameId = null;
   document.getElementById('modalTitle').textContent = 'Add Game';
   document.getElementById('fName').value = '';
-  document.getElementById('fCurrentLevel').value = '1';
+  document.getElementById('fCurrentLevel').value = '0';
   document.getElementById('fDays').value = '';
   document.getElementById('tierRows').innerHTML = '';
   addTierRow();
@@ -982,7 +1013,8 @@ function addTierRow(level = '', reward = '') {
 
 function saveGame() {
   const name = document.getElementById('fName').value.trim();
-  const currentLevel = parseInt(document.getElementById('fCurrentLevel').value) || 1;
+  const currentLevelRaw = document.getElementById('fCurrentLevel').value;
+  const currentLevel = currentLevelRaw === '' ? 0 : parseInt(currentLevelRaw);
   const days = parseInt(document.getElementById('fDays').value);
 
   if (!name) { alert('Please enter a game name.'); return; }
