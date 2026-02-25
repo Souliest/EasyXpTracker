@@ -1,0 +1,559 @@
+/* ── Layout ── */
+.container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 12px;
+}
+
+/* ── Header ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 10px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.back-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  transition: color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.back-link:hover { color: var(--accent); border-color: var(--accent); }
+
+.back-label { display: none; }
+@media (min-width: 400px) {
+  .back-label { display: inline; }
+}
+
+h1 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(0.8rem, 3.5vw, 1.2rem);
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: var(--glow);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+button.theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 1.1rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  flex-shrink: 0;
+}
+button.theme-toggle:hover { border-color: var(--accent); }
+
+/* ── Game selector bar ── */
+.selector-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+select#gameSelect {
+  flex: 1;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+select#gameSelect:focus { outline: none; border-color: var(--accent); }
+
+/* ── Buttons ── */
+.btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: bold;
+}
+.btn-primary:hover { opacity: 0.85; box-shadow: var(--glow); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger {
+  background: transparent;
+  color: #ff4444;
+  border-color: #ff4444;
+}
+.btn-danger:hover { background: rgba(255,68,68,0.1); }
+.btn-warn {
+  background: transparent;
+  color: var(--accent2);
+  border-color: var(--accent2);
+}
+.btn-warn:hover { background: rgba(255,107,53,0.1); }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 60px 20px;
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+.empty-state .big { font-size: 2.5rem; margin-bottom: 12px; }
+
+/* ── Panel / card ── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.panel-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+/* ── Overview stat boxes ── */
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+@media (min-width: 480px) {
+  .status-grid { grid-template-columns: repeat(4, 1fr); }
+}
+.stat-box {
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+.stat-value {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.stat-value.warn { color: var(--accent2); }
+.stat-value.good { color: var(--accent3); }
+.stat-value.muted { color: var(--muted); }
+
+/* ── Target level box ── */
+.target-box {
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.target-icon { font-size: 1.5rem; flex-shrink: 0; }
+.target-main { flex: 1; }
+.target-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+.target-levels {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.target-levels .current { color: var(--accent); }
+.target-levels .sep { color: var(--muted); font-size: 0.9rem; margin: 0 4px; }
+.target-levels .goal { color: var(--muted); }
+.target-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.target-sub.reached { color: var(--accent3); }
+.target-sub.behind { color: #ff4444; }
+
+/* ── Progress bar ── */
+.progress-wrap { margin-bottom: 12px; }
+.progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+.progress-track {
+  height: 8px;
+  background: var(--stat-bg);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent3));
+  transition: width 0.4s ease;
+  box-shadow: var(--glow);
+}
+
+/* ── Update level row ── */
+.update-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.update-row input {
+  flex: 1;
+  min-width: 120px;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+.update-row input:focus { outline: none; border-color: var(--accent); }
+.update-row .btn { flex-shrink: 0; }
+
+/* ── Pace chips ── */
+.pace-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pace-chip {
+  flex: 1;
+  min-width: 90px;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  text-align: center;
+}
+.pace-label {
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+}
+.pace-val {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.pace-unit {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-weight: normal;
+}
+
+/* ── Next checkpoint ── */
+.next-checkpoint {
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.next-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 2px; }
+.next-value {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  color: var(--accent);
+}
+.next-reward {
+  font-size: 0.82rem;
+  color: var(--accent2);
+  white-space: nowrap;
+}
+
+/* ── Checkpoint table ── */
+.checkpoint-list {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.checkpoint-list th {
+  text-align: left;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.checkpoint-list td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.checkpoint-list tr:last-child td { border-bottom: none; }
+.checkpoint-list tr.done td { color: var(--muted); text-decoration: line-through; }
+.checkpoint-list tr.done .tier-reward { color: var(--accent3); text-decoration: none; }
+.checkpoint-list tr.next-up td { color: var(--accent); }
+.tier-check { font-size: 1rem; }
+.tier-reward { color: var(--accent2); }
+
+/* ── Rewards summary ── */
+.rewards-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.reward-chip {
+  flex: 1;
+  min-width: 120px;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+.reward-chip .rc-label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.reward-chip .rc-value { font-family: 'Orbitron', sans-serif; font-size: 1rem; color: var(--accent2); font-weight: 700; }
+
+/* ── Game action buttons ── */
+.game-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+/* ── Completed / deadline banners ── */
+.completed-banner {
+  text-align: center;
+  padding: 20px;
+  background: var(--stat-bg);
+  border: 1px solid var(--accent3);
+  border-radius: 10px;
+  margin-bottom: 12px;
+  color: var(--accent3);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  box-shadow: 0 0 16px rgba(127,255,107,0.2);
+}
+.deadline-warn {
+  font-size: 0.8rem;
+  color: var(--accent2);
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+/* ── Modal overlay ── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  color: var(--accent);
+  margin-bottom: 16px;
+  letter-spacing: 0.05em;
+}
+.form-group { margin-bottom: 14px; }
+.form-group label {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 5px;
+}
+.form-group input {
+  width: 100%;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+.form-group input:focus { outline: none; border-color: var(--accent); }
+
+/* ── Tier editor ── */
+.tier-editor { margin-bottom: 14px; }
+.tier-editor-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 32px;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+  padding: 0 2px;
+}
+.tier-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 32px;
+  gap: 6px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.tier-row input {
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.9rem;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+.tier-row input:focus { outline: none; border-color: var(--accent); }
+.tier-remove {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 5px;
+  transition: color 0.2s, border-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tier-remove:hover { color: #ff4444; border-color: #ff4444; }
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+/* ── Confirm dialog ── */
+.confirm-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.confirm-overlay.open { display: flex; }
+.confirm-box {
+  background: var(--panel);
+  border: 1px solid #ff4444;
+  border-radius: 10px;
+  padding: 20px;
+  max-width: 340px;
+  width: 100%;
+  text-align: center;
+}
+.confirm-box p { margin-bottom: 16px; line-height: 1.5; font-size: 0.95rem; }
+.confirm-box strong { color: var(--accent); }
+.confirm-actions { display: flex; gap: 8px; justify-content: center; }
+
+/* ── Backdate fields ── */
+.backdate-toggle-group {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.backdate-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: 'Share Tech Mono', monospace;
+}
+.backdate-label input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.backdate-fields {
+  display: none;
+  border-left: 2px solid var(--accent);
+  padding-left: 14px;
+  margin-bottom: 14px;
+}
+.backdate-fields.visible {
+  display: block;
+}
