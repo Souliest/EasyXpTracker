@@ -550,30 +550,4 @@ const data = loadData();
 selectedGameId = restoreSelectedGame(data);
 renderSelector();
 renderMain();
-setInterval(() => {
-    renderMain();
-    const dbg = document.getElementById('dbg');
-    if (dbg) {
-        const d = loadData();
-        const g = d.games.find(g => g.id === selectedGameId);
-        const snap = g ? g.snapshot : null;
-        dbg.textContent = 'Last tick: ' + new Date().toLocaleTimeString()
-            + ' | today: ' + todayStr()
-            + ' | snapshot: ' + (snap ? snap.date : 'none')
-            + ' | target: ' + (snap ? snap.dailyTarget : 'none')
-            + ' | initDaily: ' + (snap ? snap.initialDailyLevel : 'none')
-            + ' | current: ' + (snap ? snap.currentLevel : 'none')
-            + ' | daysLeft: ' + (g ? Math.max(0, daysBetween(todayStr(), g.deadlineDate)) : 'none')
-            + ' · tap to force rollover';
-        dbg.onclick = () => {
-            const d2 = loadData();
-            const g2 = d2.games.find(g => g.id === selectedGameId);
-            if (g2) {
-                g2.snapshot.date = '2000-01-01';
-                saveData(d2);
-                renderMain();
-                dbg.textContent = 'Rollover forced!';
-            }
-        };
-    }
-}, 60000);
+setInterval(renderMain, 60000);
