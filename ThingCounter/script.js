@@ -67,12 +67,18 @@ function renderSelector() {
     if (selectedGameId && data.games.find(g => g.id === selectedGameId)) {
         sel.value = selectedGameId;
     }
+    const hasGame = !!selectedGameId && !!data.games.find(g => g.id === selectedGameId);
+    document.getElementById('editGameBtn').style.display   = hasGame ? '' : 'none';
+    document.getElementById('deleteGameBtn').style.display = hasGame ? '' : 'none';
 }
 
 function selectGame(id) {
     selectedGameId = id || null;
     if (selectedGameId) localStorage.setItem(STORAGE_SELECTED, selectedGameId);
     else localStorage.removeItem(STORAGE_SELECTED);
+    const hasGame = !!selectedGameId;
+    document.getElementById('editGameBtn').style.display   = hasGame ? '' : 'none';
+    document.getElementById('deleteGameBtn').style.display = hasGame ? '' : 'none';
     renderMain();
 }
 
@@ -713,6 +719,17 @@ function openAddGameModal() {
     document.getElementById('addGameModal').classList.add('open');
 }
 
+function openEditGameModal() {
+    if (!selectedGameId) return;
+    const data = loadData();
+    const game = data.games.find(g => g.id === selectedGameId);
+    if (!game) return;
+    editingGameId = selectedGameId;
+    document.getElementById('addGameTitle').textContent = 'Rename Game';
+    document.getElementById('agName').value = game.name;
+    document.getElementById('addGameModal').classList.add('open');
+}
+
 function closeAddGameModal() {
     document.getElementById('addGameModal').classList.remove('open');
 }
@@ -769,6 +786,19 @@ function openConfirmDeleteNode(nodeId) {
     document.getElementById('confirmOverlay').classList.add('open');
 }
 
+function openConfirmDeleteGame() {
+    if (!selectedGameId) return;
+    const data = loadData();
+    const game = data.games.find(g => g.id === selectedGameId);
+    if (!game) return;
+
+    pendingDeleteId = selectedGameId;
+    pendingDeleteType = 'game';
+    document.getElementById('confirmNodeName').textContent = game.name;
+    document.getElementById('confirmNodeExtra').textContent = 'All counters and nodes will be permanently deleted.';
+    document.getElementById('confirmOverlay').classList.add('open');
+}
+
 function closeConfirm() {
     pendingDeleteId = null;
     pendingDeleteType = null;
@@ -782,10 +812,17 @@ function confirmDelete() {
     if (pendingDeleteType === 'node') {
         const game = data.games.find(g => g.id === selectedGameId);
         if (game) removeNode(game.nodes, pendingDeleteId);
+    } else if (pendingDeleteType === 'game') {
+        data.games = data.games.filter(g => g.id !== pendingDeleteId);
+        if (selectedGameId === pendingDeleteId) {
+            selectedGameId = null;
+            localStorage.removeItem(STORAGE_SELECTED);
+        }
     }
 
     saveData(data);
     closeConfirm();
+    renderSelector();
     renderMain();
 }
 

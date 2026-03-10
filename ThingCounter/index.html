@@ -15,6 +15,8 @@
     <select id="gameSelect" onchange="selectGame(this.value)">
       <option value="">— select a game —</option>
     </select>
+    <button class="btn btn-ghost game-action-btn" id="editGameBtn" onclick="openEditGameModal()" title="Rename game" style="display:none">✎</button>
+    <button class="btn btn-danger game-action-btn" id="deleteGameBtn" onclick="openConfirmDeleteGame()" title="Delete game" style="display:none">🗑</button>
     <button class="btn btn-ghost" id="editModeBtn" onclick="toggleEditMode()" title="Toggle edit mode">✏️</button>
     <button class="btn btn-primary" onclick="openAddGameModal()">+ Game</button>
   </div>
@@ -105,7 +107,7 @@
   </div>
 </div>
 
-<!-- ── Add Game Modal ── -->
+<!-- ── Add / Edit Game Modal ── -->
 <div class="modal-overlay" id="addGameModal">
   <div class="modal modal-edit">
     <h2 id="addGameTitle">Add Game</h2>
