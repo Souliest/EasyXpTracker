@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thing Counter</title>
+  <link rel="stylesheet" href="../common/theme.css">
+  <link rel="stylesheet" href="../common/header.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="container">
+  <div class="selector-bar">
+    <select id="gameSelect" onchange="selectGame(this.value)">
+      <option value="">— select a game —</option>
+    </select>
+    <button class="btn btn-ghost" id="editModeBtn" onclick="toggleEditMode()" title="Toggle edit mode">✏️</button>
+    <button class="btn btn-primary" onclick="openAddGameModal()">+ Game</button>
+  </div>
+
+  <div id="mainContent"></div>
+</div>
+
+<!-- ── Focus Modal ── -->
+<div class="modal-overlay" id="focusModal">
+  <div class="modal modal-focus">
+    <div class="focus-header">
+      <div class="focus-name" id="focusName"></div>
+      <button class="modal-close" onclick="closeFocusModal()">✕</button>
+    </div>
+    <div class="focus-body">
+      <div class="focus-value-wrap">
+        <div class="focus-value-display" id="focusValueDisplay" onclick="activateFocusValueInput()"></div>
+        <input type="number" class="focus-value-input" id="focusValueInput" oninput="onFocusValueInput()" onblur="onFocusValueBlur()">
+      </div>
+      <div class="focus-btn-row">
+        <button class="focus-btn focus-btn-minus" onclick="focusStep(-1, 1)">−1</button>
+        <button class="focus-btn focus-btn-plus" onclick="focusStep(1, 1)">+1</button>
+      </div>
+      <div class="focus-step-row">
+        <span class="focus-step-label">Step:</span>
+        <div class="focus-step-display" id="focusStepDisplay" onclick="activateFocusStepInput()"></div>
+        <input type="number" class="focus-step-input" id="focusStepInput" min="1" oninput="onFocusStepInput()" onblur="onFocusStepBlur()">
+      </div>
+      <div class="focus-btn-row">
+        <button class="focus-btn focus-btn-minus" id="focusMinusStep" onclick="focusStep(-1, 0)">−s</button>
+        <button class="focus-btn focus-btn-plus" id="focusPlusStep" onclick="focusStep(1, 0)">+s</button>
+      </div>
+    </div>
+    <div class="focus-fill-bar-wrap" id="focusFillWrap">
+      <div class="focus-fill-bar" id="focusFillBar"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Edit Node Modal ── -->
+<div class="modal-overlay" id="editNodeModal">
+  <div class="modal modal-edit">
+    <h2 id="editNodeTitle">Edit Node</h2>
+    <div class="form-group">
+      <label>Name</label>
+      <input type="text" id="enName" placeholder="Name">
+    </div>
+    <div class="form-group">
+      <label>Parent</label>
+      <select id="enParent"></select>
+    </div>
+    <div class="form-group">
+      <label>Node Type</label>
+      <div class="radio-row">
+        <label class="radio-label"><input type="radio" name="enNodeType" value="branch" onchange="onEditNodeTypeChange()"> Branch</label>
+        <label class="radio-label"><input type="radio" name="enNodeType" value="counter" onchange="onEditNodeTypeChange()"> Counter</label>
+      </div>
+    </div>
+    <div id="enCounterFields">
+      <div class="form-group">
+        <label>Counter Type</label>
+        <div class="radio-row">
+          <label class="radio-label"><input type="radio" name="enCounterType" value="bounded" onchange="onEditCounterTypeChange()"> Bounded</label>
+          <label class="radio-label"><input type="radio" name="enCounterType" value="open" onchange="onEditCounterTypeChange()"> Open-ended</label>
+        </div>
+      </div>
+      <div class="form-group" id="enMaxGroup">
+        <label>Maximum Value</label>
+        <input type="number" id="enMax" placeholder="e.g. 100" min="1">
+      </div>
+      <div class="form-group">
+        <label>Current Value</label>
+        <input type="number" id="enValue" placeholder="0" min="0" value="0">
+      </div>
+      <div class="form-group">
+        <label>Step</label>
+        <input type="number" id="enStep" placeholder="1" min="1" value="1">
+      </div>
+      <div class="form-group">
+        <label>Fill Color</label>
+        <div class="swatch-grid" id="swatchGrid"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeEditNodeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditNode()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Game Modal ── -->
+<div class="modal-overlay" id="addGameModal">
+  <div class="modal modal-edit">
+    <h2 id="addGameTitle">Add Game</h2>
+    <div class="form-group">
+      <label>Game Title</label>
+      <input type="text" id="agName" placeholder="Title">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeAddGameModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGame()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm Delete ── -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <p>Delete <strong id="confirmNodeName"></strong>?<br>
+      <span id="confirmNodeExtra" class="confirm-sub"></span></p>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="../common/theme.js"></script>
+<script src="../common/header.js"></script>
+<script>
+    initHeader('Thing Counter');
+    initTheme();
+</script>
+<script src="script.js"></script>
+</body>
+</html>

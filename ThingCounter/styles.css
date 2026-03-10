@@ -1,0 +1,609 @@
+/* ── Layout ── */
+.container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 12px 40px;
+}
+
+/* ── Selector bar ── */
+.selector-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+select#gameSelect {
+  flex: 1;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+select#gameSelect:focus { outline: none; border-color: var(--accent); }
+
+/* ── Buttons ── */
+.btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: bold;
+}
+.btn-primary:hover { opacity: 0.85; box-shadow: var(--glow); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-ghost.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--glow);
+}
+.btn-danger {
+  background: transparent;
+  color: #ff4444;
+  border-color: #ff4444;
+}
+.btn-danger:hover { background: rgba(255,68,68,0.1); }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 60px 20px;
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+.empty-state .big { font-size: 2.5rem; margin-bottom: 12px; }
+
+/* ── Tree ── */
+.tree-root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tree-node {
+  display: flex;
+  flex-direction: column;
+}
+
+.tree-node-children {
+  margin-left: 20px;
+  margin-top: 4px;
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tree-node-children.collapsed {
+  display: none;
+}
+
+/* ── Branch row ── */
+.branch-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 0.2s;
+}
+.branch-row:hover { border-color: var(--muted); }
+
+.branch-toggle {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: color 0.2s;
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+.branch-toggle:hover { color: var(--accent); }
+
+.branch-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.06em;
+  flex: 1;
+  text-transform: uppercase;
+}
+
+/* Edit mode controls on branch */
+.node-edit-controls {
+  display: none;
+  gap: 4px;
+  align-items: center;
+}
+.edit-mode .node-edit-controls {
+  display: flex;
+}
+
+.node-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 3px 7px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.node-btn:hover { border-color: var(--accent); color: var(--accent); }
+.node-btn.danger:hover { border-color: #ff4444; color: #ff4444; }
+.node-btn.add-child {
+  color: var(--accent);
+  border-color: var(--accent);
+  opacity: 0.7;
+}
+.node-btn.add-child:hover { opacity: 1; box-shadow: var(--glow); }
+
+/* ── Counter card ── */
+.counter-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+  position: relative;
+}
+.counter-card:hover { border-color: var(--muted); }
+
+.counter-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px 9px 12px;
+}
+
+.counter-name {
+  flex: 1;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+  transition: color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.counter-name:hover { color: var(--accent); }
+
+.counter-value-display {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 48px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.counter-btns {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.c-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--text);
+  transition: all 0.15s;
+  padding: 4px 0;
+  width: 30px;
+  text-align: center;
+}
+.c-btn.plus {
+  color: var(--accent);
+  border-color: var(--accent);
+  width: 38px;
+}
+.c-btn.minus { color: var(--muted); }
+.c-btn:active { transform: scale(0.92); }
+.c-btn.plus:hover { background: rgba(0,229,255,0.1); box-shadow: var(--glow); }
+.c-btn.minus:hover { border-color: var(--muted); color: var(--text); }
+
+/* Fill bar at bottom of counter card */
+.counter-fill-bar-wrap {
+  height: 3px;
+  background: var(--border);
+  width: 100%;
+}
+.counter-fill-bar {
+  height: 100%;
+  border-radius: 0 2px 2px 0;
+  transition: width 0.3s ease;
+}
+
+/* Edit mode controls on counter */
+.counter-edit-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(10,12,16,0.82);
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 8px;
+}
+.edit-mode .counter-edit-overlay {
+  display: flex;
+}
+
+/* ── Modal overlay (shared) ── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.open { display: flex; }
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* ── Focus modal ── */
+.modal-focus {
+  max-width: 340px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.focus-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.focus-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.modal-close:hover { color: var(--text); }
+
+.focus-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Big value display */
+.focus-value-wrap {
+  position: relative;
+  text-align: center;
+  padding: 20px 10px 16px;
+  cursor: pointer;
+}
+
+.focus-value-display {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2.8rem;
+  font-weight: 900;
+  color: var(--accent);
+  text-shadow: var(--glow);
+  line-height: 1;
+  transition: opacity 0.1s;
+  letter-spacing: 0.02em;
+}
+.focus-value-display.editing { opacity: 0.3; }
+
+.focus-value-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: none;
+  background: transparent;
+  font-size: 2.8rem;
+  text-align: center;
+  cursor: pointer;
+  z-index: 2;
+}
+.focus-value-input:focus { outline: none; }
+
+/* Button rows */
+.focus-btn-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 6px;
+}
+
+.focus-btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem;
+  padding: 12px 8px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.15s;
+  background: transparent;
+}
+.focus-btn:active { transform: scale(0.96); }
+.focus-btn-minus {
+  color: var(--muted);
+}
+.focus-btn-minus:hover { border-color: var(--muted); color: var(--text); }
+.focus-btn-plus {
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: bold;
+}
+.focus-btn-plus:hover { background: rgba(0,229,255,0.1); box-shadow: var(--glow); }
+
+/* Step row */
+.focus-step-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  position: relative;
+}
+
+.focus-step-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  flex-shrink: 0;
+}
+
+.focus-step-display {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  flex: 1;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.focus-step-display:hover { color: var(--accent); }
+.focus-step-display.editing { opacity: 0.3; }
+
+.focus-step-input {
+  position: absolute;
+  left: 56px;
+  right: 10px;
+  top: 0;
+  bottom: 0;
+  opacity: 0;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  z-index: 2;
+  cursor: pointer;
+}
+.focus-step-input:focus { outline: none; }
+
+/* Fill bar in focus modal */
+.focus-fill-bar-wrap {
+  height: 6px;
+  background: var(--border);
+  width: 100%;
+  display: none;
+}
+.focus-fill-bar-wrap.visible { display: block; }
+.focus-fill-bar {
+  height: 100%;
+  border-radius: 0 3px 3px 0;
+  transition: width 0.35s ease;
+}
+
+/* ── Edit Node / Add Game modals ── */
+.modal-edit {
+  max-width: 480px;
+  padding: 20px;
+}
+
+.modal-edit h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  color: var(--accent);
+  margin-bottom: 18px;
+  letter-spacing: 0.05em;
+}
+
+.form-group { margin-bottom: 14px; }
+.form-group label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 5px;
+}
+.form-group input,
+.form-group select {
+  width: 100%;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+.form-group input:focus,
+.form-group select:focus { outline: none; border-color: var(--accent); }
+
+.radio-row {
+  display: flex;
+  gap: 16px;
+}
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--text);
+  cursor: pointer;
+  font-family: 'Share Tech Mono', monospace;
+}
+.radio-label input[type="radio"] {
+  width: auto;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* Swatch grid */
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.swatch {
+  aspect-ratio: 1;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.swatch:hover { transform: scale(1.12); }
+.swatch.selected {
+  border-color: #fff;
+  box-shadow: 0 0 8px rgba(255,255,255,0.4);
+  transform: scale(1.08);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+/* ── Confirm dialog ── */
+.confirm-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.confirm-overlay.open { display: flex; }
+.confirm-box {
+  background: var(--panel);
+  border: 1px solid #ff4444;
+  border-radius: 10px;
+  padding: 22px 20px;
+  max-width: 340px;
+  width: 100%;
+  text-align: center;
+}
+.confirm-box p { margin-bottom: 16px; line-height: 1.6; font-size: 0.95rem; }
+.confirm-box strong { color: var(--accent); }
+.confirm-sub { font-size: 0.8rem; color: var(--muted); display: block; margin-top: 4px; }
+.confirm-actions { display: flex; gap: 8px; justify-content: center; }
+
+/* ── Edit mode indicator ── */
+.edit-mode-banner {
+  display: none;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--accent2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 5px;
+  margin-bottom: 10px;
+  border: 1px solid var(--accent2);
+  border-radius: 6px;
+  background: rgba(255,107,53,0.07);
+}
+.edit-mode-banner.visible { display: block; }
+
+/* Add node button at root level */
+.add-root-btn {
+  display: none;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  background: transparent;
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.82rem;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  text-align: center;
+}
+.edit-mode .add-root-btn { display: block; }
+.add-root-btn:hover { opacity: 1; box-shadow: var(--glow); }
