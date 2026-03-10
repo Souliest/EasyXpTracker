@@ -1,6 +1,5 @@
 // ---- Theme toggle ----
-// Each page should have a <button class="theme-toggle"> in its header.
-// Call toggleTheme() from that button's onclick.
+// Each page calls initTheme() after initHeader().
 // Pass an optional callback (e.g. to redraw canvas charts) as onToggle.
 
 let _themeOnToggle = null;

@@ -33,7 +33,6 @@
       cursor: pointer;
       transition: border-color 0.2s;
     }
-
     button.theme-toggle:hover {
       border-color: var(--accent);
     }
@@ -63,7 +62,6 @@
       text-decoration: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-
     a.tool:hover {
       border-color: var(--accent);
       box-shadow: var(--glow);
@@ -74,27 +72,42 @@
       font-size: 1rem;
       font-weight: 700;
       color: var(--accent);
+      margin-bottom: 4px;
+    }
+
+    a.tool .desc {
+      font-size: 0.8rem;
+      color: var(--muted);
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Gaming Tools</h1>
-    <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
-  </header>
+<header>
+  <h1>Gaming Tools</h1>
+  <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
+</header>
 
-  <p class="subtitle">A small collection of handy utilities.</p>
+<p class="subtitle">A small collection of handy utilities.</p>
 
-  <div class="tools">
-    <a class="tool" href="XpTracker/">
-      <div class="name">XP Tracker</div>
-    </a>
-    <a class="tool" href="LevelGoalTracker/">
-      <div class="name">Level Goal Tracker</div>
-    </a>
-  </div>
+<div class="tools" id="toolList"></div>
 
-  <script src="common/theme.js"></script>
-  <script>initTheme();</script>
+<script src="common/tools.js"></script>
+<script src="common/theme.js"></script>
+<script>
+    // Render tool cards from registry
+    const list = document.getElementById('toolList');
+    TOOLS.forEach(tool => {
+        const a = document.createElement('a');
+        a.className = 'tool';
+        a.href = tool.path;
+        a.innerHTML = `
+        <div class="name">${tool.name}</div>
+        ${tool.description ? `<div class="desc">${tool.description}</div>` : ''}
+      `;
+        list.appendChild(a);
+    });
+
+    initTheme();
+</script>
 </body>
 </html>

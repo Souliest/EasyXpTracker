@@ -1,0 +1,69 @@
+/* ---- Tool Header (shared across all tool pages) ---- */
+/* Include this in common/theme.css, or as a separate common/header.css */
+
+.tool-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 640px;
+  margin: 0 auto 1.5rem;
+  gap: 8px;
+}
+
+.tool-header .back-link {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.2s, border-color 0.2s;
+}
+.tool-header .back-link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* " Tools" label hides on narrow screens; arrow always visible */
+.tool-header .back-label {
+  display: none;
+}
+@media (min-width: 400px) {
+  .tool-header .back-label {
+    display: inline;
+  }
+}
+
+.tool-header .tool-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(0.8rem, 3.5vw, 1.1rem);
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: var(--glow);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  flex: 1;
+}
+
+.tool-header .theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 1rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.2s;
+}
+.tool-header .theme-toggle:hover {
+  border-color: var(--accent);
+}

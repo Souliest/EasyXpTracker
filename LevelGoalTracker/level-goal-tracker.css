@@ -5,61 +5,7 @@
   padding: 12px;
 }
 
-/* ── Header ── */
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  gap: 10px;
-}
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.back-link {
-  color: var(--muted);
-  text-decoration: none;
-  font-size: 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px 10px;
-  transition: color 0.2s, border-color 0.2s;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.back-link:hover { color: var(--accent); border-color: var(--accent); }
-
-.back-label { display: none; }
-@media (min-width: 400px) {
-  .back-label { display: inline; }
-}
-
-h1 {
-  font-family: 'Orbitron', sans-serif;
-  font-size: clamp(0.8rem, 3.5vw, 1.2rem);
-  font-weight: 700;
-  color: var(--accent);
-  text-shadow: var(--glow);
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-button.theme-toggle {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 1.1rem;
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: border-color 0.2s;
-  flex-shrink: 0;
-}
-button.theme-toggle:hover { border-color: var(--accent); }
+/* ── Header styles moved to common/header.css ── */
 
 /* ── Game selector bar ── */
 .selector-bar {
@@ -175,8 +121,8 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
   font-weight: 700;
   color: var(--accent);
 }
-.stat-value.warn { color: var(--accent2); }
-.stat-value.good { color: var(--accent3); }
+.stat-value.warn  { color: var(--accent2); }
+.stat-value.good  { color: var(--accent3); }
 .stat-value.muted { color: var(--muted); }
 
 /* ── Target level box ── */
@@ -207,14 +153,11 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
   margin-bottom: 3px;
 }
 .target-levels .current { color: var(--accent); }
-.target-levels .sep { color: var(--muted); font-size: 0.9rem; margin: 0 4px; }
-.target-levels .goal { color: var(--muted); }
-.target-sub {
-  font-size: 0.82rem;
-  color: var(--muted);
-}
-.target-sub.reached { color: var(--accent3); }
-.target-sub.behind { color: #ff4444; }
+.target-levels .sep     { color: var(--muted); font-size: 0.9rem; margin: 0 4px; }
+.target-levels .goal    { color: var(--muted); }
+.target-sub             { font-size: 0.82rem; color: var(--muted); }
+.target-sub.reached     { color: var(--accent3); }
+.target-sub.behind      { color: #ff4444; }
 
 /* ── Progress bar ── */
 .progress-wrap { margin-bottom: 12px; }
@@ -263,11 +206,7 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
 .update-row .btn { flex-shrink: 0; }
 
 /* ── Pace chips ── */
-.pace-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+.pace-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .pace-chip {
   flex: 1;
   min-width: 90px;
@@ -284,18 +223,8 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
   letter-spacing: 0.08em;
   margin-bottom: 4px;
 }
-.pace-val {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--text);
-}
-.pace-unit {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 0.7rem;
-  color: var(--muted);
-  font-weight: normal;
-}
+.pace-val  { font-family: 'Orbitron', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--text); }
+.pace-unit { font-family: 'Share Tech Mono', monospace; font-size: 0.7rem; color: var(--muted); font-weight: normal; }
 
 /* ── Next checkpoint ── */
 .next-checkpoint {
@@ -309,24 +238,12 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
   gap: 10px;
   flex-wrap: wrap;
 }
-.next-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 2px; }
-.next-value {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 1rem;
-  color: var(--accent);
-}
-.next-reward {
-  font-size: 0.82rem;
-  color: var(--accent2);
-  white-space: nowrap;
-}
+.next-label  { font-size: 0.78rem; color: var(--muted); margin-bottom: 2px; }
+.next-value  { font-family: 'Orbitron', sans-serif; font-size: 1rem; color: var(--accent); }
+.next-reward { font-size: 0.82rem; color: var(--accent2); white-space: nowrap; }
 
 /* ── Checkpoint table ── */
-.checkpoint-list {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
+.checkpoint-list { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .checkpoint-list th {
   text-align: left;
   color: var(--muted);
@@ -342,19 +259,14 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
   vertical-align: middle;
 }
 .checkpoint-list tr:last-child td { border-bottom: none; }
-.checkpoint-list tr.done td { color: var(--muted); text-decoration: line-through; }
+.checkpoint-list tr.done td       { color: var(--muted); text-decoration: line-through; }
 .checkpoint-list tr.done .tier-reward { color: var(--accent3); text-decoration: none; }
-.checkpoint-list tr.next-up td { color: var(--accent); }
-.tier-check { font-size: 1rem; }
+.checkpoint-list tr.next-up td    { color: var(--accent); }
+.tier-check  { font-size: 1rem; }
 .tier-reward { color: var(--accent2); }
 
 /* ── Rewards summary ── */
-.rewards-summary {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-}
+.rewards-summary { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .reward-chip {
   flex: 1;
   min-width: 120px;
@@ -368,12 +280,7 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
 .reward-chip .rc-value { font-family: 'Orbitron', sans-serif; font-size: 1rem; color: var(--accent2); font-weight: 700; }
 
 /* ── Game action buttons ── */
-.game-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-top: 4px;
-}
+.game-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
 
 /* ── Completed / deadline banners ── */
 .completed-banner {
@@ -388,12 +295,7 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
   font-size: 1rem;
   box-shadow: 0 0 16px rgba(127,255,107,0.2);
 }
-.deadline-warn {
-  font-size: 0.8rem;
-  color: var(--accent2);
-  text-align: center;
-  margin-bottom: 10px;
-}
+.deadline-warn { font-size: 0.8rem; color: var(--accent2); text-align: center; margin-bottom: 10px; }
 
 /* ── Modal overlay ── */
 .modal-overlay {
@@ -523,15 +425,12 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
   width: 100%;
   text-align: center;
 }
-.confirm-box p { margin-bottom: 16px; line-height: 1.5; font-size: 0.95rem; }
+.confirm-box p      { margin-bottom: 16px; line-height: 1.5; font-size: 0.95rem; }
 .confirm-box strong { color: var(--accent); }
-.confirm-actions { display: flex; gap: 8px; justify-content: center; }
+.confirm-actions    { display: flex; gap: 8px; justify-content: center; }
 
 /* ── Backdate fields ── */
-.backdate-toggle-group {
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-}
+.backdate-toggle-group { border-top: 1px solid var(--border); padding-top: 12px; }
 .backdate-label {
   display: flex;
   align-items: center;
@@ -543,25 +442,11 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
   letter-spacing: normal;
   font-family: 'Share Tech Mono', monospace;
 }
-.backdate-label input[type="checkbox"] {
-  width: auto;
-  accent-color: var(--accent);
-  cursor: pointer;
-}
-.backdate-fields {
-  display: none;
-  border-left: 2px solid var(--accent);
-  padding-left: 14px;
-  margin-bottom: 14px;
-}
-.backdate-fields.visible {
-  display: block;
-}
+.backdate-label input[type="checkbox"] { width: auto; accent-color: var(--accent); cursor: pointer; }
+.backdate-fields { display: none; border-left: 2px solid var(--accent); padding-left: 14px; margin-bottom: 14px; }
+.backdate-fields.visible { display: block; }
 
 /* ── Baseline delta ── */
-.pace-delta {
-  font-size: 0.72rem;
-  font-family: 'Share Tech Mono', monospace;
-}
-.pace-delta-good { color: var(--accent3); }
-.pace-delta-bad  { color: #ff4444; }
+.pace-delta       { font-size: 0.72rem; font-family: 'Share Tech Mono', monospace; }
+.pace-delta-good  { color: var(--accent3); }
+.pace-delta-bad   { color: #ff4444; }
