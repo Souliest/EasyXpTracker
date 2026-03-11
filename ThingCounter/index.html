@@ -11,14 +11,21 @@
 <body>
 
 <div class="container">
+
+  <!-- ── Game selector bar ── -->
   <div class="selector-bar">
-    <select id="gameSelect" onchange="selectGame(this.value)">
+    <select id="gameSelect" aria-label="Select game" onchange="selectGame(this.value)">
       <option value="">— select a game —</option>
     </select>
-    <button class="btn btn-ghost game-action-btn" id="editGameBtn" onclick="openEditGameModal()" title="Rename game" style="display:none">✎</button>
-    <button class="btn btn-danger game-action-btn" id="deleteGameBtn" onclick="openConfirmDeleteGame()" title="Delete game" style="display:none">🗑</button>
-    <button class="btn btn-ghost" id="editModeBtn" onclick="toggleEditMode()" title="Toggle edit mode">✏️</button>
+    <button class="btn btn-ghost game-action-btn" id="editGameBtn" onclick="openGameSettingsModal()" title="Game settings" style="display:none">✎</button>
     <button class="btn btn-primary" onclick="openAddGameModal()">+ Game</button>
+  </div>
+
+  <!-- ── Tree action bar (visible when game selected) ── -->
+  <div class="tree-action-bar" id="treeActionBar" style="display:none">
+    <button class="btn btn-ghost" onclick="openAddBranchModal(null)">+ Branch</button>
+    <button class="btn btn-ghost" onclick="openAddCounterModal(null)">+ Counter</button>
+    <button class="btn btn-ghost" id="editModeBtn" onclick="toggleEditMode()" title="Toggle edit mode">✏️</button>
   </div>
 
   <div id="mainContent"></div>
@@ -32,23 +39,26 @@
       <button class="modal-close" onclick="closeFocusModal()">✕</button>
     </div>
     <div class="focus-body">
-      <div class="focus-value-wrap">
-        <div class="focus-value-display" id="focusValueDisplay" onclick="activateFocusValueInput()"></div>
-        <input type="number" class="focus-value-input" id="focusValueInput" oninput="onFocusValueInput()" onblur="onFocusValueBlur()">
+      <div class="focus-value-wrap" onclick="activateFocusValueInput()">
+        <div class="focus-value-display" id="focusValueDisplay"></div>
+        <input type="number" class="focus-value-input" id="focusValueInput" aria-label="Counter value"
+               oninput="onFocusValueInput()" onblur="onFocusValueBlur()">
       </div>
-      <div class="focus-btn-row">
-        <button class="focus-btn focus-btn-minus" onclick="focusStep(-1, 1)">−1</button>
-        <button class="focus-btn focus-btn-plus" onclick="focusStep(1, 1)">+1</button>
+      <div class="focus-btn-row" id="focusBtnRow1">
+        <button class="focus-btn focus-btn-minus" id="focusMinus1" onclick="focusStep(-1, true)">−1</button>
+        <button class="focus-btn focus-btn-plus"  id="focusPlus1"  onclick="focusStep( 1, true)">+1</button>
       </div>
       <div class="focus-step-row">
         <span class="focus-step-label">Step:</span>
         <div class="focus-step-display" id="focusStepDisplay" onclick="activateFocusStepInput()"></div>
-        <input type="number" class="focus-step-input" id="focusStepInput" min="1" oninput="onFocusStepInput()" onblur="onFocusStepBlur()">
+        <input type="number" class="focus-step-input" id="focusStepInput" aria-label="Step size"
+               min="1" oninput="onFocusStepInput()" onblur="onFocusStepBlur()">
       </div>
-      <div class="focus-btn-row">
-        <button class="focus-btn focus-btn-minus" id="focusMinusStep" onclick="focusStep(-1, 0)">−s</button>
-        <button class="focus-btn focus-btn-plus" id="focusPlusStep" onclick="focusStep(1, 0)">+s</button>
+      <div class="focus-btn-row" id="focusBtnRow2">
+        <button class="focus-btn focus-btn-minus" id="focusMinusStep" onclick="focusStep(-1, false)">−s</button>
+        <button class="focus-btn focus-btn-plus"  id="focusPlusStep"  onclick="focusStep( 1, false)">+s</button>
       </div>
+      <button class="focus-reset-btn" onclick="focusResetValue()">↺ Reset to initial</button>
     </div>
     <div class="focus-fill-bar-wrap" id="focusFillWrap">
       <div class="focus-fill-bar" id="focusFillBar"></div>
@@ -56,87 +66,124 @@
   </div>
 </div>
 
-<!-- ── Edit Node Modal ── -->
-<div class="modal-overlay" id="editNodeModal">
+<!-- ── Add / Edit Branch Modal ── -->
+<div class="modal-overlay" id="addBranchModal">
   <div class="modal modal-edit">
-    <h2 id="editNodeTitle">Edit Node</h2>
+    <h2 id="addBranchTitle">Add Branch</h2>
     <div class="form-group">
-      <label>Name</label>
-      <input type="text" id="enName" placeholder="Name">
+      <label for="abName">Name</label>
+      <input type="text" id="abName" placeholder="New Branch">
     </div>
     <div class="form-group">
-      <label>Parent</label>
-      <select id="enParent"></select>
+      <label for="abParent">Parent</label>
+      <select id="abParent"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeAddBranchModal()">Cancel</button>
+      <button class="btn btn-primary" id="addBranchSaveBtn" onclick="saveAddBranch()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add / Edit Counter Modal ── -->
+<div class="modal-overlay" id="addCounterModal">
+  <div class="modal modal-edit">
+    <h2 id="addCounterTitle">Add Counter</h2>
+    <div class="form-group">
+      <label for="acName">Name</label>
+      <input type="text" id="acName" placeholder="New Counter">
     </div>
     <div class="form-group">
-      <label>Node Type</label>
+      <label for="acParent">Parent</label>
+      <select id="acParent"></select>
+    </div>
+    <div class="form-group">
+      <label>Counter Type</label>
       <div class="radio-row">
-        <label class="radio-label"><input type="radio" name="enNodeType" value="branch" onchange="onEditNodeTypeChange()"> Branch</label>
-        <label class="radio-label"><input type="radio" name="enNodeType" value="counter" onchange="onEditNodeTypeChange()"> Counter</label>
+        <label class="radio-label"><input type="radio" name="acCounterType" value="open"    onchange="onCounterTypeChange()"> Open-ended</label>
+        <label class="radio-label"><input type="radio" name="acCounterType" value="bounded" onchange="onCounterTypeChange()"> Bounded</label>
       </div>
     </div>
-    <div id="enCounterFields">
+    <div id="acBoundedFields" style="display:none">
       <div class="form-group">
-        <label>Counter Type</label>
-        <div class="radio-row">
-          <label class="radio-label"><input type="radio" name="enCounterType" value="bounded" onchange="onEditCounterTypeChange()"> Bounded</label>
-          <label class="radio-label"><input type="radio" name="enCounterType" value="open" onchange="onEditCounterTypeChange()"> Open-ended</label>
+        <label id="acMinLabel" for="acMin">Minimum Value</label>
+        <input type="number" id="acMin" value="0">
+      </div>
+      <div class="form-group">
+        <label id="acMaxLabel" for="acMax">Maximum Value</label>
+        <input type="number" id="acMax" placeholder="e.g. 100">
+      </div>
+      <div class="form-group">
+        <label for="acInitial">Initial Value <span class="label-hint">(value on reset)</span></label>
+        <input type="number" id="acInitial" placeholder="Starting value">
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="acValue">Current Value</label>
+      <input type="number" id="acValue" value="0">
+    </div>
+    <div class="form-group">
+      <label class="checkbox-label" for="acDecrement">
+        <input type="checkbox" id="acDecrement" onchange="onDecrementChange()">
+        Decrement (counts down — dominant button is −)
+      </label>
+    </div>
+    <div class="form-group">
+      <label for="acStep">Step Size</label>
+      <input type="number" id="acStep" value="1" min="1">
+    </div>
+    <div class="form-group">
+      <label for="acColorField">Fill Color</label>
+      <div class="color-field-wrap">
+        <div class="color-field" id="acColorField" onclick="toggleSwatchPopover()">
+          <span class="color-dot" id="acColorDot"></span>
+          <span class="color-name" id="acColorName"></span>
+          <span class="color-chevron">▾</span>
         </div>
-      </div>
-      <div class="form-group" id="enMaxGroup">
-        <label>Maximum Value</label>
-        <input type="number" id="enMax" placeholder="e.g. 100" min="1">
-      </div>
-      <div class="form-group">
-        <label>Current Value</label>
-        <input type="number" id="enValue" placeholder="0" min="0" value="0">
-      </div>
-      <div class="form-group">
-        <label>Step</label>
-        <input type="number" id="enStep" placeholder="1" min="1" value="1">
-      </div>
-      <div class="form-group">
-        <label>Fill Color</label>
-        <div class="swatch-grid" id="swatchGrid"></div>
+        <div class="swatch-popover" id="acSwatchPopover"></div>
       </div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeEditNodeModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveEditNode()">Save</button>
+      <button class="btn btn-ghost" onclick="closeAddCounterModal()">Cancel</button>
+      <button class="btn btn-primary" id="addCounterSaveBtn" onclick="saveAddCounter()">Add</button>
     </div>
   </div>
 </div>
 
 <!-- ── Add / Edit Game Modal ── -->
-<div class="modal-overlay" id="addGameModal">
+<div class="modal-overlay" id="gameModal">
   <div class="modal modal-edit">
-    <h2 id="addGameTitle">Add Game</h2>
+    <h2 id="gameModalTitle">Add Game</h2>
     <div class="form-group">
-      <label>Game Title</label>
-      <input type="text" id="agName" placeholder="Title">
+      <label for="gmName">Game Title</label>
+      <input type="text" id="gmName" placeholder="Title">
     </div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeAddGameModal()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeGameModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveGame()">Save</button>
     </div>
-
-    <!-- Reset section — only shown when editing an existing game -->
     <div class="game-settings-danger" id="gameSettingsDanger" style="display:none">
       <div class="danger-divider">Danger Zone</div>
       <div class="danger-row" id="resetConfirmRow">
         <div class="danger-desc">
           <div class="danger-label">Reset all counters</div>
-          <div class="danger-sub">Sets every counter value back to zero. Structure is preserved.</div>
+          <div class="danger-sub">Returns every counter to its initial value. Structure is preserved.</div>
         </div>
         <button class="btn btn-warn" onclick="promptResetCounters()">Reset</button>
       </div>
-      <!-- Inline confirm, hidden until Reset is clicked -->
       <div class="danger-confirm" id="resetConfirm" style="display:none">
-        <span class="danger-confirm-text">Reset all counters to zero?</span>
+        <span class="danger-confirm-text">Reset all counters?</span>
         <div class="danger-confirm-btns">
           <button class="btn btn-ghost" onclick="cancelResetCounters()">Cancel</button>
           <button class="btn btn-danger" onclick="confirmResetCounters()">Yes, reset</button>
         </div>
+      </div>
+      <div class="danger-row" style="margin-top:10px">
+        <div class="danger-desc">
+          <div class="danger-label">Delete game</div>
+          <div class="danger-sub">Permanently removes this game and all its data.</div>
+        </div>
+        <button class="btn btn-danger" onclick="openConfirmDeleteGame()">! Delete !</button>
       </div>
     </div>
   </div>
