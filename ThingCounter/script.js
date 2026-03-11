@@ -716,6 +716,8 @@ function openAddGameModal() {
     editingGameId = null;
     document.getElementById('addGameTitle').textContent = 'Add Game';
     document.getElementById('agName').value = '';
+    document.getElementById('gameSettingsDanger').style.display = 'none';
+    cancelResetCounters();
     document.getElementById('addGameModal').classList.add('open');
 }
 
@@ -725,12 +727,45 @@ function openEditGameModal() {
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
     editingGameId = selectedGameId;
-    document.getElementById('addGameTitle').textContent = 'Rename Game';
+    document.getElementById('addGameTitle').textContent = 'Game Settings';
     document.getElementById('agName').value = game.name;
+    document.getElementById('gameSettingsDanger').style.display = '';
+    cancelResetCounters();
     document.getElementById('addGameModal').classList.add('open');
 }
 
+function promptResetCounters() {
+    document.getElementById('resetConfirmRow').style.opacity = '0.4';
+    document.getElementById('resetConfirm').style.display = '';
+}
+
+function cancelResetCounters() {
+    const row = document.getElementById('resetConfirmRow');
+    const confirm = document.getElementById('resetConfirm');
+    if (row) row.style.opacity = '';
+    if (confirm) confirm.style.display = 'none';
+}
+
+function confirmResetCounters() {
+    if (!selectedGameId) return;
+    const data = loadData();
+    const game = data.games.find(g => g.id === selectedGameId);
+    if (!game) return;
+
+    function resetNodes(nodes) {
+        for (const n of nodes) {
+            if (n.type === 'counter') n.value = 0;
+            if (n.children) resetNodes(n.children);
+        }
+    }
+    resetNodes(game.nodes || []);
+    saveData(data);
+    closeAddGameModal();
+    renderMain();
+}
+
 function closeAddGameModal() {
+    cancelResetCounters();
     document.getElementById('addGameModal').classList.remove('open');
 }
 

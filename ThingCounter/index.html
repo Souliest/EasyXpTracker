@@ -119,6 +119,26 @@
       <button class="btn btn-ghost" onclick="closeAddGameModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveGame()">Save</button>
     </div>
+
+    <!-- Reset section — only shown when editing an existing game -->
+    <div class="game-settings-danger" id="gameSettingsDanger" style="display:none">
+      <div class="danger-divider">Danger Zone</div>
+      <div class="danger-row" id="resetConfirmRow">
+        <div class="danger-desc">
+          <div class="danger-label">Reset all counters</div>
+          <div class="danger-sub">Sets every counter value back to zero. Structure is preserved.</div>
+        </div>
+        <button class="btn btn-warn" onclick="promptResetCounters()">Reset</button>
+      </div>
+      <!-- Inline confirm, hidden until Reset is clicked -->
+      <div class="danger-confirm" id="resetConfirm" style="display:none">
+        <span class="danger-confirm-text">Reset all counters to zero?</span>
+        <div class="danger-confirm-btns">
+          <button class="btn btn-ghost" onclick="cancelResetCounters()">Cancel</button>
+          <button class="btn btn-danger" onclick="confirmResetCounters()">Yes, reset</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 

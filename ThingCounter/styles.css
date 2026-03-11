@@ -580,7 +580,72 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
 .confirm-sub { font-size: 0.8rem; color: var(--muted); display: block; margin-top: 4px; }
 .confirm-actions { display: flex; gap: 8px; justify-content: center; }
 
-/* ── Edit mode indicator ── */
+/* ── Game Settings danger zone ── */
+.game-settings-danger {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.danger-divider {
+  font-size: 0.68rem;
+  color: #ff4444;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 12px;
+  opacity: 0.7;
+}
+
+.danger-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.danger-desc { flex: 1; }
+
+.danger-label {
+  font-size: 0.88rem;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.danger-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.danger-confirm {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(255,68,68,0.07);
+  border: 1px solid rgba(255,68,68,0.3);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.danger-confirm-text {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.danger-confirm-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-warn {
+  background: transparent;
+  color: var(--accent2);
+  border-color: var(--accent2);
+}
+.btn-warn:hover { background: rgba(255,107,53,0.1); }
 .edit-mode-banner {
   display: none;
   text-align: center;
