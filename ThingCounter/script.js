@@ -19,29 +19,29 @@ function saveData(data) {
 // ═══════════════════════════════════════════════
 
 const SWATCHES = [
-    { color: '#00e5ff', name: 'Cyan'       },
-    { color: '#ff6b35', name: 'Tangerine'  },
-    { color: '#7fff6b', name: 'Sage'       },
-    { color: '#ff4488', name: 'Flamingo'   },
-    { color: '#aa44ff', name: 'Grape'      },
-    { color: '#ffcc00', name: 'Banana'     },
-    { color: '#ff4444', name: 'Tomato'     },
-    { color: '#44aaff', name: 'Peacock'    },
-    { color: '#00ffaa', name: 'Mint'       },
-    { color: '#ff8800', name: 'Pumpkin'    },
-    { color: '#66ffff', name: 'Mist'       },
-    { color: '#ff66aa', name: 'Blush'      },
-    { color: '#88ff44', name: 'Lime'       },
-    { color: '#4466ff', name: 'Blueberry'  },
-    { color: '#ffaa44', name: 'Peach'      },
-    { color: '#00ccaa', name: 'Teal'       },
-    { color: '#cc44ff', name: 'Lavender'   },
-    { color: '#ff4400', name: 'Basil'      },
-    { color: '#aaccff', name: 'Steel'      },
-    { color: '#cccccc', name: 'Graphite'   },
+    { color: '#FF4D57', name: 'Cherry'     },
+    { color: '#FF6F61', name: 'Coral'      },
+    { color: '#FF8C42', name: 'Tangerine'  },
+    { color: '#FFA62B', name: 'Mango'      },
+    { color: '#FFC857', name: 'Honey'      },
+    { color: '#E6FF4F', name: 'Lemon'      },
+    { color: '#7ED957', name: 'Limeade'    },
+    { color: '#4FD08B', name: 'Cactus'     },
+    { color: '#42E6A4', name: 'Mint'       },
+    { color: '#00A8A8', name: 'Lagoon'     },
+    { color: '#27D3C2', name: 'Turquoise'  },
+    { color: '#2ED9FF', name: 'Aqua'       },
+    { color: '#4FC3F7', name: 'Glacier'    },
+    { color: '#2F6BFF', name: 'Cobalt'     },
+    { color: '#3B82C4', name: 'Denim'      },
+    { color: '#6C8CFF', name: 'Periwinkle' },
+    { color: '#5A5CFF', name: 'Indigo'     },
+    { color: '#7A4DFF', name: 'Plum'       },
+    { color: '#D65CFF', name: 'Orchid'     },
+    { color: '#FF4F81', name: 'Rose'       },
 ];
 
-const DEFAULT_COLOR = '#00e5ff';
+const DEFAULT_COLOR = '#2ED9FF';
 
 function swatchByColor(color) {
     return SWATCHES.find(s => s.color === color) || SWATCHES[0];
@@ -651,7 +651,8 @@ function buildSwatchPopover(popoverId, selectedColor, onSelect) {
     });
 }
 
-function toggleSwatchPopover() {
+function toggleSwatchPopover(event) {
+    event.stopPropagation();
     const popover = document.getElementById('acSwatchPopover');
     if (popover.classList.contains('open')) {
         popover.classList.remove('open');
