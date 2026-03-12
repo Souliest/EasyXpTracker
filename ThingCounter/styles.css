@@ -36,6 +36,20 @@ select#gameSelect:focus { outline: none; border-color: var(--accent); }
   align-items: center;
 }
 
+.sort-btn {
+  margin-left: auto;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  padding: 6px 9px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.sort-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--glow);
+}
+
 /* ── Buttons ── */
 .btn {
   font-family: 'Share Tech Mono', monospace;

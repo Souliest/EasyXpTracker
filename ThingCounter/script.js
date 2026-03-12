@@ -56,6 +56,41 @@ let editMode        = false;
 let nodeEditActive  = null; // id of single node in local edit mode
 
 // ═══════════════════════════════════════════════
+// Sort order
+// ═══════════════════════════════════════════════
+
+// Persisted on game.sortOrder: null | 'asc' | 'desc'
+// Cycles: null → 'asc' → 'desc' → null
+
+function currentSortOrder() {
+    if (!selectedGameId) return null;
+    const data = loadData();
+    const game = data.games.find(g => g.id === selectedGameId);
+    return game ? (game.sortOrder || null) : null;
+}
+
+function cycleSortOrder() {
+    if (!selectedGameId) return;
+    const data = loadData();
+    const game = data.games.find(g => g.id === selectedGameId);
+    if (!game) return;
+    const next = { null: 'asc', asc: 'desc', desc: null };
+    game.sortOrder = next[game.sortOrder || 'null'] || null;
+    saveData(data);
+    updateSortBtn();
+    renderMain();
+}
+
+function updateSortBtn() {
+    const btn = document.getElementById('sortBtn');
+    if (!btn) return;
+    const order = currentSortOrder();
+    if (order === 'asc')  { btn.textContent = 'A↑'; btn.classList.add('active');    btn.title = 'Sorted A→Z (click for Z→A)'; }
+    else if (order === 'desc') { btn.textContent = 'A↓'; btn.classList.add('active'); btn.title = 'Sorted Z→A (click to unsort)'; }
+    else                  { btn.textContent = 'A↑'; btn.classList.remove('active'); btn.title = 'Sort order: off (click for A→Z)'; }
+}
+
+// ═══════════════════════════════════════════════
 // Game selector
 // ═══════════════════════════════════════════════
 
@@ -87,6 +122,7 @@ function selectGame(id) {
     if (selectedGameId) localStorage.setItem(STORAGE_SELECTED, selectedGameId);
     else localStorage.removeItem(STORAGE_SELECTED);
     updateGameActionButtons(loadData());
+    updateSortBtn();
     renderMain();
 }
 
@@ -224,6 +260,7 @@ const collapsedBranches = new Set();
 
 function renderMain() {
     const content = document.getElementById('mainContent');
+    updateSortBtn();
 
     if (!selectedGameId) {
         const data = loadData();
@@ -256,7 +293,13 @@ function renderMain() {
 }
 
 function renderNodes(nodes, container) {
-    nodes.forEach(node => container.appendChild(renderNode(node)));
+    const order = currentSortOrder();
+    const sorted = order
+        ? [...nodes].sort((a, b) => order === 'asc'
+            ? a.name.localeCompare(b.name)
+            : b.name.localeCompare(a.name))
+        : nodes;
+    sorted.forEach(node => container.appendChild(renderNode(node)));
 }
 
 function renderNode(node) {

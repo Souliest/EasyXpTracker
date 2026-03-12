@@ -10,9 +10,9 @@ leaves your device.
 
 | Tool                   | What it does                                                                                                                                                    |
 |------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **XP Tracker**         | Log XP gains and track your rate over a session. Includes charts with moving averages and rate estimates.                                                       |
 | **Level Goal Tracker** | Set a target level with a deadline. Tracks daily required XP and shows whether you're ahead or behind pace.                                                     |
 | **Thing Counter**      | Track anything countable, organised into a tree of named groups by game. Supports bounded and open-ended counters, decrement mode, and configurable step sizes. |
+| **XP Tracker**         | Log XP gains and track your rate over a session. Includes charts with moving averages and rate estimates.                                                       |
 
 ---
 
@@ -167,6 +167,18 @@ Toggle **✏️** in the toolbar to enter Edit Mode. All nodes show their contro
 Branches can be nested inside other branches to any depth. Organise by zone, act, character, session — whatever makes
 sense. You can change a counter's parent in the Edit Counter modal at any time. Tap a branch row to collapse or expand
 it.
+
+### Sort Order
+
+The **A↑** button on the right of the toolbar cycles through three sort states:
+
+| State      | Button           | Behaviour                                                                      |
+|------------|------------------|--------------------------------------------------------------------------------|
+| Off        | A↑ (muted)       | Insertion order — counters and branches appear in the order they were created. |
+| Ascending  | A↑ (highlighted) | Alphabetical A→Z at every level of the tree.                                   |
+| Descending | A↓ (highlighted) | Alphabetical Z→A at every level of the tree.                                   |
+
+Each game remembers its own sort preference.
 
 ### Game Settings
 
