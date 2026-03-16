@@ -474,10 +474,12 @@ function openEditModal(id) {
     const daysLeft = Math.max(0, daysBetween(todayStr(), game.deadlineDate));
     document.getElementById('fDays').value = daysLeft;
 
-    // Restore backdate state if the game was originally backdated
+    // Restore backdate state if the game was originally backdated.
+    // Uses the stored game.backdated flag rather than inferring from daysElapsed,
+    // which would incorrectly trigger for any game older than 0 days.
     const daysElapsed = Math.max(0, daysBetween(game.createdDate, todayStr()));
     const totalDays = daysElapsed + daysLeft;
-    const wasBackdated = daysElapsed > 0;
+    const wasBackdated = !!game.backdated;
 
     if (wasBackdated) {
         document.getElementById('fBackdate').checked = true;
@@ -579,6 +581,7 @@ function saveGame() {
             startLevel,
             createdDate,
             deadlineDate,
+            backdated: isBackdated || false,
             tiers,
             snapshot: {
                 date: todayStr(),
