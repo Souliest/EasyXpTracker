@@ -41,6 +41,7 @@ input[type="tel"] {
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
+
 input[type="tel"]:focus {
   border-color: var(--accent);
   box-shadow: var(--glow);
@@ -53,8 +54,13 @@ input[type="tel"]:focus {
 }
 
 @media (min-width: 400px) {
-  .btn-row { width: auto; }
-  .input-row { flex-wrap: nowrap; }
+  .btn-row {
+    width: auto;
+  }
+
+  .input-row {
+    flex-wrap: nowrap;
+  }
 }
 
 .btn {
@@ -70,9 +76,30 @@ input[type="tel"]:focus {
   transition: opacity 0.15s, transform 0.1s;
   white-space: nowrap;
 }
-.btn:active { transform: scale(0.95); opacity: 0.8; }
-.btn-enter { background: var(--accent); color: #000; flex-shrink: 0; }
-.btn-reset { background: transparent; color: var(--accent2); border: 1px solid var(--accent2); flex-shrink: 0; }
+
+.btn:active {
+  transform: scale(0.95);
+  opacity: 0.8;
+}
+
+.btn-enter {
+  background: var(--accent);
+  color: #000;
+  flex-shrink: 0;
+}
+
+.btn-reset {
+  background: transparent;
+  color: var(--accent2);
+  border: 1px solid var(--accent2);
+  flex-shrink: 0;
+}
+
+.btn-reset:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
 
 /* Stats */
 .stats-grid {
@@ -81,6 +108,7 @@ input[type="tel"]:focus {
   gap: 8px;
   margin-top: 10px;
 }
+
 .stat-box {
   background: var(--stat-bg);
   border: 1px solid var(--border);
@@ -88,6 +116,7 @@ input[type="tel"]:focus {
   padding: 8px;
   text-align: center;
 }
+
 .stat-label {
   font-size: 0.5rem;
   letter-spacing: 0.15em;
@@ -95,6 +124,7 @@ input[type="tel"]:focus {
   text-transform: uppercase;
   margin-bottom: 3px;
 }
+
 .stat-value {
   font-family: 'Orbitron', monospace;
   font-size: 0.85rem;
@@ -103,8 +133,15 @@ input[type="tel"]:focus {
 }
 
 /* Charts */
-canvas { display: block; width: 100%; }
-.chart-wrap { position: relative; width: 100%; }
+canvas {
+  display: block;
+  width: 100%;
+}
+
+.chart-wrap {
+  position: relative;
+  width: 100%;
+}
 
 .legend {
   display: flex;
@@ -112,6 +149,7 @@ canvas { display: block; width: 100%; }
   gap: 10px;
   margin-top: 10px;
 }
+
 .legend-item {
   display: flex;
   align-items: center;
@@ -120,7 +158,12 @@ canvas { display: block; width: 100%; }
   letter-spacing: 0.08em;
   color: var(--muted);
 }
-.legend-dot { width: 8px; height: 3px; border-radius: 2px; }
+
+.legend-dot {
+  width: 8px;
+  height: 3px;
+  border-radius: 2px;
+}
 
 body, .panel, input, .stat-box, .entry-chip {
   transition: background 0.25s, color 0.25s, border-color 0.25s;
@@ -133,6 +176,7 @@ body, .panel, input, .stat-box, .entry-chip {
   flex-wrap: wrap;
   margin-top: 6px;
 }
+
 .entry-chip {
   background: var(--stat-bg);
   border: 1px solid var(--border);
@@ -142,9 +186,16 @@ body, .panel, input, .stat-box, .entry-chip {
   color: var(--text);
   animation: pop 0.2s ease;
 }
+
 @keyframes pop {
-  from { transform: scale(0.7); opacity: 0; }
-  to   { transform: scale(1);   opacity: 1; }
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .empty-msg {
@@ -160,12 +211,16 @@ body, .panel, input, .stat-box, .entry-chip {
   display: none;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.7);
+  background: rgba(0, 0, 0, 0.7);
   z-index: 100;
   align-items: center;
   justify-content: center;
 }
-.confirm-overlay.active { display: flex; }
+
+.confirm-overlay.active {
+  display: flex;
+}
+
 .confirm-box {
   background: var(--panel);
   border: 1px solid var(--accent2);
@@ -175,6 +230,7 @@ body, .panel, input, .stat-box, .entry-chip {
   width: 90%;
   text-align: center;
 }
+
 .confirm-box p {
   font-family: 'Orbitron', monospace;
   font-size: 0.75rem;
@@ -182,13 +238,19 @@ body, .panel, input, .stat-box, .entry-chip {
   color: var(--text);
   margin-bottom: 6px;
 }
+
 .confirm-box small {
   font-size: 0.6rem;
   color: var(--muted);
   display: block;
   margin-bottom: 20px;
 }
-.confirm-btns { display: flex; gap: 10px; justify-content: center; }
+
+.confirm-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
 
 /* Average stat boxes */
 .avg-stats-grid {
@@ -197,6 +259,7 @@ body, .panel, input, .stat-box, .entry-chip {
   gap: 8px;
   margin-top: 10px;
 }
+
 .avg-stat-box {
   background: var(--stat-bg);
   border: 1px solid var(--border);
@@ -204,6 +267,7 @@ body, .panel, input, .stat-box, .entry-chip {
   padding: 8px;
   text-align: center;
 }
+
 .avg-stat-label {
   font-size: 0.5rem;
   letter-spacing: 0.15em;
@@ -211,6 +275,7 @@ body, .panel, input, .stat-box, .entry-chip {
   text-transform: uppercase;
   margin-bottom: 3px;
 }
+
 .avg-stat-value {
   font-family: 'Orbitron', monospace;
   font-size: 0.82rem;
@@ -225,9 +290,19 @@ body, .panel, input, .stat-box, .entry-chip {
   border: 1px solid var(--border);
   border-radius: 7px;
 }
-.log-scroll::-webkit-scrollbar { width: 4px; }
-.log-scroll::-webkit-scrollbar-track { background: transparent; }
-.log-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+.log-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.log-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.log-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
 
 .log-entry {
   display: flex;
@@ -237,9 +312,44 @@ body, .panel, input, .stat-box, .entry-chip {
   border-bottom: 1px solid var(--border);
   animation: pop 0.2s ease;
 }
-.log-entry:last-child { border-bottom: none; }
-.log-index { font-size: 0.55rem; color: var(--muted); min-width: 26px; text-align: right; }
-.log-time  { font-size: 0.6rem; color: var(--muted); white-space: nowrap; }
-.log-xp    { font-family: 'Orbitron', monospace; font-size: 0.8rem; font-weight: 700; color: var(--accent); flex: 1; text-align: right; }
-.log-dots  { display: flex; gap: 4px; align-items: center; min-width: 36px; justify-content: flex-end; }
-.log-dot   { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-index {
+  font-size: 0.55rem;
+  color: var(--muted);
+  min-width: 26px;
+  text-align: right;
+}
+
+.log-time {
+  font-size: 0.6rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.log-xp {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  flex: 1;
+  text-align: right;
+}
+
+.log-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 36px;
+  justify-content: flex-end;
+}
+
+.log-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

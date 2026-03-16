@@ -2,12 +2,15 @@
 // Storage
 // ═══════════════════════════════════════════════
 
-const STORAGE_KEY         = 'bgt:level-goal-tracker:data';
-const STORAGE_SELECTED    = 'bgt:level-goal-tracker:selected-game';
+const STORAGE_KEY = 'bgt:level-goal-tracker:data';
+const STORAGE_SELECTED = 'bgt:level-goal-tracker:selected-game';
 
 function loadData() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { games: [] }; }
-    catch { return { games: [] }; }
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {games: []};
+    } catch {
+        return {games: []};
+    }
 }
 
 function saveData(data) {
@@ -26,14 +29,33 @@ function todayStr() {
     return `${yyyy}-${mm}-${dd}`;
 }
 
+// FIX #7/#8: parse date strings at noon local time to avoid UTC midnight
+// crossing into the wrong calendar day in negative-offset timezones.
+function parseLocalDate(dateStr) {
+    return new Date(dateStr + 'T12:00:00');
+}
+
 function daysBetween(dateStrA, dateStrB) {
-    return Math.round((new Date(dateStrB) - new Date(dateStrA)) / 86400000);
+    return Math.round(
+        (parseLocalDate(dateStrB) - parseLocalDate(dateStrA)) / 86400000
+    );
 }
 
 function formatDate(dateStr) {
-    return new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, {
+    return parseLocalDate(dateStr).toLocaleDateString(undefined, {
         month: 'short', day: 'numeric', year: 'numeric'
     });
+}
+
+// FIX #7: produce a deadline date string using local calendar arithmetic,
+// avoiding the toISOString() UTC shift for negative-offset timezones.
+function localDatePlusDays(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
 }
 
 // ═══════════════════════════════════════════════
@@ -77,13 +99,17 @@ function computeStats(game) {
 
     let trackStatus, trackIcon;
     if (currentLevel >= finalLevel) {
-        trackStatus = 'done'; trackIcon = '✅';
+        trackStatus = 'done';
+        trackIcon = '✅';
     } else if (delta >= 0) {
-        trackStatus = 'ahead'; trackIcon = '🟢';
+        trackStatus = 'ahead';
+        trackIcon = '🟢';
     } else if (delta >= -requiredPace * 0.2) {
-        trackStatus = 'close'; trackIcon = '🟡';
+        trackStatus = 'close';
+        trackIcon = '🟡';
     } else {
-        trackStatus = 'behind'; trackIcon = '🔴';
+        trackStatus = 'behind';
+        trackIcon = '🔴';
     }
 
     const completedTiers = game.tiers.filter(t => currentLevel >= t.level);
@@ -164,8 +190,10 @@ function renderOverviewPanel(game, s) {
         ${s.completedTiers.length} / ${game.tiers.length} checkpoints
       </div>
       <div class="update-row">
-        <input type="number" id="levelInput" value="${s.currentLevel}" min="${game.startLevel}" placeholder="Current level">
-        <button class="btn btn-primary" onclick="updateLevel()">Update</button>
+        <input type="number" id="levelInput" value="${s.currentLevel}"
+               min="${game.startLevel}" max="${s.finalLevel}"
+               placeholder="Current level">
+        <button class="btn btn-primary" id="updateLevelBtn">Update</button>
       </div>
     </div>`;
 }
@@ -282,12 +310,20 @@ function renderCheckpointsPanel(game, s) {
     </div>`;
 }
 
+// FIX #11: use addEventListener instead of inline onclick in generated HTML.
 function renderActions(gameId) {
     return `
     <div class="game-actions">
-      <button class="btn btn-warn" onclick="openEditModal('${gameId}')">✏️ Edit</button>
-      <button class="btn btn-danger" onclick="openConfirmDelete('${gameId}')">🗑 Delete</button>
+      <button class="btn btn-warn"   id="editGameBtn">✏️ Edit</button>
+      <button class="btn btn-danger" id="deleteGameBtn">🗑 Delete</button>
     </div>`;
+}
+
+function wireActions(gameId) {
+    const editBtn = document.getElementById('editGameBtn');
+    const deleteBtn = document.getElementById('deleteGameBtn');
+    if (editBtn) editBtn.addEventListener('click', () => openEditModal(gameId));
+    if (deleteBtn) deleteBtn.addEventListener('click', () => openConfirmDelete(gameId));
 }
 
 // ═══════════════════════════════════════════════
@@ -340,7 +376,10 @@ function renderMain() {
 
     const data = loadData();
     const game = data.games.find(g => g.id === selectedGameId);
-    if (!game) { content.innerHTML = ''; return; }
+    if (!game) {
+        content.innerHTML = '';
+        return;
+    }
 
     if (maybeRollSnapshot(game)) saveData(data);
 
@@ -354,19 +393,35 @@ function renderMain() {
         renderCheckpointsPanel(game, s),
         renderActions(game.id),
     ].join('');
+
+    // FIX #6: wire update button with clamped value handling
+    const updateBtn = document.getElementById('updateLevelBtn');
+    if (updateBtn) updateBtn.addEventListener('click', updateLevel);
+
+    wireActions(game.id);
 }
 
 // ═══════════════════════════════════════════════
 // Update level
 // ═══════════════════════════════════════════════
 
+// FIX #6: clamp input to [startLevel, finalLevel] before saving.
 function updateLevel() {
-    const newLevel = parseInt(document.getElementById('levelInput').value);
+    const input = document.getElementById('levelInput');
+    const newLevel = parseInt(input.value);
     if (isNaN(newLevel)) return;
+
     const data = loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
-    game.snapshot.currentLevel = newLevel;
+
+    const finalLevel = game.tiers[game.tiers.length - 1].level;
+    const clamped = Math.max(game.startLevel, Math.min(finalLevel, newLevel));
+
+    // Reflect clamped value back into the input so user sees what was saved
+    if (clamped !== newLevel) input.value = clamped;
+
+    game.snapshot.currentLevel = clamped;
     saveData(data);
     renderMain();
 }
@@ -405,19 +460,38 @@ function openAddModal() {
     document.getElementById('gameModal').classList.add('open');
 }
 
+// FIX #10: populate backdate fields when editing a backdated game.
 function openEditModal(id) {
     const data = loadData();
     const game = data.games.find(g => g.id === id);
     if (!game) return;
+
     editingGameId = id;
     document.getElementById('modalTitle').textContent = 'Edit Game';
     document.getElementById('fName').value = game.name;
     document.getElementById('fCurrentLevel').value = game.snapshot.currentLevel;
-    document.getElementById('fDays').value = Math.max(0, daysBetween(todayStr(), game.deadlineDate));
-    resetBackdateFields();
+
+    const daysLeft = Math.max(0, daysBetween(todayStr(), game.deadlineDate));
+    document.getElementById('fDays').value = daysLeft;
+
+    // Restore backdate state if the game was originally backdated
+    const daysElapsed = Math.max(0, daysBetween(game.createdDate, todayStr()));
+    const totalDays = daysElapsed + daysLeft;
+    const wasBackdated = daysElapsed > 0;
+
+    if (wasBackdated) {
+        document.getElementById('fBackdate').checked = true;
+        document.getElementById('backdateFields').classList.add('visible');
+        document.getElementById('fTotalDays').value = totalDays;
+        document.getElementById('fStartLevel').value = game.startLevel;
+    } else {
+        resetBackdateFields();
+    }
+
     const rows = document.getElementById('tierRows');
     rows.innerHTML = '';
     game.tiers.forEach(t => addTierRow(t.level, t.reward));
+
     document.getElementById('gameModal').classList.add('open');
 }
 
@@ -430,8 +504,8 @@ function addTierRow(level = '', reward = '') {
     const div = document.createElement('div');
     div.className = 'tier-row';
     div.innerHTML = `
-    <input type="number" class="tier-level" placeholder="Level" value="${level}" min="1">
-    <input type="number" class="tier-reward" placeholder="0.0" step="0.1" value="${reward}">
+    <input type="number" class="tier-level"  placeholder="Level" value="${level}" min="1">
+    <input type="number" class="tier-reward" placeholder="0.0"   step="0.1" value="${reward}">
     <button class="tier-remove" onclick="this.parentElement.remove()">✕</button>
   `;
     rows.appendChild(div);
@@ -447,10 +521,17 @@ function saveGame() {
     const startLevelRaw = document.getElementById('fStartLevel').value;
     const startLevel = isBackdated ? (startLevelRaw === '' ? 0 : parseInt(startLevelRaw)) : currentLevel;
 
-    if (!name) { alert('Please enter a game title.'); return; }
-    if (!days || days < 1) { alert('Please enter a valid number of days remaining.'); return; }
+    if (!name) {
+        alert('Please enter a game title.');
+        return;
+    }
+    if (!days || days < 1) {
+        alert('Please enter a valid number of days remaining.');
+        return;
+    }
     if (isBackdated && (!totalDays || totalDays <= days)) {
-        alert('Total days must be greater than days remaining.'); return;
+        alert('Total days must be greater than days remaining.');
+        return;
     }
 
     const tierRows = document.querySelectorAll('.tier-row');
@@ -458,15 +539,17 @@ function saveGame() {
     for (const row of tierRows) {
         const lvl = parseInt(row.querySelector('.tier-level').value);
         const rew = parseFloat(row.querySelector('.tier-reward').value) || 0;
-        if (!isNaN(lvl) && lvl > 0) tiers.push({ level: lvl, reward: rew });
+        if (!isNaN(lvl) && lvl > 0) tiers.push({level: lvl, reward: rew});
     }
-    if (tiers.length === 0) { alert('Please add at least one checkpoint.'); return; }
+    if (tiers.length === 0) {
+        alert('Please add at least one checkpoint.');
+        return;
+    }
     tiers.sort((a, b) => a.level - b.level);
 
     const data = loadData();
-    const deadline = new Date();
-    deadline.setDate(deadline.getDate() + days);
-    const deadlineDate = deadline.toISOString().slice(0, 10);
+    // FIX #7: use local calendar arithmetic instead of toISOString()
+    const deadlineDate = localDatePlusDays(days);
 
     if (editingGameId) {
         const game = data.games.find(g => g.id === editingGameId);
@@ -480,15 +563,21 @@ function saveGame() {
         game.snapshot.dailyTarget = calcDailyTarget(game);
     } else {
         const daysAlreadyElapsed = isBackdated ? (totalDays - days) : 0;
-        const createdDate = new Date();
-        createdDate.setDate(createdDate.getDate() - daysAlreadyElapsed);
-        const createdDateStr = createdDate.toISOString().slice(0, 10);
+        // FIX #7: use local calendar arithmetic for createdDate too
+        const createdDate = (() => {
+            const d = new Date();
+            d.setDate(d.getDate() - daysAlreadyElapsed);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+        })();
 
         const game = {
             id: 'game_' + Date.now(),
             name,
             startLevel,
-            createdDate: createdDateStr,
+            createdDate,
             deadlineDate,
             tiers,
             snapshot: {
@@ -543,9 +632,9 @@ function confirmDelete() {
 
 // ═══════════════════════════════════════════════
 // Init
+// FIX #1: removed duplicate initTheme() call — it is called once in index.html.
 // ═══════════════════════════════════════════════
 
-initTheme();
 const data = loadData();
 selectedGameId = restoreSelectedGame(data);
 renderSelector();

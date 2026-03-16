@@ -6,17 +6,17 @@
 const TOOLS = [
     {
         name: 'Level Goal Tracker',
-        path: 'LevelGoalTracker/',
+        path: './LevelGoalTracker/index.html',
         description: 'Track progress toward a target level with deadlines and checkpoints.'
     },
     {
         name: 'Thing Counter',
-        path: 'ThingCounter/',
+        path: './ThingCounter/index.html',
         description: 'Count anything, organised in a collapsible tree, split by game.'
     },
     {
         name: 'XP Tracker',
-        path: 'XpTracker/',
+        path: './XpTracker/index.html',
         description: 'Log XP gains and track your rate over a session.'
     }
 ];

@@ -2,15 +2,18 @@
 // Storage
 // ═══════════════════════════════════════════════
 
-const STORAGE_KEY      = 'bgt:thing-counter:data';
+const STORAGE_KEY = 'bgt:thing-counter:data';
 const STORAGE_SELECTED = 'bgt:thing-counter:selected-game';
-const STORAGE_QC_VAL   = 'bgt:thing-counter:quick-counter-val';
-const STORAGE_QC_STEP  = 'bgt:thing-counter:quick-counter-step';
+const STORAGE_QC_VAL = 'bgt:thing-counter:quick-counter-val';
+const STORAGE_QC_STEP = 'bgt:thing-counter:quick-counter-step';
 const STORAGE_QC_COLOR = 'bgt:thing-counter:quick-counter-color';
 
 function loadData() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { games: [] }; }
-    catch { return { games: [] }; }
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {games: []};
+    } catch {
+        return {games: []};
+    }
 }
 
 function saveData(data) {
@@ -18,30 +21,30 @@ function saveData(data) {
 }
 
 // ═══════════════════════════════════════════════
-// Color palette (Google-Calendar-style names)
+// Color palette
 // ═══════════════════════════════════════════════
 
 const SWATCHES = [
-    { color: '#FF4D57', name: 'Cherry'     },
-    { color: '#FF6F61', name: 'Coral'      },
-    { color: '#FF8C42', name: 'Tangerine'  },
-    { color: '#FFA62B', name: 'Mango'      },
-    { color: '#FFC857', name: 'Honey'      },
-    { color: '#E6FF4F', name: 'Lemon'      },
-    { color: '#7ED957', name: 'Limeade'    },
-    { color: '#4FD08B', name: 'Cactus'     },
-    { color: '#42E6A4', name: 'Mint'       },
-    { color: '#00A8A8', name: 'Lagoon'     },
-    { color: '#27D3C2', name: 'Turquoise'  },
-    { color: '#2ED9FF', name: 'Aqua'       },
-    { color: '#4FC3F7', name: 'Glacier'    },
-    { color: '#2F6BFF', name: 'Cobalt'     },
-    { color: '#3B82C4', name: 'Denim'      },
-    { color: '#6C8CFF', name: 'Periwinkle' },
-    { color: '#5A5CFF', name: 'Indigo'     },
-    { color: '#7A4DFF', name: 'Plum'       },
-    { color: '#D65CFF', name: 'Orchid'     },
-    { color: '#FF4F81', name: 'Rose'       },
+    {color: '#FF4D57', name: 'Cherry'},
+    {color: '#FF6F61', name: 'Coral'},
+    {color: '#FF8C42', name: 'Tangerine'},
+    {color: '#FFA62B', name: 'Mango'},
+    {color: '#FFC857', name: 'Honey'},
+    {color: '#E6FF4F', name: 'Lemon'},
+    {color: '#7ED957', name: 'Limeade'},
+    {color: '#4FD08B', name: 'Cactus'},
+    {color: '#42E6A4', name: 'Mint'},
+    {color: '#00A8A8', name: 'Lagoon'},
+    {color: '#27D3C2', name: 'Turquoise'},
+    {color: '#2ED9FF', name: 'Aqua'},
+    {color: '#4FC3F7', name: 'Glacier'},
+    {color: '#2F6BFF', name: 'Cobalt'},
+    {color: '#3B82C4', name: 'Denim'},
+    {color: '#6C8CFF', name: 'Periwinkle'},
+    {color: '#5A5CFF', name: 'Indigo'},
+    {color: '#7A4DFF', name: 'Plum'},
+    {color: '#D65CFF', name: 'Orchid'},
+    {color: '#FF4F81', name: 'Rose'},
 ];
 
 const DEFAULT_COLOR = '#2ED9FF';
@@ -54,16 +57,13 @@ function swatchByColor(color) {
 // State
 // ═══════════════════════════════════════════════
 
-let selectedGameId  = null;
-let editMode        = false;
-let nodeEditActive  = null; // id of single node in local edit mode
+let selectedGameId = null;
+let editMode = false;
+let nodeEditActive = null;
 
 // ═══════════════════════════════════════════════
 // Sort order
 // ═══════════════════════════════════════════════
-
-// Persisted on game.sortOrder: null | 'asc' | 'desc'
-// Cycles: null → 'asc' → 'desc' → null
 
 function currentSortOrder() {
     if (!selectedGameId) return null;
@@ -77,7 +77,7 @@ function cycleSortOrder() {
     const data = loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
-    const next = { null: 'asc', asc: 'desc', desc: null };
+    const next = {null: 'asc', asc: 'desc', desc: null};
     game.sortOrder = next[game.sortOrder || 'null'] || null;
     saveData(data);
     updateSortBtn();
@@ -88,9 +88,19 @@ function updateSortBtn() {
     const btn = document.getElementById('sortBtn');
     if (!btn) return;
     const order = currentSortOrder();
-    if (order === 'asc')  { btn.textContent = 'A↑'; btn.classList.add('active');    btn.title = 'Sorted A→Z (click for Z→A)'; }
-    else if (order === 'desc') { btn.textContent = 'A↓'; btn.classList.add('active'); btn.title = 'Sorted Z→A (click to unsort)'; }
-    else                  { btn.textContent = 'A↑'; btn.classList.remove('active'); btn.title = 'Sort order: off (click for A→Z)'; }
+    if (order === 'asc') {
+        btn.textContent = 'A↑';
+        btn.classList.add('active');
+        btn.title = 'Sorted A→Z (click for Z→A)';
+    } else if (order === 'desc') {
+        btn.textContent = 'A↓';
+        btn.classList.add('active');
+        btn.title = 'Sorted Z→A (click to unsort)';
+    } else {
+        btn.textContent = 'A↑';
+        btn.classList.remove('active');
+        btn.title = 'Sort order: off (click for A→Z)';
+    }
 }
 
 // ═══════════════════════════════════════════════
@@ -99,13 +109,13 @@ function updateSortBtn() {
 
 function updateGameActionButtons(data) {
     const hasGame = !!selectedGameId && !!data.games.find(g => g.id === selectedGameId);
-    document.getElementById('editGameBtn').style.display   = hasGame ? '' : 'none';
+    document.getElementById('editGameBtn').style.display = hasGame ? '' : 'none';
     document.getElementById('treeActionBar').style.display = hasGame ? '' : 'none';
 }
 
 function renderSelector() {
     const data = loadData();
-    const sel  = document.getElementById('gameSelect');
+    const sel = document.getElementById('gameSelect');
     sel.innerHTML = '<option value="">— select a game —</option>';
     data.games.forEach(g => {
         const opt = document.createElement('option');
@@ -124,7 +134,7 @@ function selectGame(id) {
     nodeEditActive = null;
     if (selectedGameId) {
         localStorage.setItem(STORAGE_SELECTED, selectedGameId);
-        qcReset(); // selecting a game = intentional navigation → reset QC
+        qcReset();
         document.getElementById('quickCounterModal').classList.remove('open');
     } else {
         localStorage.removeItem(STORAGE_SELECTED);
@@ -147,21 +157,18 @@ function restoreSelectedGame(data) {
 function toggleEditMode() {
     editMode = !editMode;
     nodeEditActive = null;
-    const btn     = document.getElementById('editModeBtn');
+    const btn = document.getElementById('editModeBtn');
     const content = document.getElementById('mainContent');
     btn.classList.toggle('active', editMode);
     content.classList.toggle('edit-mode', editMode);
-    // Update banner
     const banner = content.querySelector('.edit-mode-banner');
     if (banner) banner.classList.toggle('visible', editMode);
-    // Refresh edit overlays on all counter cards
     content.querySelectorAll('.counter-card').forEach(card => card.classList.remove('node-edit-active'));
     content.querySelectorAll('.branch-row').forEach(row => row.classList.remove('node-edit-active'));
 }
 
 function activateNodeEdit(nodeId) {
-    // Toggle single-node edit mode (long-press / dblclick)
-    if (editMode) return; // already in global edit mode
+    if (editMode) return;
     const content = document.getElementById('mainContent');
     if (nodeEditActive === nodeId) {
         nodeEditActive = null;
@@ -203,7 +210,10 @@ function findParent(nodes, id, parent = null) {
 
 function removeNode(nodes, id) {
     for (let i = 0; i < nodes.length; i++) {
-        if (nodes[i].id === id) { nodes.splice(i, 1); return true; }
+        if (nodes[i].id === id) {
+            nodes.splice(i, 1);
+            return true;
+        }
         if (nodes[i].children && removeNode(nodes[i].children, id)) return true;
     }
     return false;
@@ -212,7 +222,7 @@ function removeNode(nodes, id) {
 function getAllBranches(nodes, result = [], depth = 0) {
     for (const n of nodes) {
         if (n.type === 'branch') {
-            result.push({ id: n.id, name: n.name, depth });
+            result.push({id: n.id, name: n.name, depth});
             if (n.children) getAllBranches(n.children, result, depth + 1);
         }
     }
@@ -227,6 +237,7 @@ function countDescendants(node) {
 function isAncestor(nodes, ancestorId, targetId) {
     const ancestor = findNode(nodes, ancestorId);
     if (!ancestor) return false;
+
     function check(node) {
         if (!node.children) return false;
         for (const c of node.children) {
@@ -234,6 +245,7 @@ function isAncestor(nodes, ancestorId, targetId) {
         }
         return false;
     }
+
     return check(ancestor);
 }
 
@@ -253,8 +265,8 @@ function initialValue(node) {
 
 function fillPercent(node) {
     if (node.counterType !== 'bounded') return 0;
-    const min   = node.min ?? 0;
-    const max   = node.max ?? 0;
+    const min = node.min ?? 0;
+    const max = node.max ?? 0;
     const range = max - min;
     if (range <= 0) return 0;
     return Math.min(100, Math.max(0, ((node.value - min) / range) * 100));
@@ -287,18 +299,30 @@ function renderMain() {
 
     const data = loadData();
     const game = data.games.find(g => g.id === selectedGameId);
-    if (!game) { content.innerHTML = ''; return; }
+    if (!game) {
+        content.innerHTML = '';
+        return;
+    }
+
+    // FIX #26: show a helpful empty state when a game has no nodes yet.
+    const hasNodes = game.nodes && game.nodes.length > 0;
 
     content.innerHTML = `
         <div class="edit-mode-banner${editMode ? ' visible' : ''}">✏️ Edit Mode</div>
+        ${!hasNodes ? `
+        <div class="empty-state empty-state-game">
+            <div class="big">📋</div>
+            No counters yet.<br>
+            Tap <strong>✏️</strong> to enter edit mode,<br>
+            then use <strong>+ Branch</strong> or <strong>+ Counter</strong> to get started.
+        </div>` : ''}
         <div class="tree-root" id="treeRoot"></div>
     `;
     content.classList.toggle('edit-mode', editMode);
 
     const treeRoot = document.getElementById('treeRoot');
-    renderNodes(game.nodes || [], treeRoot);
+    if (hasNodes) renderNodes(game.nodes, treeRoot);
 
-    // Root-level ghost add button
     const ghost = document.createElement('button');
     ghost.className = 'add-ghost-btn';
     ghost.textContent = '+ Add counter to root';
@@ -343,7 +367,6 @@ function renderNode(node) {
 function renderBranch(node) {
     const row = document.createElement('div');
     row.className = 'branch-row' + (nodeEditActive === node.id ? ' node-edit-active' : '');
-
     const isCollapsed = collapsedBranches.has(node.id);
 
     row.innerHTML = `
@@ -357,20 +380,23 @@ function renderBranch(node) {
     `;
 
     row.querySelector('[data-action="add"]').addEventListener('click', e => {
-        e.stopPropagation(); openAddBranchModal(node.id);
+        e.stopPropagation();
+        openAddBranchModal(node.id);
     });
     row.querySelector('[data-action="edit"]').addEventListener('click', e => {
-        e.stopPropagation(); openEditBranchModal(node.id);
+        e.stopPropagation();
+        openEditBranchModal(node.id);
     });
     row.querySelector('[data-action="delete"]').addEventListener('click', e => {
-        e.stopPropagation(); openConfirmDeleteNode(node.id);
+        e.stopPropagation();
+        openConfirmDeleteNode(node.id);
     });
 
-    // Click anywhere on row = toggle collapse
     row.addEventListener('click', () => toggleBranch(node.id));
-    // Double-click = activate node edit
-    row.addEventListener('dblclick', e => { e.preventDefault(); activateNodeEdit(node.id); });
-    // Long-press for mobile
+    row.addEventListener('dblclick', e => {
+        e.preventDefault();
+        activateNodeEdit(node.id);
+    });
     attachLongPress(row, () => activateNodeEdit(node.id));
 
     return row;
@@ -380,20 +406,19 @@ function renderCounter(node) {
     const card = document.createElement('div');
     card.className = 'counter-card' + (nodeEditActive === node.id ? ' node-edit-active' : '');
 
-    const isBounded  = node.counterType === 'bounded';
+    const isBounded = node.counterType === 'bounded';
     const isDecrement = !!node.decrement;
-    const color      = node.color || DEFAULT_COLOR;
-    const step       = node.step || 1;
-    const pct        = fillPercent(node);
+    const color = node.color || DEFAULT_COLOR;
+    const step = node.step || 1;
+    const pct = fillPercent(node);
     const valueLabel = isBounded ? `${node.value} / ${node.max ?? '?'}` : `${node.value}`;
-    const stepLabel  = step !== 1 ? step : '';
+    const stepLabel = step !== 1 ? step : '';
 
-    // Dominant button logic
-    const plusLabel  = stepLabel ? `+${step}` : '+';
+    const plusLabel = stepLabel ? `+${step}` : '+';
     const minusLabel = stepLabel ? `−${step}` : '−';
-    const plusClass  = 'c-btn ' + (isDecrement ? 'subdued' : 'dominant');
+    const plusClass = 'c-btn ' + (isDecrement ? 'subdued' : 'dominant');
     const minusClass = 'c-btn ' + (isDecrement ? 'dominant' : 'subdued');
-    const plusStyle  = isDecrement ? '' : `color:${color};border-color:${color}`;
+    const plusStyle = isDecrement ? '' : `color:${color};border-color:${color}`;
     const minusStyle = isDecrement ? `color:${color};border-color:${color}` : '';
 
     card.innerHTML = `
@@ -414,7 +439,6 @@ function renderCounter(node) {
         ${isBounded ? `<div class="counter-fill-bar-wrap"><div class="counter-fill-bar" style="width:${pct}%;background:${color}"></div></div>` : ''}
     `;
 
-    // Step buttons
     card.querySelectorAll('[data-step]').forEach(btn => {
         btn.addEventListener('click', e => {
             e.stopPropagation();
@@ -422,19 +446,28 @@ function renderCounter(node) {
         });
     });
 
-    // Edit controls
-    card.querySelector('[data-action="edit"]').addEventListener('click',      e => { e.stopPropagation(); openEditCounterModal(node.id); });
-    card.querySelector('[data-action="resetstep"]').addEventListener('click', e => { e.stopPropagation(); resetNodeStep(node.id); });
-    card.querySelector('[data-action="resetval"]').addEventListener('click',  e => { e.stopPropagation(); resetNodeValue(node.id); });
-    card.querySelector('[data-action="delete"]').addEventListener('click',    e => { e.stopPropagation(); openConfirmDeleteNode(node.id); });
+    card.querySelector('[data-action="edit"]').addEventListener('click', e => {
+        e.stopPropagation();
+        openEditCounterModal(node.id);
+    });
+    card.querySelector('[data-action="resetstep"]').addEventListener('click', e => {
+        e.stopPropagation();
+        resetNodeStep(node.id);
+    });
+    card.querySelector('[data-action="resetval"]').addEventListener('click', e => {
+        e.stopPropagation();
+        resetNodeValue(node.id);
+    });
+    card.querySelector('[data-action="delete"]').addEventListener('click', e => {
+        e.stopPropagation();
+        openConfirmDeleteNode(node.id);
+    });
 
-    // Click name → focus modal
     card.querySelector('.counter-name').addEventListener('click', e => {
         e.stopPropagation();
         openFocusModal(node.id);
     });
 
-    // Double-click card → single-node edit
     card.addEventListener('dblclick', e => {
         if (e.target.closest('.node-btn') || e.target.closest('.c-btn')) return;
         e.preventDefault();
@@ -451,13 +484,39 @@ function renderCounter(node) {
 
 function attachLongPress(el, callback) {
     let timer = null;
-    el.addEventListener('pointerdown', () => {
-        timer = setTimeout(() => { timer = null; callback(); }, 500);
-    });
-    el.addEventListener('pointerup',    () => { if (timer) { clearTimeout(timer); timer = null; } });
-    el.addEventListener('pointerleave', () => { if (timer) { clearTimeout(timer); timer = null; } });
-}
+    let cancelled = false;
 
+    el.addEventListener('pointerdown', e => {
+        cancelled = false;
+        timer = setTimeout(() => {
+            timer = null;
+            if (!cancelled) callback();
+        }, 500);
+    });
+
+    // FIX #18 (pass 2 prep): cancel on meaningful movement to avoid
+    // triggering during scroll gestures on mobile.
+    el.addEventListener('pointermove', e => {
+        if (timer) {
+            clearTimeout(timer);
+            timer = null;
+            cancelled = true;
+        }
+    });
+
+    el.addEventListener('pointerup', () => {
+        if (timer) {
+            clearTimeout(timer);
+            timer = null;
+        }
+    });
+    el.addEventListener('pointerleave', () => {
+        if (timer) {
+            clearTimeout(timer);
+            timer = null;
+        }
+    });
+}
 
 // ═══════════════════════════════════════════════
 // Tree interactions
@@ -552,54 +611,49 @@ function updateFocusDisplay() {
     const node = findNode(game.nodes, focusNodeId);
     if (!node) return;
 
-    const isBounded   = node.counterType === 'bounded';
+    const isBounded = node.counterType === 'bounded';
     const isDecrement = !!node.decrement;
-    const color       = node.color || DEFAULT_COLOR;
-    const step        = node.step || 1;
+    const color = node.color || DEFAULT_COLOR;
+    const step = node.step || 1;
 
-    // Value display
     const display = document.getElementById('focusValueDisplay');
     display.textContent = isBounded ? `${node.value} / ${node.max ?? '?'}` : `${node.value}`;
     display.style.color = color;
     display.style.textShadow = `0 0 20px ${color}80`;
     document.getElementById('focusValueInput').value = node.value;
 
-    // Step display
     document.getElementById('focusStepDisplay').textContent = step;
     document.getElementById('focusStepInput').value = step;
 
-    // Button labels and dominance
-    const minus1     = document.getElementById('focusMinus1');
-    const plus1      = document.getElementById('focusPlus1');
-    const minusStep  = document.getElementById('focusMinusStep');
-    const plusStep   = document.getElementById('focusPlusStep');
-    const btnRow1    = document.getElementById('focusBtnRow1');
-    const btnRow2    = document.getElementById('focusBtnRow2');
+    const minus1 = document.getElementById('focusMinus1');
+    const plus1 = document.getElementById('focusPlus1');
+    const minusStep = document.getElementById('focusMinusStep');
+    const plusStep = document.getElementById('focusPlusStep');
+    const btnRow1 = document.getElementById('focusBtnRow1');
+    const btnRow2 = document.getElementById('focusBtnRow2');
 
-    minus1.textContent    = '−1';
-    plus1.textContent     = '+1';
+    minus1.textContent = '−1';
+    plus1.textContent = '+1';
     minusStep.textContent = `−${step}`;
-    plusStep.textContent  = `+${step}`;
+    plusStep.textContent = `+${step}`;
 
-    // Swap dominance for decrement
     [btnRow1, btnRow2].forEach(row => row.classList.toggle('decrement', isDecrement));
     [minus1, minusStep].forEach(btn => {
         btn.classList.toggle('dominant', isDecrement);
-        btn.style.color       = isDecrement ? color : '';
+        btn.style.color = isDecrement ? color : '';
         btn.style.borderColor = isDecrement ? color : '';
     });
     [plus1, plusStep].forEach(btn => {
         btn.classList.toggle('subdued', isDecrement);
-        btn.style.color       = isDecrement ? '' : color;
+        btn.style.color = isDecrement ? '' : color;
         btn.style.borderColor = isDecrement ? '' : color;
     });
 
-    // Fill bar
     const fillWrap = document.getElementById('focusFillWrap');
-    const fillBar  = document.getElementById('focusFillBar');
+    const fillBar = document.getElementById('focusFillBar');
     if (isBounded) {
         fillWrap.classList.add('visible');
-        fillBar.style.width      = fillPercent(node) + '%';
+        fillBar.style.width = fillPercent(node) + '%';
         fillBar.style.background = color;
     } else {
         fillWrap.classList.remove('visible');
@@ -638,8 +692,10 @@ function activateFocusStepInput() {
     input.select();
 }
 
+// FIX #21: use parseFloat consistently for step — was parseInt in saveAddCounter,
+// causing a step of e.g. 1.5 set in the focus modal to be truncated to 1 on next edit-save.
 function onFocusStepInput() {
-    const val = parseInt(document.getElementById('focusStepInput').value);
+    const val = parseFloat(document.getElementById('focusStepInput').value);
     if (isNaN(val) || val < 1) return;
     const data = loadData();
     const game = data.games.find(g => g.id === selectedGameId);
@@ -725,11 +781,10 @@ function toggleSwatchPopover(event) {
 function updateColorField(color) {
     const sw = swatchByColor(color);
     document.getElementById('acColorDot').style.background = sw.color;
-    document.getElementById('acColorName').textContent     = sw.name;
+    document.getElementById('acColorName').textContent = sw.name;
     currentSwatchColor = color;
 }
 
-// Close popover when clicking outside
 document.addEventListener('click', () => {
     const popover = document.getElementById('acSwatchPopover');
     if (popover) popover.classList.remove('open');
@@ -740,9 +795,9 @@ document.addEventListener('click', () => {
 // ═══════════════════════════════════════════════
 
 function populateParentSelect(selectId, excludeId, selectedParentId) {
-    const data   = loadData();
-    const game   = data.games.find(g => g.id === selectedGameId);
-    const sel    = document.getElementById(selectId);
+    const data = loadData();
+    const game = data.games.find(g => g.id === selectedGameId);
+    const sel = document.getElementById(selectId);
     sel.innerHTML = '<option value="">(Root level)</option>';
     if (!game) return;
     getAllBranches(game.nodes || []).forEach(b => {
@@ -763,8 +818,8 @@ let editingBranchId = null;
 
 function openAddBranchModal(parentId) {
     editingBranchId = null;
-    document.getElementById('addBranchTitle').textContent    = 'Add Branch';
-    document.getElementById('addBranchSaveBtn').textContent  = 'Add';
+    document.getElementById('addBranchTitle').textContent = 'Add Branch';
+    document.getElementById('addBranchSaveBtn').textContent = 'Add';
     document.getElementById('abName').value = '';
     populateParentSelect('abParent', null, parentId);
     document.getElementById('addBranchModal').classList.add('open');
@@ -778,8 +833,8 @@ function openEditBranchModal(nodeId) {
     if (!node) return;
 
     editingBranchId = nodeId;
-    document.getElementById('addBranchTitle').textContent    = 'Edit Branch';
-    document.getElementById('addBranchSaveBtn').textContent  = 'Save';
+    document.getElementById('addBranchTitle').textContent = 'Edit Branch';
+    document.getElementById('addBranchSaveBtn').textContent = 'Save';
     document.getElementById('abName').value = node.name;
     const parentNode = findParent(game.nodes, nodeId);
     populateParentSelect('abParent', nodeId, parentNode ? parentNode.id : null);
@@ -802,20 +857,14 @@ function saveAddBranch() {
         const node = findNode(game.nodes, editingBranchId);
         if (!node) return;
         node.name = name;
-        // Re-parent if needed
-        const currentParent   = findParent(game.nodes, editingBranchId);
+        const currentParent = findParent(game.nodes, editingBranchId);
         const currentParentId = currentParent ? currentParent.id : null;
         if (newParentId !== currentParentId) {
             removeNode(game.nodes, editingBranchId);
             insertNode(game, node, newParentId);
         }
     } else {
-        const node = {
-            id: newId(),
-            name,
-            type: 'branch',
-            children: [],
-        };
+        const node = {id: newId(), name, type: 'branch', children: []};
         insertNode(game, node, newParentId);
     }
 
@@ -832,16 +881,16 @@ let editingCounterId = null;
 
 function openAddCounterModal(parentId) {
     editingCounterId = null;
-    document.getElementById('addCounterTitle').textContent   = 'Add Counter';
+    document.getElementById('addCounterTitle').textContent = 'Add Counter';
     document.getElementById('addCounterSaveBtn').textContent = 'Add';
     document.getElementById('acName').value = '';
     document.querySelector('input[name="acCounterType"][value="open"]').checked = true;
     document.getElementById('acBoundedFields').style.display = 'none';
-    document.getElementById('acMin').value     = '0';
-    document.getElementById('acMax').value     = '';
+    document.getElementById('acMin').value = '0';
+    document.getElementById('acMax').value = '';
     document.getElementById('acInitial').value = '';
-    document.getElementById('acValue').value   = '0';
-    document.getElementById('acStep').value    = '1';
+    document.getElementById('acValue').value = '0';
+    document.getElementById('acStep').value = '1';
     document.getElementById('acDecrement').checked = false;
     onDecrementChange();
     updateColorField(DEFAULT_COLOR);
@@ -857,18 +906,19 @@ function openEditCounterModal(nodeId) {
     if (!node) return;
 
     editingCounterId = nodeId;
-    document.getElementById('addCounterTitle').textContent   = 'Edit Counter';
+    document.getElementById('addCounterTitle').textContent = 'Edit Counter';
     document.getElementById('addCounterSaveBtn').textContent = 'Save';
     document.getElementById('acName').value = node.name;
 
     const isBounded = node.counterType === 'bounded';
     document.querySelector(`input[name="acCounterType"][value="${isBounded ? 'bounded' : 'open'}"]`).checked = true;
     document.getElementById('acBoundedFields').style.display = isBounded ? '' : 'none';
-    document.getElementById('acMin').value     = node.min     ?? 0;
-    document.getElementById('acMax').value     = node.max     ?? '';
+    document.getElementById('acMin').value = node.min ?? 0;
+    document.getElementById('acMax').value = node.max ?? '';
     document.getElementById('acInitial').value = node.initial ?? '';
-    document.getElementById('acValue').value   = node.value   ?? 0;
-    document.getElementById('acStep').value    = node.step    ?? 1;
+    document.getElementById('acValue').value = node.value ?? 0;
+    // FIX #21: preserve float step value in the edit modal
+    document.getElementById('acStep').value = node.step ?? 1;
     document.getElementById('acDecrement').checked = !!node.decrement;
     onDecrementChange();
     updateColorField(node.color || DEFAULT_COLOR);
@@ -896,20 +946,21 @@ function onDecrementChange() {
 }
 
 function saveAddCounter() {
-    const name        = document.getElementById('acName').value.trim() || 'New Counter';
+    const name = document.getElementById('acName').value.trim() || 'New Counter';
     const newParentId = document.getElementById('acParent').value || null;
-    const isBounded   = document.querySelector('input[name="acCounterType"]:checked')?.value === 'bounded';
+    const isBounded = document.querySelector('input[name="acCounterType"]:checked')?.value === 'bounded';
     const isDecrement = document.getElementById('acDecrement').checked;
-    const step        = Math.max(1, parseInt(document.getElementById('acStep').value) || 1);
-    const color       = currentSwatchColor;
+    // FIX #21: use parseFloat so fractional steps are preserved on save
+    const step = Math.max(1, parseFloat(document.getElementById('acStep').value) || 1);
+    const color = currentSwatchColor;
 
     const data = loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
 
-    let rawValue   = parseInt(document.getElementById('acValue').value)   || 0;
-    let rawMin     = parseInt(document.getElementById('acMin').value)     ?? 0;
-    let rawMax     = parseInt(document.getElementById('acMax').value)     || null;
+    let rawValue = parseInt(document.getElementById('acValue').value) || 0;
+    let rawMin = parseInt(document.getElementById('acMin').value) ?? 0;
+    let rawMax = parseInt(document.getElementById('acMax').value) || null;
     let rawInitial = parseInt(document.getElementById('acInitial').value);
     if (isNaN(rawInitial)) rawInitial = isDecrement ? (rawMax ?? 0) : rawMin;
 
@@ -918,17 +969,23 @@ function saveAddCounter() {
     if (editingCounterId) {
         const node = findNode(game.nodes, editingCounterId);
         if (!node) return;
-        node.name        = name;
+        node.name = name;
         node.counterType = isBounded ? 'bounded' : 'open';
-        node.value       = rawValue;
-        node.step        = step;
-        node.color       = color;
-        node.decrement   = isDecrement;
-        if (isBounded) { node.min = rawMin; node.max = rawMax; node.initial = rawInitial; }
-        else           { delete node.min; delete node.max; delete node.initial; }
+        node.value = rawValue;
+        node.step = step;
+        node.color = color;
+        node.decrement = isDecrement;
+        if (isBounded) {
+            node.min = rawMin;
+            node.max = rawMax;
+            node.initial = rawInitial;
+        } else {
+            delete node.min;
+            delete node.max;
+            delete node.initial;
+        }
 
-        // Re-parent if needed
-        const currentParent   = findParent(game.nodes, editingCounterId);
+        const currentParent = findParent(game.nodes, editingCounterId);
         const currentParentId = currentParent ? currentParent.id : null;
         if (newParentId !== currentParentId) {
             removeNode(game.nodes, editingCounterId);
@@ -936,16 +993,20 @@ function saveAddCounter() {
         }
     } else {
         const node = {
-            id:          newId(),
+            id: newId(),
             name,
-            type:        'counter',
+            type: 'counter',
             counterType: isBounded ? 'bounded' : 'open',
-            value:       rawValue,
+            value: rawValue,
             step,
             color,
-            decrement:   isDecrement,
+            decrement: isDecrement,
         };
-        if (isBounded) { node.min = rawMin; node.max = rawMax; node.initial = rawInitial; }
+        if (isBounded) {
+            node.min = rawMin;
+            node.max = rawMax;
+            node.initial = rawInitial;
+        }
         insertNode(game, node, newParentId);
     }
 
@@ -1010,13 +1071,16 @@ function closeGameModal() {
 
 function saveGame() {
     const name = document.getElementById('gmName').value.trim();
-    if (!name) { alert('Please enter a game title.'); return; }
+    if (!name) {
+        alert('Please enter a game title.');
+        return;
+    }
     const data = loadData();
     if (editingGameId) {
         const game = data.games.find(g => g.id === editingGameId);
         if (game) game.name = name;
     } else {
-        const game = { id: 'game_' + Date.now(), name, nodes: [] };
+        const game = {id: 'game_' + Date.now(), name, nodes: []};
         data.games.push(game);
         selectedGameId = game.id;
         localStorage.setItem(STORAGE_SELECTED, selectedGameId);
@@ -1034,9 +1098,9 @@ function promptResetCounters() {
 }
 
 function cancelResetCounters() {
-    const row     = document.getElementById('resetConfirmRow');
+    const row = document.getElementById('resetConfirmRow');
     const confirm = document.getElementById('resetConfirm');
-    if (row)     row.style.opacity = '';
+    if (row) row.style.opacity = '';
     if (confirm) confirm.style.display = 'none';
 }
 
@@ -1045,12 +1109,14 @@ function confirmResetCounters() {
     const data = loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
+
     function resetNodes(nodes) {
         for (const n of nodes) {
             if (n.type === 'counter') n.value = initialValue(n);
             if (n.children) resetNodes(n.children);
         }
     }
+
     resetNodes(game.nodes || []);
     saveData(data);
     closeGameModal();
@@ -1061,7 +1127,7 @@ function confirmResetCounters() {
 // Delete
 // ═══════════════════════════════════════════════
 
-let pendingDeleteId   = null;
+let pendingDeleteId = null;
 let pendingDeleteType = null;
 
 function openConfirmDeleteNode(nodeId) {
@@ -1070,9 +1136,9 @@ function openConfirmDeleteNode(nodeId) {
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
     if (!node) return;
-    pendingDeleteId   = nodeId;
+    pendingDeleteId = nodeId;
     pendingDeleteType = 'node';
-    document.getElementById('confirmNodeName').textContent  = node.name;
+    document.getElementById('confirmNodeName').textContent = node.name;
     document.getElementById('confirmNodeExtra').textContent = node.type === 'branch'
         ? `This will also delete ${countDescendants(node)} child node(s).`
         : 'This cannot be undone.';
@@ -1084,17 +1150,16 @@ function openConfirmDeleteGame() {
     const data = loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
-    // Close game settings modal first, then show confirm
     closeGameModal();
-    pendingDeleteId   = selectedGameId;
+    pendingDeleteId = selectedGameId;
     pendingDeleteType = 'game';
-    document.getElementById('confirmNodeName').textContent  = game.name;
+    document.getElementById('confirmNodeName').textContent = game.name;
     document.getElementById('confirmNodeExtra').textContent = 'All counters and nodes will be permanently deleted.';
     document.getElementById('confirmOverlay').classList.add('open');
 }
 
 function closeConfirm() {
-    pendingDeleteId   = null;
+    pendingDeleteId = null;
     pendingDeleteType = null;
     document.getElementById('confirmOverlay').classList.remove('open');
 }
@@ -1134,17 +1199,27 @@ function escHtml(str) {
 // Quick Counter
 // ═══════════════════════════════════════════════
 
+// FIX (QC color bug): generate the random color once and persist it immediately,
+// so all subsequent qcLoad() calls in the same session return the same color.
+// Previously the fallback called qcRandomColor() inline without saving, meaning
+// every qcLoad() call could generate a new color, desynchronising the title
+// and button accent colors.
 function qcLoad() {
+    let color = localStorage.getItem(STORAGE_QC_COLOR);
+    if (!color) {
+        color = qcRandomColor();
+        localStorage.setItem(STORAGE_QC_COLOR, color);
+    }
     return {
-        val:   parseFloat(localStorage.getItem(STORAGE_QC_VAL))  || 0,
-        step:  parseFloat(localStorage.getItem(STORAGE_QC_STEP)) || 1,
-        color: localStorage.getItem(STORAGE_QC_COLOR)            || qcRandomColor(),
+        val: parseFloat(localStorage.getItem(STORAGE_QC_VAL)) || 0,
+        step: parseFloat(localStorage.getItem(STORAGE_QC_STEP)) || 1,
+        color,
     };
 }
 
 function qcSave(val, step, color) {
-    localStorage.setItem(STORAGE_QC_VAL,   val);
-    localStorage.setItem(STORAGE_QC_STEP,  step);
+    localStorage.setItem(STORAGE_QC_VAL, val);
+    localStorage.setItem(STORAGE_QC_STEP, step);
     localStorage.setItem(STORAGE_QC_COLOR, color);
 }
 
@@ -1159,13 +1234,10 @@ function qcRandomColor() {
 }
 
 function openQuickCounter() {
-    const { val, step, color } = qcLoad();
-
-    // Populate modal
+    const {val, step, color} = qcLoad();
     document.getElementById('qcTitle').style.color = color;
     document.getElementById('qcTitle').style.textShadow = `0 0 16px ${color}80`;
     updateQcDisplay(val, step, color);
-
     document.getElementById('quickCounterModal').classList.add('open');
 }
 
@@ -1179,23 +1251,30 @@ function updateQcDisplay(val, step, color) {
     document.getElementById('qcStepInput').value = step;
     document.getElementById('qcValueInput').value = val;
 
-    // Update button labels
-    document.getElementById('qcMinus1').textContent    = '−1';
-    document.getElementById('qcPlus1').textContent     = '+1';
+    document.getElementById('qcMinus1').textContent = '−1';
+    document.getElementById('qcPlus1').textContent = '+1';
     document.getElementById('qcMinusStep').textContent = `−${step}`;
-    document.getElementById('qcPlusStep').textContent  = `+${step}`;
+    document.getElementById('qcPlusStep').textContent = `+${step}`;
 
-    // Apply color to dominant (+) buttons
+    // FIX #22: apply muted style to minus buttons when value is already at floor (0),
+    // giving the user clear feedback that the counter cannot go lower.
+    const atFloor = val <= 0;
+    ['qcMinus1', 'qcMinusStep'].forEach(id => {
+        const btn = document.getElementById(id);
+        btn.style.opacity = atFloor ? '0.35' : '';
+        btn.disabled = atFloor;
+    });
+
     ['qcPlus1', 'qcPlusStep'].forEach(id => {
         const btn = document.getElementById(id);
-        btn.style.color       = color;
+        btn.style.color = color;
         btn.style.borderColor = color;
     });
 }
 
 function qcStep(direction, useOne) {
-    const { val, step, color } = qcLoad();
-    const amt    = useOne ? 1 : step;
+    const {val, step, color} = qcLoad();
+    const amt = useOne ? 1 : step;
     const newVal = Math.max(0, val + direction * amt);
     qcSave(newVal, step, color);
     updateQcDisplay(newVal, step, color);
@@ -1212,7 +1291,7 @@ function onQcValueInput() {
     const raw = parseFloat(document.getElementById('qcValueInput').value);
     if (isNaN(raw)) return;
     const val = Math.max(0, raw);
-    const { step, color } = qcLoad();
+    const {step, color} = qcLoad();
     qcSave(val, step, color);
     updateQcDisplay(val, step, color);
 }
@@ -1231,7 +1310,7 @@ function activateQcStepInput() {
 function onQcStepInput() {
     const raw = parseFloat(document.getElementById('qcStepInput').value);
     if (isNaN(raw) || raw < 1) return;
-    const { val, color } = qcLoad();
+    const {val, color} = qcLoad();
     qcSave(val, raw, color);
     updateQcDisplay(val, raw, color);
 }
@@ -1241,19 +1320,19 @@ function onQcStepBlur() {
 }
 
 function qcResetValue() {
-    const { step, color } = qcLoad();
+    const {step, color} = qcLoad();
     qcSave(0, step, color);
     updateQcDisplay(0, step, color);
 }
 
 function closeQuickCounter() {
-    // X = intentional close → wipe state (fresh next time)
     qcReset();
     document.getElementById('quickCounterModal').classList.remove('open');
 }
 
 // ═══════════════════════════════════════════════
 // Init
+// FIX #1: removed duplicate initTheme() call — called once in index.html.
 // ═══════════════════════════════════════════════
 
 const _initData = loadData();

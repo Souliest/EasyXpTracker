@@ -19,7 +19,8 @@
     <input type="tel" id="xpInput" placeholder="0" inputmode="numeric" pattern="[0-9]*">
     <div class="btn-row">
       <button class="btn btn-enter" onclick="addXP()" style="flex:1">Enter</button>
-      <button class="btn btn-reset" onclick="resetAll()" style="flex:1">Reset</button>
+      <!-- FIX #31: Reset button starts disabled; script enables it when entries exist -->
+      <button class="btn btn-reset" id="resetBtn" onclick="resetAll()" style="flex:1" disabled>Reset</button>
     </div>
   </div>
   <div class="stats-grid">
@@ -45,9 +46,18 @@
     <canvas id="gainChart"></canvas>
   </div>
   <div class="legend">
-    <div class="legend-item"><div class="legend-dot" style="background:#ff6b35"></div>Total avg</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#7fff6b"></div>Smooth 5</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#ffcc00"></div>Smooth 10</div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#ff6b35"></div>
+      Total avg
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#7fff6b"></div>
+      Smooth 5
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#ffcc00"></div>
+      Smooth 10
+    </div>
   </div>
   <div id="chipArea" class="entries-list"></div>
   <div class="avg-stats-grid">
@@ -68,11 +78,21 @@
 
 <!-- Estimates -->
 <div class="panel">
-  <div class="panel-title">Estimates &nbsp;<span style="font-size:0.5rem;color:var(--muted)">~ = extrapolated</span></div>
+  <div class="panel-title">Estimates &nbsp;<span style="font-size:0.5rem;color:var(--muted)">~ = extrapolated</span>
+  </div>
   <div class="stats-grid">
-    <div class="stat-box"><div class="stat-label">/ Min</div><div class="stat-value" id="tMin">—</div></div>
-    <div class="stat-box"><div class="stat-label">/ 15 Min</div><div class="stat-value" id="t15">—</div></div>
-    <div class="stat-box"><div class="stat-label">/ Hour</div><div class="stat-value" id="tHour">—</div></div>
+    <div class="stat-box">
+      <div class="stat-label">/ Min</div>
+      <div class="stat-value" id="tMin">—</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">/ 15 Min</div>
+      <div class="stat-value" id="t15">—</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">/ Hour</div>
+      <div class="stat-value" id="tHour">—</div>
+    </div>
   </div>
 </div>
 
@@ -87,9 +107,11 @@
 <!-- Entry Log -->
 <div class="panel">
   <div class="panel-title">Entry Log &nbsp;<span style="font-size:0.5rem;color:var(--muted)">
-    <span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#7fff6b;flex-shrink:0"></span> smooth 5</span>
+    <span style="display:inline-flex;align-items:center;gap:3px"><span
+        style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#7fff6b;flex-shrink:0"></span> smooth 5</span>
     &nbsp;
-    <span style="display:inline-flex;align-items:center;gap:3px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ffcc00;flex-shrink:0"></span> smooth 10</span>
+    <span style="display:inline-flex;align-items:center;gap:3px"><span
+        style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ffcc00;flex-shrink:0"></span> smooth 10</span>
   </span></div>
   <div class="log-scroll" id="entryLog">
     <div style="padding:20px;text-align:center;color:var(--muted);font-size:0.65rem;">No entries yet.</div>
@@ -113,6 +135,16 @@
 <script>
     initHeader('XP Tracker');
     initTheme(redrawCharts);
+
+    // ── Escape key dismissal ──
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') cancelReset();
+    });
+
+    // ── Backdrop tap dismissal ──
+    document.getElementById('confirmOverlay').addEventListener('click', function (e) {
+        if (e.target === this) cancelReset();
+    });
 </script>
 <script src="script.js"></script>
 </body>

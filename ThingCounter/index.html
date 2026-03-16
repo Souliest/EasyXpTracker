@@ -17,7 +17,9 @@
     <select id="gameSelect" aria-label="Select game" onchange="selectGame(this.value)">
       <option value="">— select a game —</option>
     </select>
-    <button class="btn btn-ghost game-action-btn" id="editGameBtn" onclick="openGameSettingsModal()" title="Game settings" style="display:none">✎</button>
+    <button class="btn btn-ghost game-action-btn" id="editGameBtn" onclick="openGameSettingsModal()"
+            title="Game settings" style="display:none">✎
+    </button>
     <button class="btn btn-primary" onclick="openAddGameModal()">+ Game</button>
   </div>
 
@@ -47,7 +49,7 @@
       </div>
       <div class="focus-btn-row" id="focusBtnRow1">
         <button class="focus-btn focus-btn-minus" id="focusMinus1" onclick="focusStep(-1, true)">−1</button>
-        <button class="focus-btn focus-btn-plus"  id="focusPlus1"  onclick="focusStep( 1, true)">+1</button>
+        <button class="focus-btn focus-btn-plus" id="focusPlus1" onclick="focusStep( 1, true)">+1</button>
       </div>
       <div class="focus-step-row">
         <span class="focus-step-label">Step:</span>
@@ -57,7 +59,7 @@
       </div>
       <div class="focus-btn-row" id="focusBtnRow2">
         <button class="focus-btn focus-btn-minus" id="focusMinusStep" onclick="focusStep(-1, false)">−s</button>
-        <button class="focus-btn focus-btn-plus"  id="focusPlusStep"  onclick="focusStep( 1, false)">+s</button>
+        <button class="focus-btn focus-btn-plus" id="focusPlusStep" onclick="focusStep( 1, false)">+s</button>
       </div>
       <button class="focus-reset-btn" onclick="focusResetValue()">↺ Reset to initial</button>
     </div>
@@ -101,8 +103,10 @@
     <div class="form-group">
       <label>Counter Type</label>
       <div class="radio-row">
-        <label class="radio-label"><input type="radio" name="acCounterType" value="open"    onchange="onCounterTypeChange()"> Open-ended</label>
-        <label class="radio-label"><input type="radio" name="acCounterType" value="bounded" onchange="onCounterTypeChange()"> Bounded</label>
+        <label class="radio-label"><input type="radio" name="acCounterType" value="open"
+                                          onchange="onCounterTypeChange()"> Open-ended</label>
+        <label class="radio-label"><input type="radio" name="acCounterType" value="bounded"
+                                          onchange="onCounterTypeChange()"> Bounded</label>
       </div>
     </div>
     <div id="acBoundedFields" style="display:none">
@@ -131,7 +135,7 @@
     </div>
     <div class="form-group">
       <label for="acStep">Step Size</label>
-      <input type="number" id="acStep" value="1" min="1">
+      <input type="number" id="acStep" value="1" min="1" step="any">
     </div>
     <div class="form-group">
       <label for="acColorField">Fill Color</label>
@@ -205,7 +209,7 @@
       </div>
       <div class="focus-btn-row">
         <button class="focus-btn focus-btn-minus" id="qcMinus1" onclick="qcStep(-1, true)">−1</button>
-        <button class="focus-btn focus-btn-plus"  id="qcPlus1"  onclick="qcStep( 1, true)">+1</button>
+        <button class="focus-btn focus-btn-plus" id="qcPlus1" onclick="qcStep( 1, true)">+1</button>
       </div>
       <div class="focus-step-row">
         <span class="focus-step-label">Step:</span>
@@ -215,7 +219,7 @@
       </div>
       <div class="focus-btn-row">
         <button class="focus-btn focus-btn-minus" id="qcMinusStep" onclick="qcStep(-1, false)">−s</button>
-        <button class="focus-btn focus-btn-plus"  id="qcPlusStep"  onclick="qcStep( 1, false)">+s</button>
+        <button class="focus-btn focus-btn-plus" id="qcPlusStep" onclick="qcStep( 1, false)">+s</button>
       </div>
       <button class="focus-reset-btn" onclick="qcResetValue()">↺ Reset to zero</button>
     </div>
@@ -239,6 +243,29 @@
 <script>
     initHeader('Thing Counter');
     initTheme();
+
+    // ── Escape key dismissal ──
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        closeFocusModal();
+        closeAddBranchModal();
+        closeAddCounterModal();
+        closeGameModal();
+        closeQuickCounter();
+        closeConfirm();
+    });
+
+    // ── Backdrop tap dismissal ──
+    // Focus and Quick Counter modals close on backdrop tap (no data loss risk).
+    // Edit modals (branch, counter, game) do NOT — prevent accidental data loss.
+    // Confirm overlay does NOT — accidental tap on delete confirm is too risky.
+    document.getElementById('focusModal').addEventListener('click', function (e) {
+        if (e.target === this) closeFocusModal();
+    });
+    document.getElementById('quickCounterModal').addEventListener('click', function (e) {
+        // Backdrop tap = accidental dismiss, preserve state (same as blur/refresh)
+        if (e.target === this) document.getElementById('quickCounterModal').classList.remove('open');
+    });
 </script>
 <script src="script.js"></script>
 </body>

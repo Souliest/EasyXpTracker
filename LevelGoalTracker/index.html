@@ -30,15 +30,15 @@
     <h2 id="modalTitle">Add Game</h2>
 
     <div class="form-group">
-      <label>Game Title</label>
+      <label for="fName">Game Title</label>
       <input type="text" id="fName" placeholder="Title">
     </div>
     <div class="form-group">
-      <label>Current Level</label>
+      <label for="fCurrentLevel">Current Level</label>
       <input type="number" id="fCurrentLevel" placeholder="0" min="0" value="0">
     </div>
     <div class="form-group">
-      <label>Days Remaining</label>
+      <label for="fDays">Days Remaining</label>
       <input type="number" id="fDays" placeholder="Days remaining" min="1">
     </div>
 
@@ -50,11 +50,11 @@
     </div>
     <div id="backdateFields" class="backdate-fields">
       <div class="form-group">
-        <label>Total Days (at start)</label>
+        <label for="fTotalDays">Total Days (at start)</label>
         <input type="number" id="fTotalDays" placeholder="e.g. 90" min="1">
       </div>
       <div class="form-group">
-        <label>Starting Level (on day one)</label>
+        <label for="fStartLevel">Starting Level (on day one)</label>
         <input type="number" id="fStartLevel" placeholder="0" min="0" value="0">
       </div>
     </div>
@@ -92,6 +92,22 @@
 <script>
     initHeader('Level Goal Tracker');
     initTheme();
+
+    // ── Escape key dismissal ──
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        closeModal();
+        closeConfirm();
+    });
+
+    // ── Backdrop tap dismissal ──
+    // Game modal: backdrop tap closes only if not a form interaction
+    document.getElementById('gameModal').addEventListener('click', function (e) {
+        if (e.target === this) closeModal();
+    });
+    document.getElementById('confirmOverlay').addEventListener('click', function (e) {
+        if (e.target === this) closeConfirm();
+    });
 </script>
 <script src="script.js"></script>
 </body>
