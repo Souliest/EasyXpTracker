@@ -1,3 +1,5 @@
+<!-- ThingCounter/index.html -->
+<!-- Shell: loads shared theme/header globals, then boots the tool via js/main.js (module). -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -258,17 +260,13 @@
     });
 
     // ── Backdrop tap dismissal ──
-    // Focus and Quick Counter modals close on backdrop tap (no data loss risk).
-    // Edit modals (branch, counter, game) do NOT — prevent accidental data loss.
-    // Confirm overlay does NOT — accidental tap on delete confirm is too risky.
     document.getElementById('focusModal').addEventListener('click', function (e) {
         if (e.target === this) closeFocusModal();
     });
     document.getElementById('quickCounterModal').addEventListener('click', function (e) {
-        // Backdrop tap = accidental dismiss, preserve state (same as blur/refresh)
         if (e.target === this) document.getElementById('quickCounterModal').classList.remove('open');
     });
 </script>
-<script src="script.js"></script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
