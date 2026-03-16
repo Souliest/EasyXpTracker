@@ -90,13 +90,7 @@
 <script src="../common/theme.js"></script>
 <script src="../common/header.js"></script>
 <script>
-    // Insert header as first child of .container, not body
-    // (override default behavior since LevelGoalTracker uses a .container wrapper)
     initHeader('Level Goal Tracker');
-    const container = document.querySelector('.container');
-    const header = document.querySelector('.tool-header');
-    container.insertBefore(header, container.firstChild);
-
     initTheme();
 </script>
 <script src="script.js"></script>
