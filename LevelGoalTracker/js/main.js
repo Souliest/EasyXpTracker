@@ -6,8 +6,7 @@
 // ═══════════════════════════════════════════════
 
 import {loadData, saveData, STORAGE_SELECTED} from './storage.js';
-import {todayStr} from './dates.js';
-import {maybeRollSnapshot, calcDailyTarget} from './snapshot.js';
+import {maybeRollSnapshot} from './snapshot.js';
 import {computeStats} from './stats.js';
 import {
     renderBanners,
