@@ -561,6 +561,7 @@ function saveGame() {
         game.name = name;
         game.tiers = tiers;
         game.deadlineDate = deadlineDate;
+        game.backdated = isBackdated;
         game.snapshot.currentLevel = currentLevel;
         game.snapshot.initialDailyLevel = currentLevel;
         game.snapshot.date = todayStr();

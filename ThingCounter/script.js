@@ -1218,12 +1218,15 @@ function qcLoad() {
         color = qcRandomColor();
         localStorage.setItem(STORAGE_QC_COLOR, color);
     }
-    // FIX #23: use ?? instead of || so a stored value of 0 is returned as 0
-    // rather than falling through to the default. val=0 is a valid counter
-    // state; || would incorrectly promote it to the fallback value.
+    // Use || rather than ?? here: localStorage.getItem returns null when a key
+    // is absent, parseFloat(null) = NaN, and NaN ?? 0 = NaN (because ?? only
+    // catches null/undefined, not NaN). The fallback for val is 0, which is
+    // also the minimum value, so 0 || 0 = 0 — no stored-zero regression.
+    // Step can never be stored as 0 (onQcStepInput guards val < 1), so || is
+    // safe there too.
     return {
-        val: parseFloat(localStorage.getItem(STORAGE_QC_VAL)) ?? 0,
-        step: parseFloat(localStorage.getItem(STORAGE_QC_STEP)) ?? 1,
+        val: parseFloat(localStorage.getItem(STORAGE_QC_VAL)) || 0,
+        step: parseFloat(localStorage.getItem(STORAGE_QC_STEP)) || 1,
         color,
     };
 }

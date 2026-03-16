@@ -312,7 +312,6 @@ function drawTimeChart() {
         ctx.fillText('No data yet.', w / 2, h / 2);
         return;
     }
-    const now = Date.now();
     let cumulative = 0;
     const points = gains.map(g => {
         cumulative += g.xp;

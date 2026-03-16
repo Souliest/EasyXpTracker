@@ -199,14 +199,6 @@ body, .panel, input, .stat-box, .entry-chip {
   }
 }
 
-.empty-msg {
-  color: var(--muted);
-  font-size: 0.65rem;
-  text-align: center;
-  padding: 20px 0;
-  letter-spacing: 0.1em;
-}
-
 /* Confirm dialog */
 .confirm-overlay {
   display: none;
