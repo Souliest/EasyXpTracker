@@ -58,8 +58,8 @@ export function openAddModal() {
     document.getElementById('gameModal').classList.add('open');
 }
 
-export function openEditModal(id, onSaved) {
-    const data = loadData();
+export async function openEditModal(id, onSaved) {
+    const data = await loadData();
     const game = data.games.find(g => g.id === id);
     if (!game) return;
 
@@ -98,7 +98,7 @@ export function closeModal() {
 // ── Save ──
 
 // onSaved(selectedGameId) — callback so main.js can re-render after save
-export function saveGame(onSaved) {
+export async function saveGame(onSaved) {
     const name = document.getElementById('fName').value.trim();
     const currentLevelRaw = document.getElementById('fCurrentLevel').value;
     const currentLevel = currentLevelRaw === '' ? 0 : parseInt(currentLevelRaw);
@@ -134,7 +134,7 @@ export function saveGame(onSaved) {
     }
     tiers.sort((a, b) => a.level - b.level);
 
-    const data = loadData();
+    const data = await loadData();
     const deadlineDate = localDatePlusDays(days);
 
     let savedId;
@@ -162,7 +162,7 @@ export function saveGame(onSaved) {
         })();
 
         const game = {
-            id: 'game_' + Date.now(),
+            id: crypto.randomUUID(),
             name,
             startLevel,
             createdDate,
@@ -181,7 +181,7 @@ export function saveGame(onSaved) {
         savedId = game.id;
     }
 
-    saveData(data);
+    await saveData(data);
     closeModal();
     onSaved(savedId);
 }
@@ -190,8 +190,8 @@ export function saveGame(onSaved) {
 
 let pendingDeleteId = null;
 
-export function openConfirmDelete(id) {
-    const data = loadData();
+export async function openConfirmDelete(id) {
+    const data = await loadData();
     const game = data.games.find(g => g.id === id);
     if (!game) return;
     pendingDeleteId = id;
@@ -204,11 +204,8 @@ export function closeConfirm() {
     document.getElementById('confirmOverlay').classList.remove('open');
 }
 
-export function confirmDelete(onDeleted) {
+export async function confirmDelete(onDeleted) {
     if (!pendingDeleteId) return;
-    const data = loadData();
-    data.games = data.games.filter(g => g.id !== pendingDeleteId);
-    saveData(data);
     const deletedId = pendingDeleteId;
     closeConfirm();
     onDeleted(deletedId);

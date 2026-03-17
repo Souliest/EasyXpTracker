@@ -1,0 +1,381 @@
+/* common/auth.css */
+/* Styles for the auth overlay, popover, and 👤 header indicator. */
+/* Uses the same CSS variables as theme.css — works in dark and light mode. */
+
+/* ── 👤 Header button ── */
+
+.auth-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 1rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.2s, color 0.2s;
+  position: relative;
+}
+
+.auth-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.auth-btn.authed {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ── Nudge tooltip ── */
+
+.auth-btn.nudge::after {
+  content: 'Sign in to sync across devices';
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  padding: 5px 10px;
+  pointer-events: none;
+  z-index: 300;
+  box-shadow: var(--glow);
+}
+
+/* ── Auth popover ── */
+
+.auth-popover {
+  display: none;
+  position: fixed;
+  top: 52px;
+  right: 12px;
+  z-index: 300;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-popover.open {
+  display: flex;
+}
+
+.auth-popover-email {
+  font-size: 0.72rem;
+  color: var(--muted);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.auth-popover-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.82rem;
+  padding: 7px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, color 0.15s;
+  width: 100%;
+}
+
+.auth-popover-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.auth-popover-btn-primary {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.auth-popover-btn-primary:hover {
+  background: rgba(0, 229, 255, 0.08);
+  box-shadow: var(--glow);
+}
+
+.auth-popover-privacy {
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+  text-align: center;
+}
+
+.auth-popover-privacy a {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.auth-popover-privacy a:hover {
+  color: var(--text);
+}
+
+/* ── Auth overlay ── */
+
+.auth-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  z-index: 400;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.auth-overlay.open {
+  display: flex;
+}
+
+/* ── Auth modal ── */
+
+.auth-modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 400px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.auth-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.auth-modal-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.auth-modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.auth-modal-close:hover {
+  color: var(--text);
+}
+
+.auth-modal-body {
+  padding: 20px;
+}
+
+/* ── Form elements ── */
+
+.auth-form-group {
+  margin-bottom: 14px;
+}
+
+.auth-form-group label {
+  display: block;
+  font-size: 0.73rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 5px;
+}
+
+.auth-form-group input {
+  width: 100%;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.auth-form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Error / success message ── */
+
+.auth-error {
+  display: none;
+  font-size: 0.78rem;
+  color: #ff4444;
+  margin-bottom: 12px;
+  padding: 7px 10px;
+  background: rgba(255, 68, 68, 0.08);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  border-radius: 6px;
+}
+
+.auth-error.auth-success {
+  color: var(--accent3);
+  background: rgba(127, 255, 107, 0.08);
+  border-color: rgba(127, 255, 107, 0.3);
+}
+
+/* ── Actions row ── */
+
+.auth-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+/* ── Switch / footer links ── */
+
+.auth-switch {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.auth-switch a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.auth-switch a:hover {
+  opacity: 0.8;
+}
+
+/* ── Reset info text ── */
+
+.auth-reset-info {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+/* ── Privacy notice text ── */
+
+.auth-privacy-text {
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+/* ── Collision modal ── */
+
+.collision-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 350;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.collision-overlay.open {
+  display: flex;
+}
+
+.collision-box {
+  background: var(--panel);
+  border: 1px solid var(--accent2);
+  border-radius: 12px;
+  padding: 22px 20px;
+  max-width: 360px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.collision-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.8rem;
+  color: var(--accent2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 14px;
+}
+
+.collision-game-name {
+  font-size: 0.88rem;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+
+.collision-timestamps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.collision-ts-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.78rem;
+}
+
+.collision-ts-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.7rem;
+}
+
+.collision-ts-value {
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.collision-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}

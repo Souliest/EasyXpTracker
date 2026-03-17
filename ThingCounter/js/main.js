@@ -5,7 +5,7 @@
 // Main — state, tree interactions, globals, init
 // ═══════════════════════════════════════════════
 
-import {loadData, saveData, STORAGE_SELECTED} from './storage.js';
+import {loadData, saveData, loadGame, resolveCollision, deleteGame, STORAGE_SELECTED} from './storage.js';
 import {findNode, clampValue, initialValue} from './nodes.js';
 import {
     renderMain,
@@ -64,6 +64,7 @@ import {
     closeConfirm,
     confirmDelete,
 } from './modal.js';
+import {initAuth} from '../../common/auth-ui.js';
 
 // ═══════════════════════════════════════════════
 // Module-level state
@@ -98,8 +99,8 @@ const callbacks = {
 // Game selector
 // ═══════════════════════════════════════════════
 
-function renderSelector() {
-    const data = loadData();
+async function renderSelector() {
+    const data = await loadData();
     const sel = document.getElementById('gameSelect');
     sel.innerHTML = '<option value="">— select a game —</option>';
     data.games.forEach(g => {
@@ -114,10 +115,11 @@ function renderSelector() {
     updateGameActionButtons(selectedGameId);
 }
 
-function selectGame(id) {
+async function selectGame(id) {
     selectedGameId = id || null;
     nodeEditActive = null;
     setFocusGameId(selectedGameId);
+
     if (selectedGameId) {
         localStorage.setItem(STORAGE_SELECTED, selectedGameId);
         qcReset();
@@ -125,15 +127,90 @@ function selectGame(id) {
     } else {
         localStorage.removeItem(STORAGE_SELECTED);
     }
+
     updateGameActionButtons(selectedGameId);
     updateSortBtn(selectedGameId);
-    doRenderMain();
+
+    if (!selectedGameId) {
+        doRenderMain();
+        return;
+    }
+
+    // Check for collision before rendering
+    const {game, collision} = await loadGame(selectedGameId);
+    if (collision) {
+        showCollisionModal(selectedGameId, game.name, collision, () => doRenderMain());
+    } else {
+        doRenderMain();
+    }
 }
 
 function restoreSelectedGame(data) {
     const saved = localStorage.getItem(STORAGE_SELECTED);
     if (saved && data.games.find(g => g.id === saved)) return saved;
     return null;
+}
+
+// ── Collision modal ──
+
+function showCollisionModal(gameId, gameName, collision, onResolved) {
+    let overlay = document.getElementById('collisionOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'collisionOverlay';
+        overlay.className = 'collision-overlay';
+        document.body.appendChild(overlay);
+    }
+
+    const fmtTime = iso => {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleString(undefined, {
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
+    };
+
+    overlay.innerHTML = `
+        <div class="collision-box">
+            <div class="collision-title">⚠ Data Conflict</div>
+            <div class="collision-game-name">${_escHtml(gameName)}</div>
+            <div class="collision-timestamps">
+                <div class="collision-ts-row">
+                    <span class="collision-ts-label">Local</span>
+                    <span class="collision-ts-value">${fmtTime(collision.localTime)}</span>
+                </div>
+                <div class="collision-ts-row">
+                    <span class="collision-ts-label">Cloud</span>
+                    <span class="collision-ts-value">${fmtTime(collision.remoteTime)}</span>
+                </div>
+            </div>
+            <div class="collision-actions">
+                <button class="btn btn-ghost" id="collisionUseLocal">Use Local</button>
+                <button class="btn btn-primary" id="collisionUseRemote">Use Cloud</button>
+            </div>
+        </div>
+    `;
+    overlay.classList.add('open');
+
+    document.getElementById('collisionUseLocal').addEventListener('click', async () => {
+        overlay.classList.remove('open');
+        await resolveCollision(gameId, 'local', null);
+        onResolved();
+    });
+
+    document.getElementById('collisionUseRemote').addEventListener('click', async () => {
+        overlay.classList.remove('open');
+        await resolveCollision(gameId, 'remote', collision.remoteData);
+        onResolved();
+    });
+}
+
+function _escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
 // ═══════════════════════════════════════════════
@@ -186,8 +263,8 @@ function toggleBranch(id) {
     }
 }
 
-function counterStep(nodeId, direction) {
-    const data = loadData();
+async function counterStep(nodeId, direction) {
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
@@ -195,32 +272,32 @@ function counterStep(nodeId, direction) {
 
     const step = node.step || 1;
     node.value = clampValue(node, node.value + direction * step);
-    saveData(data);
+    await saveData(data);
 
     refreshCounterCard(nodeId, node, nodeEditActive, callbacks);
     syncFocusIfOpen(nodeId);
 }
 
-function resetNodeValue(nodeId) {
-    const data = loadData();
+async function resetNodeValue(nodeId) {
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
     if (!node) return;
     node.value = initialValue(node);
-    saveData(data);
+    await saveData(data);
     refreshCounterCard(nodeId, node, nodeEditActive, callbacks);
     syncFocusIfOpen(nodeId);
 }
 
-function resetNodeStep(nodeId) {
-    const data = loadData();
+async function resetNodeStep(nodeId) {
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
     if (!node) return;
     node.step = 1;
-    saveData(data);
+    await saveData(data);
     refreshCounterCard(nodeId, node, nodeEditActive, callbacks);
     syncFocusIfOpen(nodeId);
 }
@@ -272,14 +349,14 @@ function attachLongPress(el, callback) {
 // Sort order
 // ═══════════════════════════════════════════════
 
-function cycleSortOrder() {
+async function cycleSortOrder() {
     if (!selectedGameId) return;
-    const data = loadData();
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
     const next = {null: 'asc', asc: 'desc', desc: null};
     game.sortOrder = next[game.sortOrder || 'null'] || null;
-    saveData(data);
+    await saveData(data);
     updateSortBtn(selectedGameId);
     doRenderMain();
 }
@@ -294,22 +371,25 @@ function doRenderMain() {
 
 // ── After-save / after-delete callbacks ──
 
-function afterGameSaved(savedId) {
+async function afterGameSaved(savedId) {
     selectedGameId = savedId;
     setFocusGameId(savedId);
     localStorage.setItem(STORAGE_SELECTED, savedId);
-    renderSelector();
+    await renderSelector();
     document.getElementById('gameSelect').value = savedId;
     doRenderMain();
 }
 
-function afterGameDeleted(deletedId, deletedType) {
-    if (deletedType === 'game' && selectedGameId === deletedId) {
-        selectedGameId = null;
-        setFocusGameId(null);
-        localStorage.removeItem(STORAGE_SELECTED);
+async function afterGameDeleted(deletedId, deletedType) {
+    if (deletedType === 'game') {
+        await deleteGame(deletedId);
+        if (selectedGameId === deletedId) {
+            selectedGameId = null;
+            setFocusGameId(null);
+            localStorage.removeItem(STORAGE_SELECTED);
+        }
     }
-    renderSelector();
+    await renderSelector();
     doRenderMain();
 }
 
@@ -372,10 +452,11 @@ window.qcResetValue = qcResetValue;
 // Init
 // ═══════════════════════════════════════════════
 
-(function init() {
-    const data = loadData();
+(async function init() {
+    await initAuth();
+    const data = await loadData();
     selectedGameId = restoreSelectedGame(data);
     setFocusGameId(selectedGameId);
-    renderSelector();
+    await renderSelector();
     doRenderMain();
 })();

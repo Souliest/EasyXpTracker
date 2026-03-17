@@ -5,7 +5,7 @@
 // Main — state, selector, renderMain, updateLevel, init
 // ═══════════════════════════════════════════════
 
-import {loadData, saveData, STORAGE_SELECTED} from './storage.js';
+import {loadData, saveData, loadGame, resolveCollision, deleteGame, STORAGE_SELECTED} from './storage.js';
 import {maybeRollSnapshot} from './snapshot.js';
 import {computeStats} from './stats.js';
 import {
@@ -28,6 +28,7 @@ import {
     closeConfirm,
     confirmDelete,
 } from './modal.js';
+import {initAuth} from '../../common/auth-ui.js';
 
 // ── Module-level state ──
 let selectedGameId = null;
@@ -47,8 +48,8 @@ function restoreSelectedGame(data) {
 
 // ── Selector render ──
 
-function renderSelector() {
-    const data = loadData();
+async function renderSelector() {
+    const data = await loadData();
     const sel = document.getElementById('gameSelect');
     sel.innerHTML = '<option value="">— select a game —</option>';
     data.games.forEach(g => {
@@ -64,20 +65,95 @@ function renderSelector() {
 
 // ── Select game ──
 
-function selectGame(id) {
+async function selectGame(id) {
     selectedGameId = id;
     persistSelectedGame(id);
-    renderMain();
+
+    if (!id) {
+        renderMain();
+        return;
+    }
+
+    // Check for collision before rendering
+    const {game, collision} = await loadGame(id);
+    if (collision) {
+        showCollisionModal(id, game.name, collision, () => renderMain());
+    } else {
+        renderMain();
+    }
+}
+
+// ── Collision modal ──
+
+function showCollisionModal(gameId, gameName, collision, onResolved) {
+    // Inject collision overlay if not present
+    let overlay = document.getElementById('collisionOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'collisionOverlay';
+        overlay.className = 'collision-overlay';
+        document.body.appendChild(overlay);
+    }
+
+    const fmtTime = iso => {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleString(undefined, {
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
+    };
+
+    overlay.innerHTML = `
+        <div class="collision-box">
+            <div class="collision-title">⚠ Data Conflict</div>
+            <div class="collision-game-name">${_escHtml(gameName)}</div>
+            <div class="collision-timestamps">
+                <div class="collision-ts-row">
+                    <span class="collision-ts-label">Local</span>
+                    <span class="collision-ts-value">${fmtTime(collision.localTime)}</span>
+                </div>
+                <div class="collision-ts-row">
+                    <span class="collision-ts-label">Cloud</span>
+                    <span class="collision-ts-value">${fmtTime(collision.remoteTime)}</span>
+                </div>
+            </div>
+            <div class="collision-actions">
+                <button class="btn btn-ghost" id="collisionUseLocal">Use Local</button>
+                <button class="btn btn-primary" id="collisionUseRemote">Use Cloud</button>
+            </div>
+        </div>
+    `;
+    overlay.classList.add('open');
+
+    document.getElementById('collisionUseLocal').addEventListener('click', async () => {
+        overlay.classList.remove('open');
+        await resolveCollision(gameId, 'local', null);
+        onResolved();
+    });
+
+    document.getElementById('collisionUseRemote').addEventListener('click', async () => {
+        overlay.classList.remove('open');
+        await resolveCollision(gameId, 'remote', collision.remoteData);
+        onResolved();
+    });
+}
+
+function _escHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
 // ── Update level ──
 
-function updateLevel() {
+async function updateLevel() {
     const input = document.getElementById('levelInput');
     const newLevel = parseInt(input.value);
     if (isNaN(newLevel)) return;
 
-    const data = loadData();
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
 
@@ -87,30 +163,30 @@ function updateLevel() {
     if (clamped !== newLevel) input.value = clamped;
 
     game.snapshot.currentLevel = clamped;
-    saveData(data);
+    await saveData(data);
     renderMain();
 }
 
 // ── Main render ──
 
-function renderMain() {
+async function renderMain() {
     const content = document.getElementById('mainContent');
     if (!selectedGameId) {
-        const data = loadData();
+        const data = await loadData();
         content.innerHTML = data.games.length === 0
             ? `<div class="empty-state"><div class="big">🎮</div>No games yet.<br>Hit <strong>+ Add</strong> to track your first goal.</div>`
             : `<div class="empty-state">Select a game above.</div>`;
         return;
     }
 
-    const data = loadData();
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) {
         content.innerHTML = '';
         return;
     }
 
-    if (maybeRollSnapshot(game)) saveData(data);
+    if (maybeRollSnapshot(game)) await saveData(data);
 
     const s = computeStats(game);
 
@@ -135,20 +211,21 @@ function renderMain() {
 
 // ── Callbacks for modal save / delete ──
 
-function afterSave(savedId) {
+async function afterSave(savedId) {
     selectedGameId = savedId;
     persistSelectedGame(savedId);
-    renderSelector();
+    await renderSelector();
     document.getElementById('gameSelect').value = savedId;
     renderMain();
 }
 
-function afterDelete(deletedId) {
+async function afterDelete(deletedId) {
+    await deleteGame(deletedId);
     if (selectedGameId === deletedId) {
         selectedGameId = null;
         persistSelectedGame(null);
     }
-    renderSelector();
+    await renderSelector();
     renderMain();
 }
 
@@ -163,16 +240,14 @@ window.closeModal = closeModal;
 window.closeConfirm = closeConfirm;
 window.confirmDelete = () => confirmDelete(afterDelete);
 
-// openEditModal called only via wireActions (not inline), so no window export needed.
-// openConfirmDelete called only via wireActions too.
-
 // ── Init ──
 
-(function init() {
-    const data = loadData();
+(async function init() {
+    await initAuth();
+    const data = await loadData();
     selectedGameId = restoreSelectedGame(data);
-    renderSelector();
+    await renderSelector();
     renderMain();
-    // Store interval handle (FIX #14 from original)
-    const _renderInterval = setInterval(renderMain, 60000);
+    // Auto-refresh every minute so daily targets stay current
+    setInterval(renderMain, 60000);
 })();

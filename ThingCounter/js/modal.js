@@ -67,8 +67,8 @@ document.addEventListener('click', () => {
 // Parent selector helper
 // ═══════════════════════════════════════════════
 
-export function populateParentSelect(selectId, selectedGameId, excludeId, selectedParentId) {
-    const data = loadData();
+export async function populateParentSelect(selectId, selectedGameId, excludeId, selectedParentId) {
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     const sel = document.getElementById(selectId);
     sel.innerHTML = '<option value="">(Root level)</option>';
@@ -89,17 +89,17 @@ export function populateParentSelect(selectId, selectedGameId, excludeId, select
 
 let editingBranchId = null;
 
-export function openAddBranchModal(parentId, selectedGameId) {
+export async function openAddBranchModal(parentId, selectedGameId) {
     editingBranchId = null;
     document.getElementById('addBranchTitle').textContent = 'Add Branch';
     document.getElementById('addBranchSaveBtn').textContent = 'Add';
     document.getElementById('abName').value = '';
-    populateParentSelect('abParent', selectedGameId, null, parentId);
+    await populateParentSelect('abParent', selectedGameId, null, parentId);
     document.getElementById('addBranchModal').classList.add('open');
 }
 
-export function openEditBranchModal(nodeId, selectedGameId) {
-    const data = loadData();
+export async function openEditBranchModal(nodeId, selectedGameId) {
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
@@ -110,7 +110,7 @@ export function openEditBranchModal(nodeId, selectedGameId) {
     document.getElementById('addBranchSaveBtn').textContent = 'Save';
     document.getElementById('abName').value = node.name;
     const parentNode = findParent(game.nodes, nodeId);
-    populateParentSelect('abParent', selectedGameId, nodeId, parentNode ? parentNode.id : null);
+    await populateParentSelect('abParent', selectedGameId, nodeId, parentNode ? parentNode.id : null);
     document.getElementById('addBranchModal').classList.add('open');
 }
 
@@ -119,10 +119,10 @@ export function closeAddBranchModal() {
     document.getElementById('addBranchModal').classList.remove('open');
 }
 
-export function saveAddBranch(selectedGameId, onSaved) {
+export async function saveAddBranch(selectedGameId, onSaved) {
     const name = document.getElementById('abName').value.trim() || 'New Branch';
     const newParentId = document.getElementById('abParent').value || null;
-    const data = loadData();
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
 
@@ -141,7 +141,7 @@ export function saveAddBranch(selectedGameId, onSaved) {
         insertNode(game, node, newParentId);
     }
 
-    saveData(data);
+    await saveData(data);
     closeAddBranchModal();
     onSaved();
 }
@@ -152,7 +152,7 @@ export function saveAddBranch(selectedGameId, onSaved) {
 
 let editingCounterId = null;
 
-export function openAddCounterModal(parentId, selectedGameId) {
+export async function openAddCounterModal(parentId, selectedGameId) {
     editingCounterId = null;
     document.getElementById('addCounterTitle').textContent = 'Add Counter';
     document.getElementById('addCounterSaveBtn').textContent = 'Add';
@@ -167,12 +167,12 @@ export function openAddCounterModal(parentId, selectedGameId) {
     document.getElementById('acDecrement').checked = false;
     onDecrementChange();
     updateColorField(DEFAULT_COLOR);
-    populateParentSelect('acParent', selectedGameId, null, parentId);
+    await populateParentSelect('acParent', selectedGameId, null, parentId);
     document.getElementById('addCounterModal').classList.add('open');
 }
 
-export function openEditCounterModal(nodeId, selectedGameId) {
-    const data = loadData();
+export async function openEditCounterModal(nodeId, selectedGameId) {
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
@@ -196,7 +196,7 @@ export function openEditCounterModal(nodeId, selectedGameId) {
     updateColorField(node.color || DEFAULT_COLOR);
 
     const parentNode = findParent(game.nodes, nodeId);
-    populateParentSelect('acParent', selectedGameId, null, parentNode ? parentNode.id : null);
+    await populateParentSelect('acParent', selectedGameId, null, parentNode ? parentNode.id : null);
     document.getElementById('addCounterModal').classList.add('open');
 }
 
@@ -217,7 +217,7 @@ export function onDecrementChange() {
     document.getElementById('acMaxLabel').textContent = decrement ? 'Maximum Value (start)' : 'Maximum Value (ceiling)';
 }
 
-export function saveAddCounter(selectedGameId, onSaved) {
+export async function saveAddCounter(selectedGameId, onSaved) {
     const name = document.getElementById('acName').value.trim() || 'New Counter';
     const newParentId = document.getElementById('acParent').value || null;
     const isBounded = document.querySelector('input[name="acCounterType"]:checked')?.value === 'bounded';
@@ -225,7 +225,7 @@ export function saveAddCounter(selectedGameId, onSaved) {
     const step = Math.max(1, parseFloat(document.getElementById('acStep').value) || 1);
     const color = currentSwatchColor;
 
-    const data = loadData();
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
 
@@ -281,7 +281,7 @@ export function saveAddCounter(selectedGameId, onSaved) {
         insertNode(game, node, newParentId);
     }
 
-    saveData(data);
+    await saveData(data);
     closeAddCounterModal();
     onSaved();
 }
@@ -301,9 +301,9 @@ export function openAddGameModal() {
     document.getElementById('gameModal').classList.add('open');
 }
 
-export function openGameSettingsModal(selectedGameId) {
+export async function openGameSettingsModal(selectedGameId) {
     if (!selectedGameId) return;
-    const data = loadData();
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
     editingGameId = selectedGameId;
@@ -319,24 +319,24 @@ export function closeGameModal() {
     document.getElementById('gameModal').classList.remove('open');
 }
 
-export function saveGame(selectedGameId, onSaved) {
+export async function saveGame(selectedGameId, onSaved) {
     const name = document.getElementById('gmName').value.trim();
     if (!name) {
         alert('Please enter a game title.');
         return;
     }
-    const data = loadData();
+    const data = await loadData();
     let savedId;
     if (editingGameId) {
         const game = data.games.find(g => g.id === editingGameId);
         if (game) game.name = name;
         savedId = editingGameId;
     } else {
-        const game = {id: 'game_' + Date.now(), name, nodes: []};
+        const game = {id: crypto.randomUUID(), name, nodes: []};
         data.games.push(game);
         savedId = game.id;
     }
-    saveData(data);
+    await saveData(data);
     closeGameModal();
     onSaved(savedId);
 }
@@ -353,9 +353,9 @@ export function cancelResetCounters() {
     if (confirm) confirm.style.display = 'none';
 }
 
-export function confirmResetCounters(selectedGameId, onDone) {
+export async function confirmResetCounters(selectedGameId, onDone) {
     if (!selectedGameId) return;
-    const data = loadData();
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
 
@@ -367,7 +367,7 @@ export function confirmResetCounters(selectedGameId, onDone) {
     }
 
     resetNodes(game.nodes || []);
-    saveData(data);
+    await saveData(data);
     closeGameModal();
     onDone();
 }
@@ -379,8 +379,8 @@ export function confirmResetCounters(selectedGameId, onDone) {
 let pendingDeleteId = null;
 let pendingDeleteType = null;
 
-export function openConfirmDeleteNode(nodeId, selectedGameId) {
-    const data = loadData();
+export async function openConfirmDeleteNode(nodeId, selectedGameId) {
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
@@ -394,12 +394,12 @@ export function openConfirmDeleteNode(nodeId, selectedGameId) {
     document.getElementById('confirmOverlay').classList.add('open');
 }
 
-export function openConfirmDeleteGame(selectedGameId, onClose) {
+export async function openConfirmDeleteGame(selectedGameId, onClose) {
     if (!selectedGameId) return;
-    const data = loadData();
+    const data = await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
-    onClose(); // close game modal first
+    onClose();
     pendingDeleteId = selectedGameId;
     pendingDeleteType = 'game';
     document.getElementById('confirmNodeName').textContent = game.name;
@@ -413,16 +413,14 @@ export function closeConfirm() {
     document.getElementById('confirmOverlay').classList.remove('open');
 }
 
-export function confirmDelete(selectedGameId, onDeleted) {
+export async function confirmDelete(selectedGameId, onDeleted) {
     if (!pendingDeleteId) return;
-    const data = loadData();
+    const data = await loadData();
     if (pendingDeleteType === 'node') {
         const game = data.games.find(g => g.id === selectedGameId);
         if (game) removeNode(game.nodes, pendingDeleteId);
-    } else if (pendingDeleteType === 'game') {
-        data.games = data.games.filter(g => g.id !== pendingDeleteId);
+        await saveData(data);
     }
-    saveData(data);
     const deletedId = pendingDeleteId;
     const deletedType = pendingDeleteType;
     closeConfirm();

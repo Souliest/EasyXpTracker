@@ -1,5 +1,5 @@
-/* ---- Tool Header (shared across all tool pages) ---- */
-/* Include this in common/theme.css, or as a separate common/header.css */
+/* common/header.css */
+/* Tool header styles — shared across all tool pages. */
 
 .tool-header {
   display: flex;
@@ -23,6 +23,7 @@
   flex-shrink: 0;
   transition: color 0.2s, border-color 0.2s;
 }
+
 .tool-header .back-link:hover {
   color: var(--accent);
   border-color: var(--accent);
@@ -32,6 +33,7 @@
 .tool-header .back-label {
   display: none;
 }
+
 @media (min-width: 400px) {
   .tool-header .back-label {
     display: inline;
@@ -53,6 +55,16 @@
   flex: 1;
 }
 
+/* ── Right-side button group ── */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  position: relative;
+}
+
 .tool-header .theme-toggle {
   background: none;
   border: 1px solid var(--border);
@@ -64,6 +76,7 @@
   flex-shrink: 0;
   transition: border-color 0.2s;
 }
+
 .tool-header .theme-toggle:hover {
   border-color: var(--accent);
 }
