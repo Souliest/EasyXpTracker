@@ -103,22 +103,114 @@
 
 <div class="tools" id="toolList"></div>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     MIGRATION TOOL — remove this entire block after migrating
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="migrationArea"
+     style="display:none; max-width:520px; margin:2rem auto 0; font-family:'Share Tech Mono',monospace; font-size:0.85rem;">
+  <button id="migrateBtn" onclick="runMigration()" style="padding:8px 16px; cursor:pointer;">Migrate localStorage to
+    Supabase
+  </button>
+  <pre id="migrateLog" style="margin-top:0.8rem; color:var(--muted); white-space:pre-wrap; line-height:1.6;"></pre>
+</div>
+<script type="module">
+    import {supabase} from './common/supabase.js';
+    import {getUser} from './common/auth.js';
+
+    const LGT_LOCAL_KEY = 'bgt:level-goal-tracker:data';
+    const TC_LOCAL_KEY = 'bgt:thing-counter:data';
+    const LGT_SEL_KEY = 'bgt:level-goal-tracker:selected-game';
+    const TC_SEL_KEY = 'bgt:thing-counter:selected-game';
+    const LGT_TABLE = 'bgt_level_goal_tracker_games';
+    const TC_TABLE = 'bgt_thing_counter_games';
+
+    function log(msg) {
+        document.getElementById('migrateLog').textContent += msg + '\n';
+    }
+
+    async function migrateGames(label, localKey, selKey, table) {
+        log('\n\u2500\u2500 ' + label + ' \u2500\u2500');
+        let raw;
+        try {
+            raw = JSON.parse(localStorage.getItem(localKey));
+        } catch {
+            raw = null;
+        }
+        if (!raw || !raw.games || raw.games.length === 0) {
+            log('  No games found in localStorage.');
+            return;
+        }
+        const user = getUser();
+        const now = new Date().toISOString();
+        const selId = localStorage.getItem(selKey);
+        let newSelId = null;
+        for (const game of raw.games) {
+            const oldId = game.id;
+            const newId = crypto.randomUUID();
+            game.id = newId;
+            game.last_modified = now;
+            if (oldId === selId) newSelId = newId;
+            const {error} = await supabase.from(table).upsert({
+                id: newId,
+                user_id: user.id,
+                name: game.name,
+                data: game,
+                updated_at: now,
+            }, {onConflict: 'id'});
+            if (error) {
+                log('  \u2717 "' + game.name + '" \u2014 ' + error.message);
+            } else {
+                log('  \u2713 "' + game.name + '"  (' + oldId + ' \u2192 ' + newId + ')');
+            }
+        }
+        localStorage.setItem(localKey, JSON.stringify(raw));
+        if (newSelId) localStorage.setItem(selKey, newSelId);
+        else if (selId) localStorage.removeItem(selKey);
+        log('  localStorage updated with new UUIDs.');
+    }
+
+    window.runMigration = async function () {
+        const btn = document.getElementById('migrateBtn');
+        btn.disabled = true;
+        btn.textContent = 'Migrating\u2026';
+        document.getElementById('migrateLog').textContent = '';
+        const user = getUser();
+        if (!user) {
+            log('Not logged in.');
+            btn.disabled = false;
+            return;
+        }
+        log('Logged in as: ' + user.email);
+        await migrateGames('Level Goal Tracker', LGT_LOCAL_KEY, LGT_SEL_KEY, LGT_TABLE);
+        await migrateGames('Thing Counter', TC_LOCAL_KEY, TC_SEL_KEY, TC_TABLE);
+        log('\nDone. You can now remove the migration block from index.html.');
+        btn.textContent = 'Migration complete';
+    };
+
+    function updateMigrationVisibility() {
+        document.getElementById('migrationArea').style.display = getUser() ? 'block' : 'none';
+    }
+
+    supabase.auth.onAuthStateChange(() => updateMigrationVisibility());
+    setTimeout(updateMigrationVisibility, 300);
+</script>
+<!-- ═══════════════════════════════════════════════════════════════
+     END MIGRATION TOOL
+     ═══════════════════════════════════════════════════════════════ -->
+
 <script src="common/tools.js"></script>
 <script src="common/theme.js"></script>
 <script>
-    // Render tool cards from registry
     const list = document.getElementById('toolList');
     TOOLS.forEach(tool => {
         const a = document.createElement('a');
         a.className = 'tool';
         a.href = tool.path;
-        a.innerHTML = `
-        <div class="name">${tool.name}</div>
-        ${tool.description ? `<div class="desc">${tool.description}</div>` : ''}
-      `;
+        a.innerHTML =
+            '<div class="name">' + tool.name + '</div>' +
+            (tool.description ? '<div class="desc">' + tool.description + '</div>' : '');
         list.appendChild(a);
     });
-
     initTheme();
 </script>
 <script type="module">

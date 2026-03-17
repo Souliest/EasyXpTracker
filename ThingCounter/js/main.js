@@ -98,6 +98,7 @@ const callbacks = {
 // Game selector
 // ═══════════════════════════════════════════════
 
+// Returns the loaded data so callers can reuse it without a second loadData() call.
 async function renderSelector() {
     const data = await loadData();
     const sel = document.getElementById('gameSelect');
@@ -113,6 +114,7 @@ async function renderSelector() {
     }
     const hasGame = !!selectedGameId && !!data.games.find(g => g.id === selectedGameId);
     updateGameActionButtons(hasGame);
+    return data;
 }
 
 async function selectGame(id) {
@@ -383,9 +385,8 @@ async function afterGameSaved(savedId) {
     selectedGameId = savedId;
     setFocusGameId(savedId);
     localStorage.setItem(STORAGE_SELECTED, savedId);
-    await renderSelector();
+    const data = await renderSelector();
     document.getElementById('gameSelect').value = savedId;
-    const data = await loadData();
     doRenderMain(data);
 }
 
@@ -398,8 +399,7 @@ async function afterGameDeleted(deletedId, deletedType) {
             localStorage.removeItem(STORAGE_SELECTED);
         }
     }
-    await renderSelector();
-    const data = await loadData();
+    const data = await renderSelector();
     doRenderMain(data);
 }
 

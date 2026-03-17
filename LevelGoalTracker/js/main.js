@@ -1,9 +1,9 @@
 // LevelGoalTracker/js/main.js
 // Entry point: holds selectedGameId state, drives the selector and main view, exposes globals for inline HTML handlers, and runs init.
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 // Main — state, selector, renderMain, updateLevel, init
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
 
 import {loadData, saveData, loadGame, resolveCollision, deleteGame, STORAGE_SELECTED} from './storage.js';
 import {maybeRollSnapshot} from './snapshot.js';
@@ -36,8 +36,7 @@ let selectedGameId = null;
 // ── Selector persistence ──
 
 function persistSelectedGame(id) {
-    if (id) localStorage.setItem(STORAGE_SELECTED, id);
-    else localStorage.removeItem(STORAGE_SELECTED);
+    if (id) localStorage.setItem(STORAGE_SELECTED, id); else localStorage.removeItem(STORAGE_SELECTED);
 }
 
 function restoreSelectedGame(data) {
@@ -74,7 +73,7 @@ async function selectGame(id) {
         return;
     }
 
-    // Check for collision before rendering
+    // Check for collision before rendering — only on select, never on interval
     const {game, collision} = await loadGame(id);
     if (collision) {
         showCollisionModal(id, game.name, collision, () => renderMain());
@@ -86,7 +85,6 @@ async function selectGame(id) {
 // ── Collision modal ──
 
 function showCollisionModal(gameId, gameName, collision, onResolved) {
-    // Inject collision overlay if not present
     let overlay = document.getElementById('collisionOverlay');
     if (!overlay) {
         overlay = document.createElement('div');
@@ -98,8 +96,7 @@ function showCollisionModal(gameId, gameName, collision, onResolved) {
     const fmtTime = iso => {
         if (!iso) return '—';
         return new Date(iso).toLocaleString(undefined, {
-            month: 'short', day: 'numeric', year: 'numeric',
-            hour: '2-digit', minute: '2-digit',
+            month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
         });
     };
 
@@ -168,45 +165,58 @@ async function updateLevel() {
 }
 
 // ── Main render ──
+// Accepts optional pre-loaded data to avoid a redundant loadData() call.
 
-async function renderMain() {
+async function renderMain(preloaded) {
     const content = document.getElementById('mainContent');
     if (!selectedGameId) {
-        const data = await loadData();
-        content.innerHTML = data.games.length === 0
-            ? `<div class="empty-state"><div class="big">🎮</div>No games yet.<br>Hit <strong>+ Add</strong> to track your first goal.</div>`
-            : `<div class="empty-state">Select a game above.</div>`;
+        const data = preloaded || await loadData();
+        content.innerHTML = data.games.length === 0 ? `<div class="empty-state"><div class="big">🎮</div>No games yet.<br>Hit <strong>+ Add</strong> to track your first goal.</div>` : `<div class="empty-state">Select a game above.</div>`;
         return;
     }
 
-    const data = await loadData();
+    const data = preloaded || await loadData();
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) {
         content.innerHTML = '';
         return;
     }
 
-    if (maybeRollSnapshot(game)) await saveData(data);
+    const snapshotRolled = maybeRollSnapshot(game);
+    if (snapshotRolled) await saveData(data);
 
     const s = computeStats(game);
 
-    content.innerHTML = [
-        renderBanners(game, s),
-        renderOverviewPanel(game, s),
-        renderDailyProgressPanel(s),
-        renderNextCheckpointPanel(s),
-        renderCheckpointsPanel(game, s),
-        renderActions(game.id),
-    ].join('');
+    content.innerHTML = [renderBanners(game, s), renderOverviewPanel(game, s), renderDailyProgressPanel(s), renderNextCheckpointPanel(s), renderCheckpointsPanel(game, s), renderActions(game.id),].join('');
 
     const updateBtn = document.getElementById('updateLevelBtn');
     if (updateBtn) updateBtn.addEventListener('click', updateLevel);
 
-    wireActions(
-        game.id,
-        id => openEditModal(id, afterSave),
-        id => openConfirmDelete(id),
-    );
+    wireActions(game.id, id => openEditModal(id, afterSave), id => openConfirmDelete(id),);
+}
+
+// ── Interval tick: update display from local data only, push if snapshot rolled ──
+// The database can't change itself — we only need to pull from Supabase once
+// (on game select). The interval exists solely to keep daily rates current past
+// midnight. We read localStorage directly to avoid unnecessary network calls.
+
+async function tickRenderMain() {
+    if (!selectedGameId) {
+        renderMain();
+        return;
+    }
+    // Read from localStorage only — no Supabase call
+    const data = JSON.parse(localStorage.getItem('bgt:level-goal-tracker:data') || '{"games":[]}');
+    const game = data.games.find(g => g.id === selectedGameId);
+    if (!game) return;
+
+    const snapshotRolled = maybeRollSnapshot(game);
+    if (snapshotRolled) {
+        // Snapshot rolled past midnight — persist locally and push to Supabase
+        await saveData(data);
+    }
+
+    renderMain(data);
 }
 
 // ── Callbacks for modal save / delete ──
@@ -247,7 +257,8 @@ window.confirmDelete = () => confirmDelete(afterDelete);
     const data = await loadData();
     selectedGameId = restoreSelectedGame(data);
     await renderSelector();
-    renderMain();
-    // Auto-refresh every minute so daily targets stay current
-    setInterval(renderMain, 60000);
+    renderMain(data);
+    // Tick every minute to keep daily targets current past midnight.
+    // Reads localStorage only — no Supabase pull — pushes only if snapshot rolled.
+    setInterval(tickRenderMain, 60000);
 })();

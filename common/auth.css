@@ -2,6 +2,48 @@
 /* Styles for the auth overlay, popover, and 👤 header indicator. */
 /* Uses the same CSS variables as theme.css — works in dark and light mode. */
 
+/* ── Self-contained button styles for the auth modal ──
+   These mirror .btn / .btn-primary / .btn-ghost from tool styles.css so the
+   auth modal renders correctly on the root index.html, which loads no tool
+   stylesheet. Tool pages that define these classes already will simply have
+   the rules duplicated — no conflict. */
+
+.auth-modal .btn,
+.auth-modal .auth-popover-close {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--text);
+}
+
+.auth-modal .btn-primary {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: bold;
+}
+
+.auth-modal .btn-primary:hover {
+  opacity: 0.85;
+  box-shadow: var(--glow);
+}
+
+.auth-modal .btn-ghost {
+  background: transparent;
+  color: var(--text);
+}
+
+.auth-modal .btn-ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 /* ── 👤 Header button ── */
 
 .auth-btn {
