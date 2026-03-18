@@ -5,7 +5,7 @@
 // Main — state, selector, renderMain, updateLevel, init
 // ═══════════════════════════════════════════════════════════════
 
-import {loadData, saveData, loadGame, resolveCollision, deleteGame, STORAGE_SELECTED} from './storage.js';
+import {loadData, saveData, loadGame, resolveCollision, deleteGame, STORAGE_KEY, STORAGE_SELECTED} from './storage.js';
 import {maybeRollSnapshot} from './snapshot.js';
 import {computeStats} from './stats.js';
 import {
@@ -36,7 +36,8 @@ let selectedGameId = null;
 // ── Selector persistence ──
 
 function persistSelectedGame(id) {
-    if (id) localStorage.setItem(STORAGE_SELECTED, id); else localStorage.removeItem(STORAGE_SELECTED);
+    if (id) localStorage.setItem(STORAGE_SELECTED, id);
+    else localStorage.removeItem(STORAGE_SELECTED);
 }
 
 function restoreSelectedGame(data) {
@@ -47,6 +48,7 @@ function restoreSelectedGame(data) {
 
 // ── Selector render ──
 
+// Returns the loaded data so callers can reuse it without a second loadData() call.
 async function renderSelector() {
     const data = await loadData();
     const sel = document.getElementById('gameSelect');
@@ -60,6 +62,7 @@ async function renderSelector() {
     if (selectedGameId && data.games.find(g => g.id === selectedGameId)) {
         sel.value = selectedGameId;
     }
+    return data;
 }
 
 // ── Select game ──
@@ -96,7 +99,8 @@ function showCollisionModal(gameId, gameName, collision, onResolved) {
     const fmtTime = iso => {
         if (!iso) return '—';
         return new Date(iso).toLocaleString(undefined, {
-            month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
         });
     };
 
@@ -171,7 +175,9 @@ async function renderMain(preloaded) {
     const content = document.getElementById('mainContent');
     if (!selectedGameId) {
         const data = preloaded || await loadData();
-        content.innerHTML = data.games.length === 0 ? `<div class="empty-state"><div class="big">🎮</div>No games yet.<br>Hit <strong>+ Add</strong> to track your first goal.</div>` : `<div class="empty-state">Select a game above.</div>`;
+        content.innerHTML = data.games.length === 0
+            ? `<div class="empty-state"><div class="big">🎮</div>No games yet.<br>Hit <strong>+ Add</strong> to track your first goal.</div>`
+            : `<div class="empty-state">Select a game above.</div>`;
         return;
     }
 
@@ -187,12 +193,23 @@ async function renderMain(preloaded) {
 
     const s = computeStats(game);
 
-    content.innerHTML = [renderBanners(game, s), renderOverviewPanel(game, s), renderDailyProgressPanel(s), renderNextCheckpointPanel(s), renderCheckpointsPanel(game, s), renderActions(game.id),].join('');
+    content.innerHTML = [
+        renderBanners(game, s),
+        renderOverviewPanel(game, s),
+        renderDailyProgressPanel(s),
+        renderNextCheckpointPanel(s),
+        renderCheckpointsPanel(game, s),
+        renderActions(game.id),
+    ].join('');
 
     const updateBtn = document.getElementById('updateLevelBtn');
     if (updateBtn) updateBtn.addEventListener('click', updateLevel);
 
-    wireActions(game.id, id => openEditModal(id, afterSave), id => openConfirmDelete(id),);
+    wireActions(
+        game.id,
+        id => openEditModal(id, afterSave),
+        id => openConfirmDelete(id),
+    );
 }
 
 // ── Interval tick: update display from local data only, push if snapshot rolled ──
@@ -206,7 +223,7 @@ async function tickRenderMain() {
         return;
     }
     // Read from localStorage only — no Supabase call
-    const data = JSON.parse(localStorage.getItem('bgt:level-goal-tracker:data') || '{"games":[]}');
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"games":[]}');
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
 
@@ -224,9 +241,9 @@ async function tickRenderMain() {
 async function afterSave(savedId) {
     selectedGameId = savedId;
     persistSelectedGame(savedId);
-    await renderSelector();
+    const data = await renderSelector();
     document.getElementById('gameSelect').value = savedId;
-    renderMain();
+    renderMain(data);
 }
 
 async function afterDelete(deletedId) {
@@ -235,8 +252,8 @@ async function afterDelete(deletedId) {
         selectedGameId = null;
         persistSelectedGame(null);
     }
-    await renderSelector();
-    renderMain();
+    const data = await renderSelector();
+    renderMain(data);
 }
 
 // ── Expose globals called by index.html inline handlers ──
