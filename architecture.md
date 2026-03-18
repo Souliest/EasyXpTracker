@@ -10,19 +10,24 @@ Paste it at the start of a new session to orient quickly.
 ```
 BasicGamingTools/
 ├── index.html                  # Root tool index — dynamically built from tools.js
-├── ARCHITECTURE.md             # This file
+├── architecture.md             # This file
+├── UserGuide.md
 ├── common/
 │   ├── tools.js                # TOOLS array — the single source of truth for the index
 │   ├── theme.js                # initTheme(), toggleTheme() — shared across all tools
 │   ├── theme.css               # CSS variables, dark/light themes
 │   ├── header.js               # initHeader(title) — injects shared header into every tool
-│   └── header.css              # .tool-header styles
+│   ├── header.css              # .tool-header styles
+│   ├── supabase.js             # Supabase client (URL + publishable key) — imported by auth.js
+│   ├── auth.js                 # Session management, getUser(), signUp/In/Out/reset
+│   ├── auth-ui.js              # 👤 popover, login/register/reset overlay, CSS injection
+│   └── auth.css                # Styles for auth overlay, popover, collision modal, header button
 └── ToolName/
     ├── index.html
     ├── styles.css
     └── js/
         ├── main.js             # Entry point — state, event wiring, globals, init
-        ├── storage.js          # loadData, saveData, storage key constants
+        ├── storage.js          # loadData, saveData, and storage key constants
         └── [other modules]     # render, modal, stats, etc. — tool-specific
 ```
 
@@ -56,21 +61,80 @@ Because `type="module"` scripts are deferred by spec, any functions they expose 
 Functions called by inline HTML handlers (e.g. `onclick="selectGame(this.value)"`) are assigned in `main.js` via
 `window.funcName = funcName`.
 
+`auth-ui.js` is **not** loaded via a separate `<script>` tag. Instead, `main.js` imports `initAuth` from
+`../../common/auth-ui.js` and calls it at the top of the init IIFE:
+
+```js
+import {initAuth} from '../../common/auth-ui.js';
+
+(async function init() {
+    await initAuth();
+    const data = await loadData();
+    // ...
+})();
+```
+
+`auth-ui.js` injects the auth overlay and popover into the DOM, loads `auth.css` via `import.meta.url`, and wires
+the 👤 button. It must be awaited before `loadData()` so that `getUser()` returns the restored session.
+
 ---
 
 ## Module Structure (per tool)
 
 Each tool's logic lives in `js/` as ES modules. The split follows these responsibilities:
 
-| Module                | Contents                                                                                       |
-|-----------------------|------------------------------------------------------------------------------------------------|
-| `storage.js`          | Storage key constants, `loadData()`, `saveData()` — no DOM, no logic                           |
-| `render.js`           | All render / DOM-update functions — receive data as parameters, no internal `loadData()` calls |
-| `main.js`             | Module-level state, event wiring, `window.*` globals, init IIFE                                |
-| Tool-specific modules | Pure helpers (dates, stats, nodes), modal logic, focus modals, etc.                            |
+| Module                | Contents                                                                                                                             |
+|-----------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `storage.js`          | Storage key constants, `loadData()`, `saveData()`, and (for LGT/TC) `loadGame()`, `saveGame()`, `resolveCollision()`, `deleteGame()` |
+| `render.js`           | All render / DOM-update functions — receive data as parameters, no internal `loadData()` calls                                       |
+| `main.js`             | Module-level state, event wiring, `window.*` globals, init IIFE                                                                      |
+| Tool-specific modules | Pure helpers (dates, stats, nodes), modal logic, focus modals, etc.                                                                  |
 
-`storage.js` is written as a thin synchronous wrapper so async can be dropped in later (e.g. Supabase) without touching
-other files. The interface (`loadData` / `saveData`) stays the same regardless of the backing store.
+`storage.js` for LGT and ThingCounter is an **async hybrid**: reads from `localStorage` immediately, merges from
+Supabase when the user is signed in, and writes to both stores on every save. XpTracker's `storage.js` remains
+synchronous and localStorage-only — it is session-scoped by design.
+
+---
+
+## Auth Module Chain
+
+```
+common/supabase.js   ← imports Supabase JS client from CDN (ESM)
+    ↑
+common/auth.js       ← imports supabase; manages session, exposes getUser() etc.
+    ↑
+common/auth-ui.js    ← imports auth.js; injects overlay/popover, calls initAuthSession()
+    ↑
+tool/js/main.js      ← imports initAuth from auth-ui.js; also imports storage.js
+tool/js/storage.js   ← imports getUser from auth.js (cached module, no extra fetch)
+```
+
+The browser fetches `supabase.js` and `auth.js` once per page load regardless of how many modules import them —
+ES module imports are cached by URL.
+
+---
+
+## Hybrid Storage Pattern (LGT and ThingCounter)
+
+Each tool that syncs to Supabase stores one row per game in its table:
+
+| Table                          | Tool             |
+|--------------------------------|------------------|
+| `bgt_level_goal_tracker_games` | LevelGoalTracker |
+| `bgt_thing_counter_games`      | ThingCounter     |
+
+Schema per table: `id uuid pk`, `user_id uuid → auth.users`, `name text`, `data jsonb`, `updated_at timestamptz`.
+RLS policies restrict all operations to `auth.uid() = user_id`.
+
+**Read path:** `loadData()` reads localStorage first (immediate), then fetches the game list from Supabase and
+merges any games that exist remotely but not locally. Full game blobs are only fetched for games missing locally.
+
+**Write path:** `saveData(data)` writes to localStorage immediately, then upserts each game to Supabase. Individual
+game saves go through `saveGame(game)`, which also stamps `game.last_modified`.
+
+**Collision detection:** triggered on game select via `loadGame(gameId)`. Compares `game.last_modified` (local)
+against `updated_at` (Supabase). If they differ by more than 5 seconds, a modal presents both timestamps and lets
+the user pick Local or Cloud. The loser is updated accordingly.
 
 ---
 
@@ -88,15 +152,15 @@ Exports a `TOOLS` array. Each entry:
 }
 ```
 
-The root `index.html` maps over this array to render the tool cards. No edits to `index.html` needed when adding tools.
-Keep entries in alphabetical order by name.
+The root `index.html` maps over this array to render the tool cards. No edits to `index.html` needed when adding
+tools. Keep entries in alphabetical order by name.
 
 ---
 
 ## common/theme.js
 
-- `initTheme(onToggle?)` — reads `bgt:theme` from localStorage, applies `.light` class to `<body>` if set, syncs the
-  toggle button icon. `onToggle` is an optional callback (e.g. to redraw canvas charts after a theme switch).
+- `initTheme(onToggle?)` — reads `bgt:theme` from localStorage, applies `.light` class to `<body>` if set, syncs
+  the toggle button icon. `onToggle` is an optional callback (e.g. to redraw canvas charts after a theme switch).
 - `toggleTheme()` — flips `.light` on `<body>`, writes to `bgt:theme`, calls `onToggle` if set.
 - Default theme is **dark**. Light mode adds the `.light` class.
 
@@ -105,34 +169,37 @@ Keep entries in alphabetical order by name.
 ## common/header.js
 
 - `initHeader(title)` — injects a `<header class="tool-header">` as the first child of `<body>`.
-- Header contains: back link (← on mobile, ← Tools on ≥400px), centered `<h1>`, theme toggle button.
+- Header contains: back link, centered `<h1>`, a `<div class="header-actions">` with the 👤 auth button and
+  theme toggle.
+- The 👤 button (`#authBtn`) is present in the injected HTML but inert until `initAuth()` wires it.
 - Called identically in every tool — there are no per-tool variations.
 
 ---
 
 ## localStorage Keys
 
-All keys follow the pattern `bgt:tool-name:descriptor`. Namespace prefix `bgt` prevents collisions with other projects
-sharing the same origin (`souliest.github.io`).
+All keys follow the pattern `bgt:tool-name:descriptor`. Namespace prefix `bgt` prevents collisions with other
+projects sharing the same origin (`souliest.github.io`).
 
-| Key                                     | Tool             | Contents                                |
-|-----------------------------------------|------------------|-----------------------------------------|
-| `bgt:theme`                             | global           | `'light'` or `'dark'` (absent = dark)   |
-| `bgt:xp-tracker:gains`                  | XpTracker        | JSON array of `{ xp, ts }` objects      |
-| `bgt:xp-tracker:start`                  | XpTracker        | Session start timestamp as string       |
-| `bgt:level-goal-tracker:data`           | LevelGoalTracker | JSON `{ games: [...] }`                 |
-| `bgt:level-goal-tracker:selected-game`  | LevelGoalTracker | Selected game id string                 |
-| `bgt:thing-counter:data`                | ThingCounter     | JSON `{ games: [...] }`                 |
-| `bgt:thing-counter:selected-game`       | ThingCounter     | Selected game id string                 |
-| `bgt:thing-counter:quick-counter-val`   | ThingCounter     | Quick Counter current value             |
-| `bgt:thing-counter:quick-counter-step`  | ThingCounter     | Quick Counter step size                 |
-| `bgt:thing-counter:quick-counter-color` | ThingCounter     | Quick Counter accent color (hex string) |
+| Key                                     | Tool             | Contents                                  |
+|-----------------------------------------|------------------|-------------------------------------------|
+| `bgt:theme`                             | global           | `'light'` or `'dark'` (absent = dark)     |
+| `bgt:auth:nudge-seen`                   | global           | `'1'` once the sign-in nudge is dismissed |
+| `bgt:xp-tracker:gains`                  | XpTracker        | JSON array of `{ xp, ts }` objects        |
+| `bgt:xp-tracker:start`                  | XpTracker        | Session start timestamp as string         |
+| `bgt:level-goal-tracker:data`           | LevelGoalTracker | JSON `{ games: [...] }`                   |
+| `bgt:level-goal-tracker:selected-game`  | LevelGoalTracker | Selected game id string (UUID)            |
+| `bgt:thing-counter:data`                | ThingCounter     | JSON `{ games: [...] }`                   |
+| `bgt:thing-counter:selected-game`       | ThingCounter     | Selected game id string (UUID)            |
+| `bgt:thing-counter:quick-counter-val`   | ThingCounter     | Quick Counter current value               |
+| `bgt:thing-counter:quick-counter-step`  | ThingCounter     | Quick Counter step size                   |
+| `bgt:thing-counter:quick-counter-color` | ThingCounter     | Quick Counter accent color (hex string)   |
 
 **Rules:**
 
 - Never clobber an existing key when migrating or defaulting
-- Always use named constants for keys in `storage.js` (e.g. `export const STORAGE_KEY = 'bgt:...'`) — no inline string
-  literals anywhere
+- Always use named constants for keys in `storage.js` (e.g. `export const STORAGE_KEY = 'bgt:...'`) — no inline
+  string literals anywhere else in the codebase
 
 ---
 
@@ -166,25 +233,20 @@ Key variables:
 
 ## HTML Conventions
 
-- All `<label>` elements must have a matching `for="inputId"` attribute pointing to the associated input's `id`. This is
-  required for accessibility and avoids linter warnings.
-- Hidden/overlay inputs that are visually replaced by custom display elements (e.g. a `<div>` styled as a value display)
-  should use `aria-label` instead of a visible `<label>`.
-- Do not use inline `onclick` attributes in JavaScript-generated HTML (e.g. inside `innerHTML` template strings). Always
-  use `addEventListener` after setting `innerHTML`, or use `data-action` / `data-*` attributes on elements and delegate
-  from a parent listener.
+- All `<label>` elements must have a matching `for="inputId"` attribute pointing to the associated input's `id`.
+- Hidden/overlay inputs replaced by custom display elements should use `aria-label` instead of a visible `<label>`.
+- Do not use inline `onclick` attributes in JavaScript-generated HTML. Always use `addEventListener` after setting
+  `innerHTML`, or use `data-action` / `data-*` attributes and delegate from a parent listener.
 
 ---
 
 ## JavaScript Conventions
 
-- Avoid optional chaining (`?.`) on DOM element properties such as `classList` — some linters flag it as unresolved. Use
-  an explicit null check instead: `if (el) el.classList.remove(...)`.
+- Avoid optional chaining (`?.`) on DOM element properties such as `classList`. Use an explicit null check instead.
 - When multiple functions need the same loaded data, pass it as a parameter rather than calling `loadData()`
-  independently in each — avoids duplicated-code warnings and unnecessary re-parses.
-- Node IDs are generated as `'node_' + Date.now() + '_' + Math.floor(Math.random() * 99999)` — collision-safe for
-  single-user local data.
-- Game IDs are generated as `'game_' + Date.now()`.
+  independently in each — avoids duplicate network calls and unnecessary re-parses.
+- Game IDs are generated with `crypto.randomUUID()` — used as the primary key in both localStorage and Supabase.
+- Node IDs within a counter tree are generated as `'node_' + Date.now() + '_' + Math.floor(Math.random() * 99999)`.
 
 ---
 
@@ -204,18 +266,15 @@ el.querySelector('[data-action="edit"]').addEventListener('click', e => {
 });
 ```
 
-This avoids the "deprecated inline handler" linter warning and keeps node IDs out of HTML attributes.
-
 ---
 
 ## Popover / Floating UI Pattern
 
-When a click on an element should toggle a popover open, and a `document` click listener is used to close it on outside
-clicks, the toggle handler **must call `event.stopPropagation()`** to prevent the document listener from immediately
-closing the popover on the same click that opened it.
+When a click on an element should toggle a popover open, and a `document` click listener is used to close it on
+outside clicks, the toggle handler **must call `event.stopPropagation()`** to prevent the document listener from
+immediately closing the popover on the same click that opened it.
 
 ```js
-// HTML: onclick="togglePopover(event)"
 function togglePopover(event) {
     event.stopPropagation();   // ← essential
     const pop = document.getElementById('myPopover');
@@ -232,33 +291,29 @@ document.addEventListener('click', () => {
 
 ## Module Dependency Pattern
 
-To avoid circular imports between modules, render functions do not import from modal or focus modules, and vice versa.
-Instead, `main.js` owns all state and passes callbacks downward at call time.
+To avoid circular imports between modules, render functions do not import from modal or focus modules, and vice
+versa. Instead, `main.js` owns all state and passes callbacks downward at call time.
 
 **ThingCounter example** — `render.js` receives a `callbacks` object rather than importing interaction handlers
 directly:
 
 ```js
-// main.js
 const callbacks = {
     onCounterStep: (id, dir) => counterStep(id, dir),
     onOpenFocusModal: id => openFocusModal(id, selectedGameId),
     // ...
 };
-renderMain(selectedGameId, editMode, nodeEditActive, collapsedBranches, callbacks);
+renderMain(selectedGameId, editMode, nodeEditActive, collapsedBranches, callbacks, data);
 ```
 
-This keeps the dependency graph a strict tree: `main.js` → everything else, with no cross-imports between sibling
-modules.
-
-**Modal save/delete callbacks** — modal and focus modules never call `renderMain()` directly. Instead they accept an
+**Modal save/delete callbacks** — modal and focus modules never call `renderMain()` directly. They accept an
 `onSaved` / `onDeleted` callback from `main.js`, which owns the re-render:
 
 ```js
 // modal.js
-export function saveGame(selectedGameId, onSaved) {
+export async function saveGame(selectedGameId, onSaved) {
     // ... save logic ...
-    onSaved(savedId);   // main.js decides what to do next
+    onSaved(savedId);
 }
 
 // main.js
@@ -275,9 +330,8 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 
 - Tracks XP gains in a session with timestamps
 - Canvas-based charts: `gainChart` (bar + moving averages), `timeChart` (cumulative XP over time)
-- `initTheme` receives a wrapper callback: `() => { if (window.redrawCharts) window.redrawCharts(); }` — the wrapper is
-  needed because `main.js` is a deferred module and hasn't assigned `window.redrawCharts` yet when the inline script
-  runs
+- **Session-local by design** — `storage.js` is synchronous and localStorage-only; no Supabase integration
+- `initTheme` receives a wrapper callback: `() => { if (window.redrawCharts) window.redrawCharts(); }`
 - `window.addEventListener('resize', redrawCharts)` for responsive canvas sizing
 - Session resets wipe both storage keys
 
@@ -286,51 +340,35 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 **Modules:** `storage.js`, `dates.js`, `snapshot.js`, `stats.js`, `render.js`, `modal.js`, `main.js`
 
 - Tracks levelling progress toward a deadline across multiple games
+- **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_level_goal_tracker_games`)
+- **Collision detection** runs on game select via `loadGame(gameId)`; resolved via modal in `main.js`
 - Daily snapshot rolls over at midnight: `maybeRollSnapshot(game)` checks `snapshot.date` vs today
-- `initTheme()` called with no callback — no canvas
-- `setInterval(renderMain, 60000)` — auto-refreshes every minute so daily targets stay current
-- Game data is a single JSON blob under `bgt:level-goal-tracker:data`; selected game id is stored separately
+- `setInterval(tickRenderMain, 60000)` — ticks every minute to keep daily targets current past midnight.
+  `tickRenderMain` reads localStorage directly (no Supabase call) and only pushes to Supabase if the snapshot
+  actually rolled. Supabase is pulled from only once: on game select.
+- `renderSelector()` returns the data it loaded so callers can pass it directly to `renderMain(data)` without
+  a second `loadData()` call
 - `dates.js` is a pure-function leaf imported by `snapshot.js`, `stats.js`, `render.js`, and `modal.js`
 
 ### ThingCounter (`/ThingCounter/`)
 
 **Modules:** `storage.js`, `swatches.js`, `nodes.js`, `render.js`, `focus.js`, `modal.js`, `main.js`
 
-- Hierarchical counter tracker: counters organised into an arbitrary-depth tree of branches, grouped by game
-- **Two UI bars:** a selector bar (game dropdown + ✎ game settings + `+ Game`) and a tree action bar (`+ Branch`,
-  `+ Counter`, ✏️ edit mode toggle) — the tree action bar is only visible when a game is selected
-- **Separate Add/Edit modals** for branches and counters — no combined node-type modal
-- **Counter types:**
-    - `open` — unbounded, value ≥ 0
-    - `bounded` — has `min`, `max`, `initial` (reset target). Fill bar shown. `clampValue` uses
-      `Math.max(min, Math.min(max, val))`
-- **Decrement counters** (`decrement: true`): dominant button is `−`, fill bar drains left-to-right (bar width =
-  `(value - min) / (max - min) * 100%`). Formula is the same for both increment and decrement — decrement just means the
-  user taps `−` most often
-- **Edit mode** (global toggle): reveals `+` / `✎` / `🗑` on branches and `✎` / `×1` / `↺` / `🗑` on counters. Ghost "add
-  counter" buttons appear at the bottom of each branch and the root
-- **Single-node edit mode**: double-click or long-press (500ms) any node to activate local edit controls for that node
-  only, without entering global edit mode
-- **Focus modal**: tap counter name → large value display, ±1 row, editable step, ±step row, ↺ reset to initial, fill
-  bar (bounded only)
-- **Step shown in counter buttons** when step ≠ 1 (e.g. `−5`, `+5`)
-- `initialValue(node)` returns `node.initial` if set, otherwise `node.max` for decrement bounded, `node.min` for
-  increment bounded, `0` for open
-- Counter card padding: 14px top/bottom
-- **Color palette**: 20 named colors covering the full hue wheel (Cherry → Rose). Stored as
-  `{ color: '#hex', name: 'Name' }` objects in a `SWATCHES` array in `swatches.js`. Default color: Aqua (`#2ED9FF`). The
-  color picker uses a display field (filled circle + name) that opens a floating popover of 20 plain circles on click
-- **Quick Counter**: a game-agnostic scratchpad counter accessible from the no-game-selected screen. Opens a focus-style
-  modal with value, ±1, editable step, ±step, and ↺ reset to zero. Gets a random color from SWATCHES on first open.
-  State (val, step, color) is persisted in three dedicated localStorage keys and survives page refreshes and blur
-  events. Closing with ✕ wipes the state (fresh next time). Selecting a game also resets it and closes the modal —
-  intentional navigation is treated as a session boundary. Backdrop tap does not reset (treated as accidental dismiss).
-- `focus.js` holds both the focus modal and Quick Counter. It exposes `setFocusGameId(id)` so `main.js` can keep its
-  internal `_selectedGameId` in sync without a circular import. `syncFocusIfOpen(nodeId)` lets tree interactions update
-  the focus display when the affected counter is currently open.
-- `nodes.js` and `swatches.js` are pure-function leaves with no DOM or localStorage dependencies.
-- The `callbacks` object pattern (see Module Dependency Pattern above) is used throughout `render.js` to avoid circular
-  imports with `focus.js` and `modal.js`.
+- Hierarchical counter tracker: counters in an arbitrary-depth tree of branches, grouped by game
+- **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_thing_counter_games`)
+- **Collision detection** runs on game select via `loadGame(gameId)`; resolved via modal in `main.js`
+- `renderSelector()` returns the data it loaded so callers (`afterGameSaved`, `afterGameDeleted`) can pass it
+  directly to `doRenderMain(data)` without a second `loadData()` call
+- **Two UI bars:** selector bar and tree action bar (visible only when a game is selected)
+- **Counter types:** `open` (unbounded, value ≥ 0) and `bounded` (min/max/initial, fill bar shown)
+- **Decrement counters** (`decrement: true`): dominant button is `−`
+- **Edit mode** (global toggle): reveals node controls and ghost add buttons
+- **Single-node edit mode**: double-click or long-press any node, without entering global edit mode
+- **Focus modal**: tap counter name → large value display, ±1, editable step, ±step, ↺ reset, fill bar
+- **Quick Counter**: game-agnostic scratchpad. State persists across refresh/blur; wiped on ✕ close or game select
+- `focus.js` holds both the focus modal and Quick Counter; exposes `setFocusGameId(id)` and `syncFocusIfOpen(nodeId)`
+- `nodes.js` and `swatches.js` are pure-function leaves with no DOM or localStorage dependencies
+- The `callbacks` object pattern is used throughout `render.js` to avoid circular imports
 
 ---
 
@@ -338,30 +376,31 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 
 - **One `tools.js` registry** — keeps the index DRY; adding a tool is one line
 - **`bgt:` prefix** — `souliest.github.io` is a shared origin; prefixing avoids stomping on other projects' keys
-- **Dark-first theming** — `.light` class is additive; absence of the class = dark, which is the default
+- **Dark-first theming** — `.light` class is additive; absence = dark (the default)
 - **`initHeader` before `initTheme`** — theme toggle button must exist in DOM before `initTheme` queries for it
-- **No inline localStorage string literals** — all keys are constants in `storage.js` so they're easy to find and change
-- **No inline `onclick` in generated HTML** — use `addEventListener` + `data-action` attributes; avoids
-  deprecated-handler warnings and keeps IDs out of markup
-- **`stopPropagation` on popover toggles** — document-level close listeners will fire on the same click that opens a
-  popover unless the opener stops bubbling
-- **Separate Add and Edit modals per node type** — cleaner UX than a combined modal with a type-switch radio; also
-  avoids the type-change complexity when editing existing nodes
-- **`min` field on bounded counters** — makes decrement counters with a non-zero floor (e.g. health that floors at 1)
-  straightforward without special-casing
-- **`initial` field separate from `min`/`max`** — reset target is not always the floor or ceiling; storing it explicitly
-  avoids re-deriving it on reset
-- **Quick Counter reset on game selection** — selecting a game is treated as an intentional navigation event, so the QC
-  state is wiped and the modal is closed. Page refresh and blur are treated as accidental and preserve state. This
-  distinction maps to the user intent: reaching for a game means you're done with the scratchpad; losing focus does not.
-- **ES modules over a single `script.js`** — separates concerns, makes each file's purpose immediately clear, enables
-  the async-ready `storage.js` interface needed for Supabase integration without touching other files
-- **`common/` stays as non-module globals** — `theme.js` and `header.js` predate the module system and are shared across
-  all tools. Changing them would require touching every tool simultaneously. They load synchronously before `main.js`
-  and remain available as globals.
-- **Callbacks pattern over direct imports in `render.js`** — `render.js` cannot import from `focus.js` or `modal.js`
-  without creating circular dependencies (both import `render.js` helpers). Passing callbacks from `main.js` keeps the
-  graph acyclic and `render.js` independently testable.
-- **`setFocusGameId` instead of passing `selectedGameId` as a parameter everywhere** — the focus modal needs the current
-  game id for many operations but doesn't need to re-render the tree. A single setter call on game change is cleaner
-  than threading the id through every focus function signature.
+- **`initAuth()` awaited before `loadData()`** — ensures `getUser()` returns the restored session before any
+  Supabase storage call is made
+- **No inline localStorage string literals** — all keys are constants in `storage.js`
+- **No inline `onclick` in generated HTML** — use `addEventListener` + `data-action` attributes
+- **`stopPropagation` on popover toggles** — prevents document-level close listeners from firing on the same click
+- **Hybrid storage: local-first** — localStorage gives immediate reads and offline capability; Supabase is
+  secondary. If Supabase is unreachable, the app still works and syncs when connectivity returns.
+- **Per-game rows in Supabase** — each game is its own row (with a `name` column) so the selector dropdown can
+  be populated with a lightweight `SELECT id, name` query. Full `data` blobs are only fetched on game select.
+- **Collision detection on game select, not on load** — checking per game on select is precise and non-intrusive.
+  Checking the whole tool on load would be coarser and harder to reason about.
+- **`tickRenderMain` reads localStorage only** — the database can't change itself between sessions. The interval
+  exists solely to roll the midnight snapshot; it should not make network calls for that purpose.
+- **`renderSelector()` returns data** — avoids the anti-pattern of calling `loadData()` twice in sequence
+  (once inside `renderSelector`, once again in the callback) after every save or delete
+- **`crypto.randomUUID()` for game IDs** — UUIDs serve as the primary key in both localStorage and Supabase,
+  so they must be globally unique. The old `'game_' + Date.now()` pattern is not collision-safe across devices.
+- **`auth-ui.js` loaded as a module import, not a script tag** — keeps HTML clean, leverages ES module caching
+  so `auth.js` and `supabase.js` are fetched once regardless of how many modules import them
+- **`import.meta.url` for CSS path in `auth-ui.js`** — the module always knows its own URL, so the CSS path
+  resolves correctly whether the page is the root `index.html` or a tool subdirectory
+- **Separate Add and Edit modals per node type** — cleaner UX; avoids type-change complexity when editing
+- **Callbacks pattern over direct imports in `render.js`** — keeps the dependency graph a strict tree, with
+  `main.js` at the root
+- **`setFocusGameId` instead of threading `selectedGameId` everywhere** — the focus modal needs the current game
+  id for many operations; a single setter on game change is cleaner than adding it to every function signature

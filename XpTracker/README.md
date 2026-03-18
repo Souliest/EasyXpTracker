@@ -2,6 +2,8 @@
 
 A lightweight, browser-based XP tracking tool.
 
+---
+
 ## What It Does
 
 XP Tracker lets you:
@@ -13,8 +15,11 @@ XP Tracker lets you:
 - Estimate XP rates per minute, 15 minutes, and hour
 - Review a timestamped entry log
 
-It is designed as a lightweight, general-purpose XP tracker to help approximate gains over blocks of time during
-grinding sessions, study sessions, workouts, or anything else that "earns XP."
+It is designed as a lightweight, session-based XP tracker to help approximate gains over blocks of time during
+grinding sessions. Data is intentionally session-local — there is nothing meaningful to sync across devices for
+a single session. Resetting starts a clean slate.
+
+---
 
 ## Features
 
@@ -25,6 +30,8 @@ grinding sessions, study sessions, workouts, or anything else that "earns XP."
 - Fully client-side
 - Works offline
 
+---
+
 ## How To Use
 
 1. Open `index.html` in a browser.
@@ -33,6 +40,8 @@ grinding sessions, study sessions, workouts, or anything else that "earns XP."
 4. Watch the charts update.
 
 That's it.
+
+---
 
 ## Project Structure
 
@@ -43,12 +52,22 @@ XpTracker/
 ├── styles.css
 ├── js/
 │   ├── main.js       # Entry point: state, event wiring, globals, init
-│   ├── storage.js    # localStorage keys, loadData, saveData
+│   ├── storage.js    # localStorage keys, loadData, saveData (synchronous)
 │   ├── stats.js      # Pure helpers: fmt(), movingAvg()
 │   ├── charts.js     # Canvas chart drawing: gain chart and time chart
 │   └── render.js     # DOM update functions: stats, chips, log, estimates
 └── README.md
 ```
+
+---
+
+## Storage
+
+XP Tracker uses `localStorage` only. Session gains are stored under `bgt:xp-tracker:gains` and the session
+start time under `bgt:xp-tracker:start`. No Supabase sync is used — XP Tracker is intentionally
+session-scoped, and there is nothing meaningful to persist across devices.
+
+---
 
 ## Deployment
 
@@ -59,12 +78,16 @@ This project can be hosted on any static hosting platform, including:
 
 It can also be run locally without any setup.
 
+---
+
 ## Tech Notes
 
 - Vanilla HTML, CSS, and JavaScript (ES modules)
 - Custom canvas-based charts (no chart libraries)
 - Session-based time tracking
 - Moving average calculations for smoothing
+
+---
 
 ## Credits
 

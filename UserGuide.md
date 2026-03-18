@@ -1,8 +1,10 @@
 # BasicGamingTools — User Guide
 
-A collection of lightweight, browser-based utilities for tracking progress and counting things while gaming. Everything
-runs locally in your browser — no accounts, no internet connection required after the first load, and no data ever
-leaves your device.
+A collection of lightweight, browser-based utilities for tracking progress and counting things while gaming.
+Everything runs locally in your browser — no internet connection is required, and all tools work fully offline.
+
+An optional account system lets you sync data across devices. Your data is stored in Supabase only when you choose
+to sign in. See [Account & Sync](#account--sync) below.
 
 ---
 
@@ -71,11 +73,12 @@ It supports multiple games, each with their own level goal and progress history.
 ### Setting Up a Game
 
 1. Open Level Goal Tracker from the main tools page.
-2. Click **+ Game** to create a new entry.
+2. Click **+ Add** to create a new entry.
 3. Give the game a name.
 4. Enter your current level and target level.
 5. Set a deadline date.
-6. Click **Save**. The tool will calculate your daily XP requirement.
+6. Add at least one checkpoint level.
+7. Click **Save**. The tool will calculate your daily XP requirement.
 
 ### Daily Targets
 
@@ -85,24 +88,24 @@ It supports multiple games, each with their own level goal and progress history.
 | Target level   | Where you want to reach.                                             |
 | Deadline       | The date you've set as your goal.                                    |
 | Days remaining | Calendar days left until the deadline.                               |
-| XP required    | Total XP still needed to reach the target.                           |
-| Daily target   | XP you need to earn per day to stay on pace.                         |
-| Today's XP     | XP you've logged today.                                              |
+| Daily target   | Level you need to reach today to stay on pace.                       |
 | Pace           | Whether you're ahead of, behind, or on track with your daily target. |
 
 ### Logging Daily Progress
 
-Each day, enter the XP you earned and click **Log Today**. The tool stores a snapshot of that day and updates your pace
-status.
+Enter your current level in the **Update** field and click **Update**. The tool stores a snapshot for the day and
+recalculates your pace status.
 
-At midnight, the daily counter resets automatically. Your history is preserved.
+At midnight, the daily target rolls over automatically — the tool refreshes itself every minute so this happens
+without a page reload.
 
 ### Multiple Games
 
 Use the dropdown at the top to switch between games. Each game tracks its own goal, deadline, and daily history
-independently. Click **✎** next to the dropdown to rename or delete a game.
+independently. The **✏️ Edit** and **🗑 Delete** buttons at the bottom of the game view let you modify or remove
+the current game.
 
-> **Tip:** The daily target recalculates every day based on remaining XP and remaining days. A big day lowers your
+> **Tip:** The daily target recalculates every day based on remaining levels and remaining days. A big day lowers your
 > required pace. A missed day raises it.
 
 ---
@@ -164,9 +167,8 @@ Toggle **✏️** in the toolbar to enter Edit Mode. All nodes show their contro
 
 ### Organising Counters
 
-Branches can be nested inside other branches to any depth. Organise by zone, act, character, session — whatever makes
-sense. You can change a counter's parent in the Edit Counter modal at any time. Tap a branch row to collapse or expand
-it.
+Branches can be nested inside other branches to any depth. You can change a counter's parent in the Edit Counter modal
+at any time. Tap a branch row to collapse or expand it.
 
 ### Sort Order
 
@@ -210,28 +212,54 @@ buttons, and a reset to zero. It gets a random color each time it's opened fresh
 
 ### Dark and Light Mode
 
-Every tool has a theme toggle button (🌙 / ☀️) in the top-right corner of the header. Your preference is saved and
+Every tool has a theme toggle button (🌙 / 🌕) in the top-right corner of the header. Your preference is saved and
 applies across all tools.
+
+### Account & Sync
+
+The 👤 button in the header opens the account menu. You can create an account, sign in, or sign out from there.
+
+**Without an account:** everything works as before — data is saved locally in your browser and never leaves your device.
+
+**With an account:** Level Goal Tracker and Thing Counter sync your games to Supabase. Data is pushed on every save and
+pulled on tool load, so your games are available on any device you sign in from. XP Tracker is session-based by design
+and does not sync.
+
+**Sign in nudge:** the first time you visit any tool without being signed in, a tooltip on the 👤 button reminds you
+that sync is available. It appears once and does not come back after you dismiss it.
+
+**Privacy:** your email address is stored solely for account recovery purposes and is never shared with or sold to any
+third party.
+
+#### Conflict Resolution
+
+If you've used the same game on two different devices while offline, the data may have diverged. When you select a game
+and both a local version and a cloud version exist with different timestamps, a prompt appears showing both timestamps
+and lets you choose which copy to keep. The other copy is updated to match.
 
 ### Data Storage
 
-All data is saved automatically in your browser's local storage. Nothing is uploaded to a server. Your data stays on
-your device and persists between sessions.
+Data is saved automatically. The local copy lives in your browser's `localStorage` and persists between sessions.
 
-**Clearing your browser's local storage or site data will erase all saved data.** If you want to back up your data, you
-can copy the relevant keys from your browser's developer tools (F12 → Application → Local Storage).
+When signed in, Level Goal Tracker and Thing Counter also store data in Supabase. If you clear your browser's
+localStorage, your data can be restored from the cloud the next time you open the tool while signed in.
+
+**Clearing browser site data while not signed in will erase your data permanently.** If you are not signed in and
+want to back up your data, you can copy the relevant keys from your browser's developer tools (F12 → Application →
+Local Storage).
 
 ### localStorage Keys Reference
 
-| Key                                     | Tool               | Contents                                  |
-|-----------------------------------------|--------------------|-------------------------------------------|
-| `bgt:theme`                             | Global             | Dark or light theme preference.           |
-| `bgt:xp-tracker:gains`                  | XP Tracker         | Array of logged XP gains with timestamps. |
-| `bgt:xp-tracker:start`                  | XP Tracker         | Session start timestamp.                  |
-| `bgt:level-goal-tracker:data`           | Level Goal Tracker | All games, goals, and daily history.      |
-| `bgt:level-goal-tracker:selected-game`  | Level Goal Tracker | Last selected game.                       |
-| `bgt:thing-counter:data`                | Thing Counter      | All games and their counter trees.        |
-| `bgt:thing-counter:selected-game`       | Thing Counter      | Last selected game.                       |
-| `bgt:thing-counter:quick-counter-val`   | Thing Counter      | Quick Counter current value.              |
-| `bgt:thing-counter:quick-counter-step`  | Thing Counter      | Quick Counter step size.                  |
-| `bgt:thing-counter:quick-counter-color` | Thing Counter      | Quick Counter accent color.               |
+| Key                                     | Tool               | Contents                                        |
+|-----------------------------------------|--------------------|-------------------------------------------------|
+| `bgt:theme`                             | Global             | Dark or light theme preference.                 |
+| `bgt:auth:nudge-seen`                   | Global             | Set to `1` once the sign-in nudge is dismissed. |
+| `bgt:xp-tracker:gains`                  | XP Tracker         | Array of logged XP gains with timestamps.       |
+| `bgt:xp-tracker:start`                  | XP Tracker         | Session start timestamp.                        |
+| `bgt:level-goal-tracker:data`           | Level Goal Tracker | All games, goals, and daily history.            |
+| `bgt:level-goal-tracker:selected-game`  | Level Goal Tracker | Last selected game ID.                          |
+| `bgt:thing-counter:data`                | Thing Counter      | All games and their counter trees.              |
+| `bgt:thing-counter:selected-game`       | Thing Counter      | Last selected game ID.                          |
+| `bgt:thing-counter:quick-counter-val`   | Thing Counter      | Quick Counter current value.                    |
+| `bgt:thing-counter:quick-counter-step`  | Thing Counter      | Quick Counter step size.                        |
+| `bgt:thing-counter:quick-counter-color` | Thing Counter      | Quick Counter accent color.                     |
