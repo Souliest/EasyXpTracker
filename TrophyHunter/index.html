@@ -1,0 +1,134 @@
+<!-- TrophyHunter/index.html -->
+<!-- Shell: loads shared theme/header globals, then boots the tool via js/main.js (module). -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trophy Hunter</title>
+  <link rel="stylesheet" href="../common/theme.css">
+  <link rel="stylesheet" href="../common/header.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Shared header injected by header.js -->
+
+  <!-- ── Selector bar ── -->
+  <div class="selector-bar">
+    <select id="gameSelect" aria-label="Select game" onchange="selectGame(this.value)">
+      <option value="">— select a game —</option>
+    </select>
+    <button class="btn btn-ghost game-action-btn" id="gameSettingsBtn"
+            onclick="openGameSettings()" title="Game settings" style="display:none">✎
+    </button>
+    <button class="btn btn-primary" onclick="openAddGameModal()">+ Add Game</button>
+  </div>
+
+  <div id="mainContent"></div>
+
+</div><!-- /.container -->
+
+<!-- ══════════════════════════════════════════
+     Search / Add Game Modal
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="searchModal">
+  <div class="modal modal-search">
+    <div class="modal-header">
+      <h2>Add Game</h2>
+      <button class="modal-close" onclick="closeSearchModal()">✕</button>
+    </div>
+    <div class="search-input-row">
+      <input type="text" id="searchInput" placeholder="Search PlayStation games…"
+             autocomplete="off" spellcheck="false">
+      <button class="btn btn-primary" id="searchSubmitBtn">Search</button>
+    </div>
+    <div class="search-status" id="searchStatus"></div>
+    <div class="search-results" id="searchResults"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     Game Settings Modal
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="gameSettingsModal">
+  <div class="modal modal-settings">
+    <div class="modal-header">
+      <h2>Game Settings</h2>
+      <button class="modal-close" onclick="closeGameSettings()">✕</button>
+    </div>
+
+    <!-- Rename -->
+    <div class="form-group">
+      <label for="settingsGameName">Game Title</label>
+      <input type="text" id="settingsGameName" placeholder="Title">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeGameSettings()">Cancel</button>
+      <button class="btn btn-primary" id="settingsSaveBtn">Save</button>
+    </div>
+
+    <!-- Refresh from PSN -->
+    <div class="settings-section">
+      <div class="settings-section-label">Data</div>
+      <div class="settings-row">
+        <div class="settings-desc">
+          <div class="settings-desc-title">Refresh from PSN</div>
+          <div class="settings-desc-sub">Re-fetches trophy list. New trophies are added unearned.</div>
+        </div>
+        <button class="btn btn-ghost" id="settingsRefreshBtn">Refresh</button>
+      </div>
+      <div class="settings-refresh-msg" id="settingsRefreshMsg"></div>
+    </div>
+
+    <!-- Danger zone -->
+    <div class="settings-section danger-zone">
+      <div class="settings-section-label danger">Danger Zone</div>
+
+      <!-- Reset -->
+      <div class="settings-row" id="settingsResetRow">
+        <div class="settings-desc">
+          <div class="settings-desc-title">Reset progress</div>
+          <div class="settings-desc-sub">Clears all earned and pinned states. Trophy list is kept.</div>
+        </div>
+        <button class="btn btn-warn" id="settingsResetBtn">Reset</button>
+      </div>
+      <div class="danger-confirm" id="settingsResetConfirm" style="display:none">
+        <span class="danger-confirm-text">Reset all progress?</span>
+        <div class="danger-confirm-btns">
+          <button class="btn btn-ghost" id="settingsResetConfirmNo">Cancel</button>
+          <button class="btn btn-danger" id="settingsResetConfirmYes">Yes, reset</button>
+        </div>
+      </div>
+
+      <!-- Remove -->
+      <div class="settings-row" id="settingsRemoveRow" style="margin-top:10px">
+        <div class="settings-desc">
+          <div class="settings-desc-title">Remove game</div>
+          <div class="settings-desc-sub">Permanently removes this game from your list.</div>
+        </div>
+        <button class="btn btn-danger" id="settingsRemoveBtn">Remove</button>
+      </div>
+      <div class="danger-confirm" id="settingsRemoveConfirm" style="display:none">
+        <span class="danger-confirm-text">Remove this game?</span>
+        <div class="danger-confirm-btns">
+          <button class="btn btn-ghost" id="settingsRemoveConfirmNo">Cancel</button>
+          <button class="btn btn-danger" id="settingsRemoveConfirmYes">Yes, remove</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="../common/theme.js"></script>
+<script src="../common/header.js"></script>
+<script>
+    initHeader('Trophy Hunter');
+    initTheme();
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

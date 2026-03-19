@@ -15,6 +15,11 @@ const TOOLS = [
         description: 'Count anything, organised in a collapsible tree, split by game.'
     },
     {
+        name: 'Trophy Hunter',
+        path: './TrophyHunter/index.html',
+        description: 'Track PlayStation trophy progress across your games.'
+    },
+    {
         name: 'XP Tracker',
         path: './XpTracker/index.html',
         description: 'Log XP gains and track your rate over a session.'
