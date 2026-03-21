@@ -7,17 +7,20 @@
 // ═══════════════════════════════════════════════
 
 import {
-    searchCatalog,
-    workerSearch,
+    runSearch,
+    runContribute,
+    workerResolve,
     workerFetchTrophies,
     saveCatalogEntry,
+    saveLookupEntries,
+    normaliseTitle,
     createGameEntry,
-    loadCatalogEntry
+    loadCatalogEntry,
 } from './storage.js';
 import {getUser} from '../../common/auth.js';
 
 // ── State ──
-let _searchResults = []; // tracks current search state for reset on close
+let _currentQuery = '';   // preserved so contribute can retry the same query
 
 // ═══════════════════════════════════════════════
 // Search / Add Game modal
@@ -29,11 +32,9 @@ export function openAddGameModal(personalGames, onGameAdded, onSelectExisting) {
 
     _resetSearchModal();
     overlay.classList.add('open');
-
     document.getElementById('searchInput').focus();
 
     // Clone buttons to remove any previously attached listeners before re-wiring.
-    // Without this, each modal open stacks another listener and search fires multiple times.
     const oldBtn = document.getElementById('searchSubmitBtn');
     const newBtn = oldBtn.cloneNode(true);
     oldBtn.replaceWith(newBtn);
@@ -41,12 +42,9 @@ export function openAddGameModal(personalGames, onGameAdded, onSelectExisting) {
     const oldInput = document.getElementById('searchInput');
     const newInput = oldInput.cloneNode(true);
     oldInput.replaceWith(newInput);
-
-    // Re-focus after clone
     newInput.focus();
 
-    const doSearch = () => _runSearch(personalGames, onGameAdded, onSelectExisting, false);
-
+    const doSearch = () => _runSearch(personalGames, onGameAdded, onSelectExisting);
     newBtn.addEventListener('click', doSearch);
     newInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') doSearch();
@@ -56,119 +54,303 @@ export function openAddGameModal(personalGames, onGameAdded, onSelectExisting) {
 export function closeSearchModal() {
     const overlay = document.getElementById('searchModal');
     if (overlay) overlay.classList.remove('open');
-    _searchResults = [];
+    _currentQuery = '';
 }
 
 function _resetSearchModal() {
-    // These elements may have been re-cloned by openAddGameModal — query fresh each time
     const input = document.getElementById('searchInput');
     const resultsEl = document.getElementById('searchResults');
     const statusEl = document.getElementById('searchStatus');
     if (input) input.value = '';
     if (resultsEl) resultsEl.innerHTML = '';
     if (statusEl) statusEl.textContent = '';
-    _searchResults = [];
+    _currentQuery = '';
 }
 
-async function _runSearch(personalGames, onGameAdded, onSelectExisting, forcePSN) {
+// ─────────────────────────────────────────────
+// Main search runner — drives steps 1–3 via runSearch()
+// ─────────────────────────────────────────────
+
+async function _runSearch(personalGames, onGameAdded, onSelectExisting) {
     const query = document.getElementById('searchInput').value.trim();
     if (query.length < 2) {
         _setSearchStatus('Enter at least 2 characters.', false);
         return;
     }
 
-    const resultsEl = document.getElementById('searchResults');
+    _currentQuery = query;
     const user = getUser();
+    const userId = user ? user.id : null;
 
-    _setSearchStatus('Searching catalog…', false);
-    resultsEl.innerHTML = '';
+    _setSearchStatus('Searching…', false);
+    document.getElementById('searchResults').innerHTML = '';
 
-    // ── Step 1: Search local catalog ──
-    let catalogResults = [];
-    if (!forcePSN) {
-        try {
-            catalogResults = await searchCatalog(query);
-        } catch {
-            // Catalog search failed — proceed to PSN
-        }
-    }
-
-    // ── Step 2: If no catalog results, auto-search PSN ──
-    let psnResults = [];
-    if (catalogResults.length === 0 || forcePSN) {
-        _setSearchStatus('Searching PlayStation Network…', false);
-        try {
-            psnResults = await workerSearch(query, user ? user.id : null);
-        } catch (err) {
-            _setSearchStatus(`PSN search failed: ${err.message}`, true);
-            return;
-        }
-    }
-
-    _setSearchStatus('', false);
-    _renderSearchResults(
-        catalogResults, psnResults, personalGames,
-        onGameAdded, onSelectExisting, query
-    );
-}
-
-function _renderSearchResults(catalogResults, psnResults, personalGames, onGameAdded, onSelectExisting, query) {
-    const resultsEl = document.getElementById('searchResults');
-
-    if (catalogResults.length === 0 && psnResults.length === 0) {
-        resultsEl.innerHTML = `<div class="search-empty">No results found for "${_escHtml(query)}".</div>`;
+    let searchResult;
+    try {
+        searchResult = await runSearch(query, userId);
+    } catch (err) {
+        _setSearchStatus(`Search failed: ${err.message}`, true);
         return;
     }
 
+    _setSearchStatus('', false);
+
+    if (searchResult.needsUsername) {
+        // Steps 1–3 all failed — switch to contribute UI
+        _showContributePrompt(personalGames, onGameAdded, onSelectExisting);
+        return;
+    }
+
+    _renderSearchResults(
+        searchResult.results,
+        searchResult.source,
+        personalGames,
+        onGameAdded,
+        onSelectExisting,
+    );
+}
+
+// ─────────────────────────────────────────────
+// Contribute UI — replaces results area when steps 1–3 fail
+// ─────────────────────────────────────────────
+
+function _showContributePrompt(personalGames, onGameAdded, onSelectExisting) {
+    const resultsEl = document.getElementById('searchResults');
+
+    resultsEl.innerHTML = `
+        <div class="contribute-prompt">
+            <div class="contribute-message">
+                <strong>${_escHtml(_currentQuery)}</strong> isn't in our catalog yet.
+                A PSN username from someone who has played this game can help us find it.
+            </div>
+            <div class="contribute-input-row">
+                <input type="text" id="contributeInput"
+                    placeholder="PSN username"
+                    autocomplete="off" spellcheck="false"
+                    maxlength="16">
+                <button class="btn btn-primary" id="contributeSubmitBtn">Look Up</button>
+            </div>
+            <div class="contribute-status" id="contributeStatus"></div>
+            <div class="contribute-info">
+                <button class="contribute-info-toggle" id="contributeInfoToggle"
+                    aria-expanded="false" aria-controls="contributeInfoBody">
+                    <span class="contribute-info-arrow" aria-hidden="true">▶</span>
+                    What is this?
+                </button>
+                <div class="contribute-info-body" id="contributeInfoBody" hidden>
+                    <div class="contribute-info-section">
+                        <div class="contribute-info-heading">Why are we asking?</div>
+                        <p>PlayStation's trophy catalog isn't publicly searchable by game name.
+                        To find a game's trophy list, we need to look it up through a player
+                        who has already played it. Once found, the data is cached for everyone.</p>
+                    </div>
+                    <div class="contribute-info-section">
+                        <div class="contribute-info-heading">Whose username do I enter?</div>
+                        <p>Yours, if you've played the game. Or any PSN player known to have
+                        played it — <a href="https://psnprofiles.com" target="_blank"
+                        rel="noopener noreferrer">PSNProfiles.com</a> is a good place to
+                        find prolific players for any title.</p>
+                    </div>
+                    <div class="contribute-info-section">
+                        <div class="contribute-info-heading">What is stored?</div>
+                        <p>Only the game title and its PlayStation ID (<em>NPWR…</em>).
+                        No usernames, no trophy progress, no account details — nothing
+                        personal is ever saved. The lookup is anonymous and one-way.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const input = document.getElementById('contributeInput');
+    const btn = document.getElementById('contributeSubmitBtn');
+    const toggle = document.getElementById('contributeInfoToggle');
+    const infoBody = document.getElementById('contributeInfoBody');
+    const arrow = toggle.querySelector('.contribute-info-arrow');
+
+    input.focus();
+
+    // Accordion toggle
+    toggle.addEventListener('click', () => {
+        const expanded = toggle.getAttribute('aria-expanded') === 'true';
+        toggle.setAttribute('aria-expanded', String(!expanded));
+        infoBody.hidden = expanded;
+        arrow.textContent = expanded ? '▶' : '▼';
+    });
+
+    const doContribute = () => _runContribute(personalGames, onGameAdded, onSelectExisting);
+    btn.addEventListener('click', doContribute);
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') doContribute();
+    });
+}
+
+async function _runContribute(personalGames, onGameAdded, onSelectExisting) {
+    const username = (document.getElementById('contributeInput')?.value || '').trim();
+    if (!username) return;
+
+    const user = getUser();
+    const userId = user ? user.id : null;
+
+    _setContributeStatus('Fetching library…', false);
+    document.getElementById('contributeSubmitBtn').disabled = true;
+
+    let results;
+    try {
+        results = await runContribute(_currentQuery, username, userId);
+    } catch (err) {
+        _setContributeStatus(err.message, true);
+        document.getElementById('contributeSubmitBtn').disabled = false;
+        return;
+    }
+
+    if (results.length === 0) {
+        _setContributeStatus(
+            `${_escHtml(username)} hasn't played "${_escHtml(_currentQuery)}" either. Try a different username.`,
+            true
+        );
+        document.getElementById('contributeSubmitBtn').disabled = false;
+        return;
+    }
+
+    // We have results — switch back to the normal results view
+    document.getElementById('searchResults').innerHTML = '';
+    _setSearchStatus('', false);
+    _renderSearchResults(results, 'contribute', personalGames, onGameAdded, onSelectExisting);
+}
+
+function _setContributeStatus(msg, isError) {
+    const el = document.getElementById('contributeStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = isError ? 'contribute-status error' : 'contribute-status';
+}
+
+// ─────────────────────────────────────────────
+// Results renderer — shared by all sources
+// ─────────────────────────────────────────────
+
+function _renderSearchResults(results, source, personalGames, onGameAdded, onSelectExisting) {
+    const resultsEl = document.getElementById('searchResults');
+
+    if (results.length === 0) {
+        resultsEl.innerHTML = `<div class="search-empty">No results found for "${_escHtml(_currentQuery)}".</div>`;
+        return;
+    }
+
+    const sourceLabel = {
+        catalog: 'In catalog',
+        lookup: 'From PlayStation catalog',
+        resolve: 'From PlayStation catalog',
+        contribute: 'From PlayStation catalog',
+    }[source] || 'Results';
+
     const fragment = document.createDocumentFragment();
 
-    // ── Catalog results ──
-    if (catalogResults.length > 0) {
-        const heading = document.createElement('div');
-        heading.className = 'search-section-heading';
-        heading.textContent = 'In catalog';
-        fragment.appendChild(heading);
+    const heading = document.createElement('div');
+    heading.className = 'search-section-heading';
+    heading.textContent = sourceLabel;
+    fragment.appendChild(heading);
 
-        for (const result of catalogResults) {
-            const inList = personalGames.some(g => g.npCommId === result.npCommId);
-            fragment.appendChild(
-                _buildResultRow(result, inList ? 'in-list' : 'cached', onGameAdded, onSelectExisting)
-            );
-        }
+    for (const result of results) {
+        const inList = personalGames.some(g => g.npCommId === result.npCommId);
 
-        // Option to search PSN anyway
+        // Catalog source: data is already cached → instant add
+        // All other sources: need a /trophies fetch on add
+        const status = inList
+            ? 'in-list'
+            : source === 'catalog' ? 'cached' : 'fetch';
+
+        fragment.appendChild(
+            _buildResultRow(result, status, onGameAdded, onSelectExisting)
+        );
+    }
+
+    // For catalog results, offer a PSN search override
+    if (source === 'catalog') {
         const psnBtn = document.createElement('button');
         psnBtn.className = 'btn btn-ghost search-psn-anyway';
         psnBtn.textContent = 'Search PlayStation Network instead';
         psnBtn.addEventListener('click', () => {
-            _runSearch(personalGames, onGameAdded, onSelectExisting, true);
+            _forceStepThree(personalGames, onGameAdded, onSelectExisting);
         });
         fragment.appendChild(psnBtn);
-    }
-
-    // ── PSN results ──
-    if (psnResults.length > 0) {
-        const heading = document.createElement('div');
-        heading.className = 'search-section-heading';
-        heading.textContent = 'From PlayStation Network';
-        fragment.appendChild(heading);
-
-        for (const result of psnResults) {
-            const inList = personalGames.some(g => g.npCommId === result.npCommId);
-            const inCatalog = catalogResults.some(c => c.npCommId === result.npCommId);
-            if (inCatalog) continue;  // already shown above
-            fragment.appendChild(
-                _buildResultRow(result, inList ? 'in-list' : 'fetch', onGameAdded, onSelectExisting)
-            );
-        }
     }
 
     resultsEl.innerHTML = '';
     resultsEl.appendChild(fragment);
 }
 
+// Force-bypasses the catalog and lookup table, going straight to patch sites + /resolve.
+// Used by the "Search PlayStation Network instead" button.
+
+async function _forceStepThree(personalGames, onGameAdded, onSelectExisting) {
+    const user = getUser();
+    const userId = user ? user.id : null;
+
+    _setSearchStatus('Searching PlayStation Network…', false);
+    document.getElementById('searchResults').innerHTML = '';
+
+    const query = _currentQuery;
+    const encoded = encodeURIComponent(query);
+    const titleIds = new Set();
+
+    try {
+        const [ps4, ps5] = await Promise.all([
+            fetch(`https://orbispatches.com/api/internal/search?term=${encoded}`)
+                .then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(`https://prosperopatches.com/api/internal/search?term=${encoded}`)
+                .then(r => r.ok ? r.json() : null).catch(() => null),
+        ]);
+        for (const r of (ps4?.results || [])) {
+            if (r.titleid) titleIds.add(`${r.titleid}_00`);
+        }
+        for (const r of (ps5?.results || [])) {
+            if (r.titleid) titleIds.add(`${r.titleid}_00`);
+        }
+    } catch {
+        // fall through to empty
+    }
+
+    if (titleIds.size === 0) {
+        _setSearchStatus('', false);
+        _showContributePrompt(personalGames, onGameAdded, onSelectExisting);
+        return;
+    }
+
+    try {
+        const {mappings} = await workerResolve([...titleIds], userId);
+        if (mappings && mappings.length > 0) {
+            await saveLookupEntries(mappings);
+            const seen = new Set();
+            const results = [];
+            for (const m of mappings) {
+                if (seen.has(m.npCommId)) continue;
+                seen.add(m.npCommId);
+                results.push({
+                    npCommId: m.npCommId,
+                    name: normaliseTitle(m.titleName) || normaliseTitle(query),
+                    platform: m.npTitleId?.startsWith('PPSA') ? 'PS5' : 'PS4',
+                    iconUrl: null,
+                });
+            }
+            _setSearchStatus('', false);
+            _renderSearchResults(results, 'resolve', personalGames, onGameAdded, onSelectExisting);
+            return;
+        }
+    } catch {
+        // fall through
+    }
+
+    _setSearchStatus('', false);
+    _showContributePrompt(personalGames, onGameAdded, onSelectExisting);
+}
+
+// ─────────────────────────────────────────────
+// Result row builder
+// ─────────────────────────────────────────────
+
 function _buildResultRow(result, status, onGameAdded, onSelectExisting) {
-    // status: 'cached' | 'fetch' | 'in-list'
     const row = document.createElement('div');
     row.className = 'search-result-row';
 
@@ -201,7 +383,6 @@ function _buildResultRow(result, status, onGameAdded, onSelectExisting) {
     info.appendChild(name);
     info.appendChild(platform);
 
-    // Status indicator
     const indicator = document.createElement('div');
     indicator.className = 'search-result-indicator';
 
@@ -216,7 +397,6 @@ function _buildResultRow(result, status, onGameAdded, onSelectExisting) {
         indicator.innerHTML = '<span class="ind-cached" title="Instant add — data already cached">✓</span>';
         row.addEventListener('click', () => _addFromCatalog(result, onGameAdded));
     } else {
-        // 'fetch' — needs PSN download
         indicator.innerHTML = '<span class="ind-fetch" title="Will download trophy data from PSN">⬇</span>';
         row.addEventListener('click', () => _addFromPSN(result, onGameAdded));
     }
@@ -228,8 +408,11 @@ function _buildResultRow(result, status, onGameAdded, onSelectExisting) {
     return row;
 }
 
+// ─────────────────────────────────────────────
+// Add from catalog (instant — data already cached in Supabase)
+// ─────────────────────────────────────────────
+
 async function _addFromCatalog(result, onGameAdded) {
-    // Catalog entry already exists — create personal game entry directly
     _setSearchStatus('Adding game…', false);
 
     try {
@@ -246,13 +429,16 @@ async function _addFromCatalog(result, onGameAdded) {
     }
 }
 
+// ─────────────────────────────────────────────
+// Add from PSN (needs /trophies fetch)
+// ─────────────────────────────────────────────
+
 async function _addFromPSN(result, onGameAdded) {
     const user = getUser();
+    const userId = user ? user.id : null;
 
-    // Show feedback immediately — PSN fetch can take 2-3 seconds
     _setSearchStatus('Downloading trophy data from PSN…', false);
 
-    // Disable all result rows immediately on click, before the async work begins
     document.querySelectorAll('.search-result-row').forEach(r => {
         r.style.pointerEvents = 'none';
         r.style.opacity = '0.5';
@@ -262,10 +448,9 @@ async function _addFromPSN(result, onGameAdded) {
         const catalogEntry = await workerFetchTrophies(
             result.npCommId,
             result.platform || 'PS4',
-            user ? user.id : null
+            userId
         );
 
-        // Normalize entry shape
         const entry = {
             npCommId: result.npCommId,
             name: catalogEntry.name || result.name,
@@ -286,6 +471,10 @@ async function _addFromPSN(result, onGameAdded) {
         });
     }
 }
+
+// ─────────────────────────────────────────────
+// Status helpers
+// ─────────────────────────────────────────────
 
 function _setSearchStatus(msg, isError) {
     const el = document.getElementById('searchStatus');
@@ -335,7 +524,6 @@ export async function openGameSettingsModal(game, callbacks) {
         document.getElementById('settingsResetBtn').style.opacity = '0.4';
     });
 
-    // Wire reset confirm buttons — clone to clear any previously attached listeners
     const resetYes = document.getElementById('settingsResetConfirmYes');
     const newResetYes = resetYes.cloneNode(true);
     resetYes.replaceWith(newResetYes);
@@ -349,7 +537,6 @@ export async function openGameSettingsModal(game, callbacks) {
     resetNo.replaceWith(newResetNo);
     newResetNo.addEventListener('click', () => _resetSettingsDangerZone());
 
-    // Wire remove confirm buttons — clone to clear any previously attached listeners
     const removeYes = document.getElementById('settingsRemoveConfirmYes');
     const newRemoveYes = removeYes.cloneNode(true);
     removeYes.replaceWith(newRemoveYes);

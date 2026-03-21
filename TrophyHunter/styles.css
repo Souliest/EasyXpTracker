@@ -945,3 +945,125 @@ body.light .platform-ps3 {
 .settings-section.danger-zone {
   padding-bottom: 20px;
 }
+
+/* ══════════════════════════════════════
+   Contribute prompt (step 4 fallback)
+══════════════════════════════════════ */
+
+.contribute-prompt {
+  padding: 12px 0 4px;
+}
+
+.contribute-message {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.contribute-message strong {
+  color: var(--text);
+}
+
+.contribute-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.contribute-input-row input {
+  flex: 1;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+.contribute-input-row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.contribute-status {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 8px;
+  min-height: 18px;
+}
+
+.contribute-status.error {
+  color: #ff4444;
+}
+
+/* ── Contribute info accordion ── */
+
+.contribute-info {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.contribute-info-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+  letter-spacing: 0.04em;
+}
+
+.contribute-info-toggle:hover {
+  color: var(--accent);
+}
+
+.contribute-info-arrow {
+  font-size: 0.6rem;
+  display: inline-block;
+  width: 10px;
+  text-align: center;
+}
+
+.contribute-info-body {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.contribute-info-body[hidden] {
+  display: none;
+}
+
+.contribute-info-section p {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.contribute-info-section a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.contribute-info-section a:hover {
+  text-decoration: underline;
+}
+
+.contribute-info-heading {
+  font-size: 0.72rem;
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}

@@ -19,21 +19,45 @@ const CATALOG_CACHE_SIZE = 3;
 // ── Supabase table names ──
 const TABLE_GAMES = 'bgt_trophy_hunter_games';
 const TABLE_CATALOG = 'bgt_trophy_hunter_catalog';
+const TABLE_LOOKUP = 'bgt_trophy_hunter_lookup';
 
 // ── Cloudflare Worker URL ──
-// Replace YOUR_ACCOUNT with your Cloudflare account subdomain.
-// Find it in the Cloudflare dashboard after deploying the Worker.
 export const WORKER_URL = 'https://bgt-psn-proxy.souliest.workers.dev';
 
-// Guard: catch the placeholder before it silently fails at fetch time.
-function _assertWorkerUrl() {
-    if (WORKER_URL.includes('YOUR_ACCOUNT')) {
-        throw new Error(
-            'WORKER_URL is not configured. ' +
-            'Edit TrophyHunter/js/storage.js and replace YOUR_ACCOUNT ' +
-            'with your Cloudflare account subdomain.'
-        );
-    }
+// ── Patch site search URLs ──
+const ORBIS_SEARCH_URL = 'https://orbispatches.com/api/internal/search';
+const PROSPERO_SEARCH_URL = 'https://prosperopatches.com/api/internal/search';
+
+// ═══════════════════════════════════════════════
+// Title normalisation
+// Applied before saving to Supabase and before searching.
+// Converts to Title Case and normalises apostrophe variants to straight quote.
+// ═══════════════════════════════════════════════
+
+const LOWERCASE_WORDS = new Set([
+    'a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'so', 'yet',
+    'at', 'by', 'in', 'of', 'on', 'to', 'up', 'as', 'is',
+]);
+
+export function normaliseTitle(str) {
+    if (!str) return '';
+
+    // Normalise apostrophe variants (curly, backtick, prime) to straight quote
+    const s = str.replace(/[''`′]/g, "'").trim();
+
+    return s
+        .toLowerCase()
+        .split(/(\s+)/)                    // split on whitespace, preserving runs
+        .map((token, i) => {
+            // Preserve whitespace tokens unchanged
+            if (/^\s+$/.test(token)) return token;
+            // Always capitalise first and last real word; skip articles etc in between
+            if (i === 0 || LOWERCASE_WORDS.has(token) === false) {
+                return token.charAt(0).toUpperCase() + token.slice(1);
+            }
+            return token;
+        })
+        .join('');
 }
 
 // ═══════════════════════════════════════════════
@@ -75,23 +99,15 @@ function catalogCacheGet(npCommId) {
 
 function catalogCacheSet(npCommId, entry) {
     let cache = catalogCacheLoad();
-    // Remove existing entry for this id if present
     cache = cache.filter(c => c.npCommId !== npCommId);
-    // Prepend new entry
     cache.unshift({npCommId, cachedAt: new Date().toISOString(), entry});
-    // Trim to max size
-    if (cache.length > CATALOG_CACHE_SIZE) {
-        cache = cache.slice(0, CATALOG_CACHE_SIZE);
-    }
+    if (cache.length > CATALOG_CACHE_SIZE) cache = cache.slice(0, CATALOG_CACHE_SIZE);
     catalogCacheSave(cache);
 }
 
 // ═══════════════════════════════════════════════
 // Personal data — loadData / saveData
 // ═══════════════════════════════════════════════
-
-// Returns { games: [...] } from localStorage immediately.
-// If signed in, merges any games that exist remotely but not locally.
 
 export async function loadData() {
     const local = localLoad();
@@ -148,9 +164,6 @@ export async function saveData(data) {
 // Personal data — loadGame / saveGame
 // ═══════════════════════════════════════════════
 
-// Loads a single game with collision detection.
-// Returns { game, collision } — collision is null or { localTime, remoteTime, remoteData }.
-
 export async function loadGame(gameId) {
     const local = localLoad();
     const localGame = local.games.find(g => g.id === gameId) || null;
@@ -177,11 +190,7 @@ export async function loadGame(gameId) {
         }
 
         const diffMs = Math.abs(localTime - remoteTime);
-        const THRESHOLD_MS = 5000;
-
-        if (diffMs <= THRESHOLD_MS) {
-            return {game: localGame, collision: null};
-        }
+        if (diffMs <= 5000) return {game: localGame, collision: null};
 
         return {
             game: localGame,
@@ -216,7 +225,6 @@ export async function saveGame(game) {
         // Network unavailable — swallow silently
     }
 
-    // Persist the updated last_modified locally
     const local = localLoad();
     const idx = local.games.findIndex(g => g.id === game.id);
     if (idx !== -1) {
@@ -261,21 +269,13 @@ export async function deleteGame(gameId) {
 // Catalog — loadCatalogEntry / saveCatalogEntry
 // ═══════════════════════════════════════════════
 
-// Loads a catalog entry. Checks local LRU cache first, then Supabase.
-// Returns the entry or null if unavailable.
-
 export async function loadCatalogEntry(npCommId) {
-    // 1. Check local cache first (works offline)
     const cached = catalogCacheGet(npCommId);
     if (cached) {
-        // Warm the cache position to most-recent even on local hit
-        // (entry already exists — the find + unshift happens in catalogCacheSet)
-        // Try to refresh from Supabase in the background if online
         _refreshCatalogCacheInBackground(npCommId);
         return cached.entry;
     }
 
-    // 2. Try Supabase
     try {
         const {data, error} = await supabase
             .from(TABLE_CATALOG)
@@ -293,20 +293,16 @@ export async function loadCatalogEntry(npCommId) {
     }
 }
 
-// Upserts a catalog entry to Supabase and updates local cache.
-// Called after a successful Worker trophy fetch.
-
 export async function saveCatalogEntry(entry) {
-    // Always update local cache immediately
     catalogCacheSet(entry.npCommId, entry);
 
     const user = getUser();
-    if (!user) return;  // anonymous users can read catalog but not write
+    if (!user) return;
 
     try {
         await supabase.from(TABLE_CATALOG).upsert({
             np_comm_id: entry.npCommId,
-            name: entry.name,
+            name: normaliseTitle(entry.name),
             platform: entry.platform,
             icon_url: entry.iconUrl || null,
             groups: entry.groups,
@@ -317,7 +313,7 @@ export async function saveCatalogEntry(entry) {
     }
 }
 
-// Searches the catalog by name (contains match).
+// Searches the full trophy catalog by name.
 // Returns array of { npCommId, name, platform, iconUrl }.
 
 export async function searchCatalog(query) {
@@ -327,7 +323,7 @@ export async function searchCatalog(query) {
         const {data, error} = await supabase
             .from(TABLE_CATALOG)
             .select('np_comm_id, name, platform, icon_url')
-            .ilike('name', `%${query.trim()}%`)
+            .ilike('name', `%${normaliseTitle(query.trim())}%`)
             .limit(10);
 
         if (error || !data) return [];
@@ -344,39 +340,212 @@ export async function searchCatalog(query) {
 }
 
 // ═══════════════════════════════════════════════
-// PSN Worker calls
+// Lookup table — searchLookupTable / saveLookupEntries
 // ═══════════════════════════════════════════════
 
-// Calls the Worker search endpoint.
-// Returns array of { npCommId, name, platform, iconUrl }.
+// Step 2 of the search flow: search bgt_trophy_hunter_lookup by name.
+// Returns array of { npCommId, npServiceName, titleName, platform }.
 
-export async function workerSearch(query, userId) {
-    _assertWorkerUrl();
-    const url = new URL(`${WORKER_URL}/search`);
-    url.searchParams.set('q', query);
+export async function searchLookupTable(query) {
+    if (!query || query.trim().length < 2) return [];
 
-    const headers = {'Content-Type': 'application/json'};
+    try {
+        const {data, error} = await supabase
+            .from(TABLE_LOOKUP)
+            .select('np_comm_id, title_name, platform, np_service_name')
+            .ilike('title_name', `%${normaliseTitle(query.trim())}%`)
+            .limit(10);
+
+        if (error || !data) return [];
+
+        return data.map(row => ({
+            npCommId: row.np_comm_id,
+            titleName: row.title_name,
+            platform: row.platform,
+            npServiceName: row.np_service_name,
+        }));
+    } catch {
+        return [];
+    }
+}
+
+// Upserts an array of { npCommId, npServiceName, titleName, platform } mappings
+// into the lookup table. Called after /resolve or /contribute returns new mappings.
+// ON CONFLICT DO NOTHING — never overwrites existing entries.
+
+export async function saveLookupEntries(mappings) {
+    if (!mappings || mappings.length === 0) return;
+
+    const rows = mappings
+        .filter(m => m.npCommId && m.titleName)
+        .map(m => ({
+            np_comm_id: m.npCommId,
+            title_name: normaliseTitle(m.titleName),
+            platform: m.platform || '',
+            np_service_name: m.npServiceName || 'trophy',
+        }));
+
+    if (rows.length === 0) return;
+
+    try {
+        await supabase
+            .from(TABLE_LOOKUP)
+            .upsert(rows, {onConflict: 'np_comm_id', ignoreDuplicates: true});
+    } catch {
+        // Network unavailable — not fatal, lookup table fills up passively
+    }
+}
+
+// ═══════════════════════════════════════════════
+// 4-step search flow
+// ═══════════════════════════════════════════════
+//
+// Step 1 — searchCatalog()         full trophy data already cached → return immediately
+// Step 2 — searchLookupTable()     NPWR known → call /trophies → save to catalog
+// Step 3 — patch sites + /resolve  CUSA/PPSA → NPWR → save to lookup → call /trophies
+// Step 4 — /contribute             username → full library → save to lookup → retry step 2
+//
+// Returns { results, needsUsername }
+//   results       — array of { npCommId, name, platform, iconUrl } ready for the modal
+//   needsUsername — true when steps 1–3 all failed; modal should show username input
+
+export async function runSearch(query, userId) {
+    const trimmed = query.trim();
+
+    // ── Step 1: full catalog ──────────────────────────────────────────────
+    const catalogResults = await searchCatalog(trimmed);
+    if (catalogResults.length > 0) {
+        return {results: catalogResults, needsUsername: false, source: 'catalog'};
+    }
+
+    // ── Step 2: lookup table → /trophies ─────────────────────────────────
+    const lookupResults = await searchLookupTable(trimmed);
+    if (lookupResults.length > 0) {
+        // Resolve each NPWR to a search result shape.
+        // The lookup table has the name and platform — enough for the modal.
+        const results = lookupResults.map(r => ({
+            npCommId: r.npCommId,
+            name: r.titleName,
+            platform: _platformFromService(r.platform, r.npServiceName),
+            iconUrl: null,  // not stored in lookup table; fetched on add
+        }));
+        return {results, needsUsername: false, source: 'lookup'};
+    }
+
+    // ── Step 3: patch sites → /resolve ───────────────────────────────────
+    const titleIds = await _searchPatchSites(trimmed);
+    if (titleIds.length > 0) {
+        try {
+            const {mappings} = await workerResolve(titleIds, userId);
+            if (mappings && mappings.length > 0) {
+                // Save new mappings to lookup table passively
+                await saveLookupEntries(mappings);
+
+                // Deduplicate by npCommId — multiple regional CUSAs map to same NPWR
+                const seen = new Set();
+                const results = [];
+                for (const m of mappings) {
+                    if (seen.has(m.npCommId)) continue;
+                    seen.add(m.npCommId);
+                    results.push({
+                        npCommId: m.npCommId,
+                        name: normaliseTitle(m.titleName) || normaliseTitle(trimmed),
+                        platform: _platformFromTitleId(m.npTitleId, m.npServiceName),
+                        iconUrl: null,
+                    });
+                }
+                return {results, needsUsername: false, source: 'resolve'};
+            }
+        } catch {
+            // /resolve failed — fall through to step 4
+        }
+    }
+
+    // ── Step 4: need a username ───────────────────────────────────────────
+    return {results: [], needsUsername: true, source: null};
+}
+
+// Runs /contribute for a given username, saves new mappings, then retries
+// the lookup table search. Returns { results } for the modal.
+
+export async function runContribute(query, username, userId) {
+    const trimmed = query.trim();
+
+    let contribution;
+    try {
+        contribution = await workerContribute(username, userId);
+    } catch (err) {
+        throw new Error(`Could not fetch ${username}'s library: ${err.message}`);
+    }
+
+    // Save all new mappings to lookup table
+    if (contribution.mappings && contribution.mappings.length > 0) {
+        await saveLookupEntries(contribution.mappings);
+    }
+
+    // Retry lookup table search now that it's been enriched
+    const lookupResults = await searchLookupTable(trimmed);
+    if (lookupResults.length > 0) {
+        return lookupResults.map(r => ({
+            npCommId: r.npCommId,
+            name: r.titleName,
+            platform: _platformFromService(r.platform, r.npServiceName),
+            iconUrl: null,
+        }));
+    }
+
+    return [];
+}
+
+// ═══════════════════════════════════════════════
+// Worker calls
+// ═══════════════════════════════════════════════
+
+// Calls /resolve with up to 25 CUSA/PPSA IDs.
+// Returns { mappings: [{ npTitleId, npCommId, npServiceName, titleName, platform }] }
+
+export async function workerResolve(titleIds, userId) {
+    const url = new URL(`${WORKER_URL}/resolve`);
+    url.searchParams.set('ids', titleIds.join(','));
+
+    const headers = {};
     if (userId) headers['X-User-Id'] = userId;
 
     const res = await fetch(url.toString(), {headers});
     if (!res.ok) {
         const err = await res.json().catch(() => ({error: 'Unknown error'}));
-        throw new Error(err.error || `Worker search failed: ${res.status}`);
+        throw new Error(err.error || `Worker resolve failed: ${res.status}`);
     }
-
     return res.json();
 }
 
-// Calls the Worker trophies endpoint.
+// Calls /contribute with a PSN username.
+// Returns { username, accountId, mappings: [{ npCommId, npServiceName, titleName, platform }] }
+
+export async function workerContribute(username, userId) {
+    const url = new URL(`${WORKER_URL}/contribute`);
+    url.searchParams.set('username', username);
+
+    const headers = {};
+    if (userId) headers['X-User-Id'] = userId;
+
+    const res = await fetch(url.toString(), {method: 'POST', headers});
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({error: 'Unknown error'}));
+        throw new Error(err.error || `Worker contribute failed: ${res.status}`);
+    }
+    return res.json();
+}
+
+// Calls /trophies for a given NPWR + platform.
 // Returns the full catalog entry object.
 
 export async function workerFetchTrophies(npCommId, platform, userId) {
-    _assertWorkerUrl();
     const url = new URL(`${WORKER_URL}/trophies`);
     url.searchParams.set('id', npCommId);
     url.searchParams.set('platform', platform);
 
-    const headers = {'Content-Type': 'application/json'};
+    const headers = {};
     if (userId) headers['X-User-Id'] = userId;
 
     const res = await fetch(url.toString(), {headers});
@@ -384,7 +553,6 @@ export async function workerFetchTrophies(npCommId, platform, userId) {
         const err = await res.json().catch(() => ({error: 'Unknown error'}));
         throw new Error(err.error || `Worker trophy fetch failed: ${res.status}`);
     }
-
     return res.json();
 }
 
@@ -403,7 +571,6 @@ function _rowToEntry(row) {
     };
 }
 
-// Background refresh — updates catalog cache from Supabase without blocking render.
 function _refreshCatalogCacheInBackground(npCommId) {
     supabase
         .from(TABLE_CATALOG)
@@ -411,30 +578,66 @@ function _refreshCatalogCacheInBackground(npCommId) {
         .eq('np_comm_id', npCommId)
         .single()
         .then(({data, error}) => {
-            if (!error && data) {
-                catalogCacheSet(npCommId, _rowToEntry(data));
-            }
+            if (!error && data) catalogCacheSet(npCommId, _rowToEntry(data));
         })
         .catch(() => {
-            // Silently ignore — cache already served the entry
         });
+}
+
+// Searches OrbisPatches (PS4) and ProsperoPatches (PS5) for a query.
+// Returns array of title IDs with _00 suffix ready for /resolve.
+
+async function _searchPatchSites(query) {
+    const encoded = encodeURIComponent(query);
+    const titleIds = new Set();
+
+    const fetches = [
+        fetch(`${ORBIS_SEARCH_URL}?term=${encoded}`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null),
+        fetch(`${PROSPERO_SEARCH_URL}?term=${encoded}`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null),
+    ];
+
+    const [ps4, ps5] = await Promise.all(fetches);
+
+    for (const result of (ps4?.results || [])) {
+        if (result.titleid) titleIds.add(`${result.titleid}_00`);
+    }
+    for (const result of (ps5?.results || [])) {
+        if (result.titleid) titleIds.add(`${result.titleid}_00`);
+    }
+
+    return [...titleIds];
+}
+
+// Derives a display platform string from the npServiceName.
+// Used when trophyTitlePlatform is absent (e.g. from /resolve responses).
+
+function _platformFromService(platform, npServiceName) {
+    if (platform) return platform;
+    return npServiceName === 'trophy2' ? 'PS5' : 'PS4';
+}
+
+// Derives platform from a CUSA/PPSA title ID prefix.
+// PPSA → PS5, CUSA → PS4. Falls back to npServiceName.
+
+function _platformFromTitleId(npTitleId, npServiceName) {
+    if (npTitleId && npTitleId.startsWith('PPSA')) return 'PS5';
+    if (npTitleId && npTitleId.startsWith('CUSA')) return 'PS4';
+    return _platformFromService('', npServiceName);
 }
 
 // ═══════════════════════════════════════════════
 // Initial game state factory
 // ═══════════════════════════════════════════════
 
-// Creates a fresh personal game entry from a catalog entry.
-// All trophies start unearned and unpinned.
-
 export function createGameEntry(catalogEntry) {
     const trophyState = {};
     for (const group of catalogEntry.groups) {
         for (const trophy of group.trophies) {
-            trophyState[String(trophy.trophyId)] = {
-                earned: false,
-                pinned: false,
-            };
+            trophyState[String(trophy.trophyId)] = {earned: false, pinned: false};
         }
     }
 
@@ -445,8 +648,8 @@ export function createGameEntry(catalogEntry) {
         platform: catalogEntry.platform,
         trophyState,
         viewState: {
-            sort: 'psn',    // 'psn' | 'alpha' | 'grade'
-            filter: 'all',    // 'all' | 'earned' | 'unearned'
+            sort: 'psn',
+            filter: 'all',
             ungrouped: false,
         },
         last_modified: null,
@@ -457,34 +660,25 @@ export function createGameEntry(catalogEntry) {
 // Merge catalog update into personal state
 // ═══════════════════════════════════════════════
 
-// Called after a "Refresh from PSN" — merges new trophy data into existing personal state.
-// New trophies: added as unearned/unpinned.
-// Missing trophies (removed from PSN): flagged as orphaned.
-// Returns { updatedGame, addedCount, orphanedCount }.
-
 export function mergeCatalogUpdate(game, newCatalogEntry) {
     const existingState = game.trophyState || {};
     const newTrophyState = {};
     let addedCount = 0;
 
-    // Build set of all trophy IDs in new catalog
     const newIds = new Set();
     for (const group of newCatalogEntry.groups) {
         for (const trophy of group.trophies) {
             const id = String(trophy.trophyId);
             newIds.add(id);
             if (existingState[id]) {
-                // Preserve existing earned/pinned state
                 newTrophyState[id] = existingState[id];
             } else {
-                // New trophy — add as unearned/unpinned
                 newTrophyState[id] = {earned: false, pinned: false};
                 addedCount++;
             }
         }
     }
 
-    // Check for orphaned trophies (in personal state but not in new catalog)
     let orphanedCount = 0;
     for (const id of Object.keys(existingState)) {
         if (!newIds.has(id)) {
