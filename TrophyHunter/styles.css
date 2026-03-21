@@ -554,14 +554,20 @@ body.light .th-trophy-row.th-trophy-earned {
   border-style: dashed;
 }
 
-/* Dimmed — supersort "unwanted" trophies pushed to bottom of group.
-   Subtle opacity reduction, not hidden. Still readable, clearly secondary. */
+/* Dimmed — supersort "unwanted" trophies pushed to bottom of group. */
 .th-trophy-row.th-trophy-dimmed {
   opacity: 0.45;
 }
 
 .th-trophy-row.th-trophy-dimmed:hover {
   opacity: 0.7;
+  border-color: var(--border); /* no hover border change on dimmed rows */
+}
+
+/* Prevent earn button on dimmed rows from receiving focus and showing highlight */
+.th-trophy-row.th-trophy-dimmed .th-earn-btn {
+  pointer-events: none;
+  outline: none;
 }
 
 /* Earn checkbox button */
@@ -668,6 +674,33 @@ body.light .th-trophy-row.th-trophy-earned {
   font-size: 0.75rem;
   flex-shrink: 0;
   align-self: center;
+}
+
+/* Section divider — separates earned/unearned sections within a filtered group */
+.th-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 6px;
+  margin-top: 4px;
+  border-left: 3px solid var(--accent2);
+  padding-left: 10px;
+}
+
+.th-section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.th-section-divider-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--accent2);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  flex-shrink: 0;
 }
 
 /* Empty filter message */

@@ -95,7 +95,7 @@ function localLoad() {
     }
 }
 
-function localSave(data) {
+export function localSave(data) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 

@@ -9,7 +9,7 @@
 import {
     loadData, saveData, loadGame, resolveCollision, deleteGame,
     loadCatalogEntry, saveCatalogEntry, mergeCatalogUpdate,
-    STORAGE_SELECTED,
+    STORAGE_SELECTED, localSave,
 } from './storage.js';
 import {
     renderMain, updateGameHeader, updateGroupHeader,
@@ -28,6 +28,22 @@ import {getUser} from '../../common/auth.js';
 let selectedGameId = null;
 let _personalData = {games: []};
 let _catalogEntry = null;
+
+// ── Debounce handle for Supabase sync ──
+let _syncTimer = null;
+
+// ═══════════════════════════════════════════════
+// Debounced sync
+// UI writes to localStorage immediately and re-renders.
+// Supabase sync fires 2s after the last change — batches rapid toggles.
+// ═══════════════════════════════════════════════
+
+function _scheduleSync() {
+    clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(() => {
+        if (getUser()) saveData(_personalData);  // fire-and-forget
+    }, 2000);
+}
 
 // ═══════════════════════════════════════════════
 // Selector
@@ -81,7 +97,11 @@ async function selectGame(id) {
         return;
     }
 
-    // Collision detection — same pattern as LGT and ThingCounter
+    // Flush any pending sync before switching games
+    clearTimeout(_syncTimer);
+    if (getUser()) await saveData(_personalData);
+
+    // Collision detection
     const {game, collision} = await loadGame(selectedGameId);
     if (collision) {
         _showCollisionModal(selectedGameId, game.name, collision, async () => {
@@ -107,7 +127,6 @@ async function _loadCatalogAndRender() {
         return;
     }
 
-    // Show loading state while catalog fetch is in progress
     document.getElementById('mainContent').innerHTML =
         `<div class="empty-state"><div class="big">⏳</div>Loading trophy data…</div>`;
 
@@ -120,7 +139,7 @@ function _doRenderMain() {
 }
 
 // ═══════════════════════════════════════════════
-// Callbacks object passed into render and modal functions
+// Callbacks
 // ═══════════════════════════════════════════════
 
 function _callbacks() {
@@ -135,7 +154,7 @@ function _callbacks() {
 // Trophy interactions
 // ═══════════════════════════════════════════════
 
-async function _toggleEarned(trophyId) {
+function _toggleEarned(trophyId) {
     const game = _personalData.games.find(g => g.id === selectedGameId);
     if (!game || !_catalogEntry) return;
 
@@ -145,57 +164,58 @@ async function _toggleEarned(trophyId) {
     game.trophyState[trophyId] = {
         ...state,
         earned: newEarned,
-        // Auto-unpin when earned
-        pinned: newEarned ? false : state.pinned,
+        pinned: newEarned ? false : state.pinned,  // auto-unpin when earned
     };
 
-    await saveData(_personalData);
+    // Stamp and write to localStorage immediately — synchronous, no await
+    game.last_modified = new Date().toISOString();
+    localSave(_personalData);
 
-    // Find the trophy object from catalog for targeted re-render
-    const trophy = _findTrophyInCatalog(trophyId);
-    if (trophy) {
-        refreshTrophyRow(trophyId, trophy, game.trophyState, _callbacks());
+    if (game.viewState.filter !== 'all') {
+        // Filter active — full re-render so sort order updates immediately
+        _doRenderMain();
+    } else {
+        // No filter — targeted updates are sufficient and faster
+        const trophy = _findTrophyInCatalog(trophyId);
+        if (trophy) refreshTrophyRow(trophyId, trophy, game.trophyState, _callbacks());
+
+        const group = _findGroupForTrophy(trophyId);
+        if (group) {
+            updateGroupHeader(group.groupId, group, computeGroupStats(group, game.trophyState));
+        }
+
+        updateGameHeader(game, _catalogEntry, computeStats(_catalogEntry.groups, game.trophyState));
     }
 
-    // Update group header
-    const group = _findGroupForTrophy(trophyId);
-    if (group) {
-        const groupStats = computeGroupStats(group, game.trophyState);
-        updateGroupHeader(group.groupId, group, groupStats);
-    }
-
-    // Update top-level game header
-    const stats = computeStats(_catalogEntry.groups, game.trophyState);
-    updateGameHeader(game, _catalogEntry, stats);
+    _scheduleSync();
 }
 
-async function _togglePinned(trophyId) {
+function _togglePinned(trophyId) {
     const game = _personalData.games.find(g => g.id === selectedGameId);
     if (!game) return;
 
     const state = game.trophyState[trophyId] || {earned: false, pinned: false};
+    if (state.earned) return;  // can't pin earned trophies
 
-    // Can't pin earned trophies
-    if (state.earned) return;
+    game.trophyState[trophyId] = {...state, pinned: !state.pinned};
 
-    game.trophyState[trophyId] = {
-        ...state,
-        pinned: !state.pinned,
-    };
+    game.last_modified = new Date().toISOString();
+    localSave(_personalData);
 
-    await saveData(_personalData);
-
-    // Pinning changes sort order — need full group re-render
     _doRenderMain();
+    _scheduleSync();
 }
 
-async function _updateViewState(newViewState) {
+function _updateViewState(newViewState) {
     const game = _personalData.games.find(g => g.id === selectedGameId);
     if (!game) return;
 
     game.viewState = newViewState;
-    await saveData(_personalData);
+    game.last_modified = new Date().toISOString();
+    localSave(_personalData);
+
     _doRenderMain();
+    _scheduleSync();
 }
 
 // ═══════════════════════════════════════════════
@@ -203,6 +223,9 @@ async function _updateViewState(newViewState) {
 // ═══════════════════════════════════════════════
 
 function _openAddGame() {
+    clearTimeout(_syncTimer);
+    if (getUser()) saveData(_personalData);
+
     openAddGameModal(
         _personalData.games,
         _afterGameAdded,
@@ -272,6 +295,7 @@ async function _resetGame() {
 async function _removeGame() {
     if (!selectedGameId) return;
 
+    clearTimeout(_syncTimer);
     await deleteGame(selectedGameId);
     _personalData.games = _personalData.games.filter(g => g.id !== selectedGameId);
 
@@ -290,7 +314,6 @@ function _refreshGame(newCatalogEntry) {
 
     const {updatedGame, addedCount, orphanedCount} = mergeCatalogUpdate(game, newCatalogEntry);
 
-    // Update in place
     const idx = _personalData.games.findIndex(g => g.id === selectedGameId);
     if (idx !== -1) _personalData.games[idx] = updatedGame;
 
@@ -303,7 +326,7 @@ function _refreshGame(newCatalogEntry) {
 }
 
 // ═══════════════════════════════════════════════
-// Collision modal — same pattern as LGT and ThingCounter
+// Collision modal
 // ═══════════════════════════════════════════════
 
 function _showCollisionModal(gameId, gameName, collision, onResolved) {

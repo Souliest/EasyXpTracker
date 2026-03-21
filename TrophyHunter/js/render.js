@@ -16,12 +16,12 @@ const TIERS = {
 };
 
 // ── Trophy SVG paths ──
-// Standard trophy (used for gold/silver/bronze tier badges).
-// Symmetrical handles — both sides match.
+// Standard trophy (gold/silver/bronze) — symmetrical handles.
 const TROPHY_SVG_PATH = 'M12 2H4v6c0 2.2 1.4 4 3.3 4.7L7 14H6v2h4v-2H9l-.3-1.3C10.6 12 12 10.2 12 8V2zM2 4H0v2c0 1.1.7 2 1.7 2.4V4H2zm12 0v4.4C15.3 8 16 7.1 16 6V4h-2z';
 
-// Platinum trophy — slightly more ornate crown shape to distinguish it.
-const PLATINUM_SVG_PATH = 'M8 1L5.5 5H2l2.3 2.8L3 12h5v2H7v2h2v-2h2v2h2v-2h-1v-2h5l-1.3-4.2L17 5h-3.5L11 1H8zM2 4H0v2c0 1.1.7 2 1.7 2.4V4H2zm12 0v4.4C15.3 8 16 7.1 16 6V4h-2z';
+// Platinum trophy — same base as standard, plus a 5-point star centered above the cup.
+// The star sits at the top to make platinum visually distinct at a glance.
+const PLATINUM_SVG_PATH = 'M8 0l.9 2.6H12l-2.3 1.7.9 2.7L8 5.3 5.4 7l.9-2.7L4 2.6h3.1L8 0zM11 5H5v3c0 2.2 1.4 4 3 4.7L7.7 14H7v2h2v-2h2v2h2v-2h-.7L12 12.7C13.6 12 15 10.2 15 8V5h-4zM3 6H1v2c0 1.1.6 2 1.5 2.3V6H3zm10 0v4.3c.9-.3 1.5-1.2 1.5-2.3V6h-1.5z';
 
 function trophyIcon(tier, earned, size = 16) {
     const cfg = TIERS[tier] || TIERS.bronze;
@@ -299,12 +299,16 @@ function renderFlatList(game, catalogEntry, callbacks, viewState) {
     const sorted = sortTrophies(allTrophies, viewState.sort);
     const filtered = filterTrophies(sorted, game.trophyState, viewState.filter);
 
-    if (filtered.length === 0 && viewState.filter !== 'all') {
+    const nonDividers = filtered.filter(t => !t._divider);
+    if (nonDividers.length === 0 && viewState.filter !== 'all') {
         return renderEmptyFilter(viewState.filter);
     }
 
     return `<div class="th-flat-list">
-        ${filtered.map(t => renderTrophyRow(t, game.trophyState, callbacks)).join('')}
+        ${filtered.map(t => t._divider
+        ? renderSectionDivider(t._label)
+        : renderTrophyRow(t, game.trophyState, callbacks)
+    ).join('')}
     </div>`;
 }
 
@@ -317,18 +321,34 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
     const sorted = sortTrophies(group.trophies, vs.sort);
     const filtered = filterTrophies(sorted, game.trophyState, vs.filter);
 
-    const pinned = filtered.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
-    const unpinned = filtered.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
-    const ordered = [...pinned, ...unpinned];
+    // Pinned trophies float to top within the wanted section only
+    const dividerIdx = filtered.findIndex(t => t._divider);
+    let ordered;
+    if (dividerIdx > 0) {
+        const wanted = filtered.slice(0, dividerIdx);
+        const divider = filtered[dividerIdx];
+        const unwanted = filtered.slice(dividerIdx + 1);
+        const pinnedW = wanted.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
+        const restW = wanted.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
+        ordered = [...pinnedW, ...restW, divider, ...unwanted];
+    } else {
+        const pinned = filtered.filter(t => !t._divider && game.trophyState[String(t.trophyId)]?.pinned);
+        const unpinned = filtered.filter(t => !t._divider && !game.trophyState[String(t.trophyId)]?.pinned);
+        ordered = [...pinned, ...unpinned];
+    }
 
-    const isEmpty = ordered.length === 0 && vs.filter !== 'all';
+    const nonDividers = ordered.filter(t => !t._divider);
+    const isEmpty = nonDividers.length === 0 && vs.filter !== 'all';
 
     return `<div class="th-group" data-group-id="${_escHtml(group.groupId)}">
         ${renderGroupHeader(group, groupStats)}
         <div class="th-group-children" id="group-body-${_escHtml(group.groupId)}">
             ${isEmpty
         ? `<div class="th-empty-filter">No ${vs.filter} trophies in this group.</div>`
-        : ordered.map(t => renderTrophyRow(t, game.trophyState, callbacks)).join('')
+        : ordered.map(t => t._divider
+            ? renderSectionDivider(t._label)
+            : renderTrophyRow(t, game.trophyState, callbacks)
+        ).join('')
     }
         </div>
     </div>`;
@@ -479,6 +499,11 @@ export function sortTrophies(trophies, sort) {
     return arr;
 }
 
+// filterTrophies returns wanted trophies first, unwanted dimmed at the end.
+// When filter is active (not 'all'), injects a sentinel divider object between
+// the two sections so the renderer can insert a visual separator.
+// The divider is only injected when BOTH sections are non-empty.
+
 export function filterTrophies(trophies, trophyState, filter) {
     if (filter === 'all') return trophies;
 
@@ -493,7 +518,15 @@ export function filterTrophies(trophies, trophyState, filter) {
         return wantEarned ? !s.earned : !!s.earned;
     });
 
-    return [...wanted, ...unwanted.map(t => ({...t, _dimmed: true}))];
+    const dimmed = unwanted.map(t => ({...t, _dimmed: true}));
+
+    // Only inject divider when both sections have trophies
+    if (wanted.length > 0 && dimmed.length > 0) {
+        const dividerLabel = wantEarned ? 'Unearned' : 'Earned';
+        return [...wanted, {_divider: true, _label: dividerLabel}, ...dimmed];
+    }
+
+    return [...wanted, ...dimmed];
 }
 
 // ─────────────────────────────────────────────
@@ -590,6 +623,16 @@ function _attachLongPress(el, callback) {
             timer = null;
         }
     });
+}
+
+// ─────────────────────────────────────────────
+// Section divider — shown between earned/unearned sections when filter is active
+// ─────────────────────────────────────────────
+
+function renderSectionDivider(label) {
+    return `<div class="th-section-divider" aria-hidden="true">
+        <span class="th-section-divider-label">${_escHtml(label)}</span>
+    </div>`;
 }
 
 // ─────────────────────────────────────────────

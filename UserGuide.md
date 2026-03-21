@@ -14,6 +14,7 @@ to sign in. See [Account & Sync](#account--sync) below.
 |------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Level Goal Tracker** | Set a target level with a deadline. Tracks daily required XP and shows whether you're ahead or behind pace.                                                     |
 | **Thing Counter**      | Track anything countable, organised into a tree of named groups by game. Supports bounded and open-ended counters, decrement mode, and configurable step sizes. |
+| **Trophy Hunter**      | Track PlayStation trophy progress across your games. Search for any PS3, PS4, PS5, or PS Vita title and mark trophies as earned.                                |
 | **XP Tracker**         | Log XP gains and track your rate over a session. Includes charts with moving averages and rate estimates.                                                       |
 
 ---
@@ -208,6 +209,101 @@ buttons, and a reset to zero. It gets a random color each time it's opened fresh
 
 ---
 
+## Trophy Hunter
+
+Trophy Hunter lets you track PlayStation trophy progress across your game library. It works for PS3, PS4, PS5, and
+PS Vita titles. No PlayStation account is required to use it — trophy data is fetched through a proxy and cached
+in a shared catalog.
+
+### Adding a Game
+
+1. Open Trophy Hunter from the main tools page.
+2. Click **+ Add Game**.
+3. Type the game's title in the search box and click **Search**.
+4. Select your game from the results. If the trophy data is already cached, it's added instantly. Otherwise the
+   tool downloads the trophy list from PlayStation — this takes a few seconds.
+
+The search is forgiving — special characters like `™` and `:` are ignored, so `Batman Arkham Knight` will find
+`Batman™: Arkham Knight`.
+
+### Search Results
+
+Results show the game's title, platform badge, and a status indicator:
+
+| Indicator | Meaning                                            |
+|-----------|----------------------------------------------------|
+| ✓         | Data is already cached — instant add.              |
+| ⬇         | Will download trophy data from PlayStation on add. |
+| 🔖        | Already in your list — clicking selects it.        |
+
+### Game Not Found
+
+If a game isn't in the catalog, the search will work through a series of fallbacks automatically. If all else fails,
+the search panel switches to a **Look Up** prompt:
+
+1. Enter a PSN username — yours, if you've played the game, or any player known to have played it.
+   [PSNProfiles.com](https://psnprofiles.com) is a good resource for finding prolific players.
+2. Click **Look Up**. The tool fetches that player's title list, finds the game, and shows it as a result.
+
+**What is stored:** only the game title and its PlayStation trophy ID. The username you entered is never saved.
+Tap **What is this?** in the prompt for a full explanation.
+
+### Tracking Trophies
+
+Once a game is added, its full trophy list appears. Games with DLC show trophies grouped by section; games with
+only a base game show a flat list directly.
+
+- **Click the checkbox** on any trophy row to mark it earned. Click again to unmark. Changes are instant — the UI
+  updates immediately without waiting for the cloud.
+- **Long-press** a trophy to pin it. Pinned trophies float to the top of their group, making it easy to focus on
+  what you're working toward. Earning a pinned trophy unpins it automatically.
+
+### The Game Header
+
+At the top of the trophy list, the game header shows:
+
+- The platinum trophy icon (colored when earned, dimmed when not) — or a completion checkmark for games without platinum
+- Gold / Silver / Bronze earned counts — always shown in tier color
+- Earned / total fraction (platinum is included in the count)
+- Progress bar and percentage
+
+### Toolbar
+
+| Control | What it does                                                                          |
+|---------|---------------------------------------------------------------------------------------|
+| Filter  | Show All, Earned only, or Unearned only trophies.                                     |
+| Sort    | PSN order (default), A–Z alphabetical, or Grade (platinum first).                     |
+| Ungroup | Flatten all trophies into a single list. Hidden for games with only one trophy group. |
+
+When a filter is active, the list shows a labeled section divider between the matching trophies and the rest. The
+rest are dimmed and pushed to the bottom. The order updates immediately when you earn or unlearn a trophy —
+trophies move to their correct section on the spot.
+
+### Group Headers
+
+Each DLC group has its own collapsible header showing its own tier counts, fraction, and progress bar. The group
+containing the platinum trophy shows a platinum icon instead of the standard checkmark. Tap a group header to
+collapse or expand it.
+
+### Game Settings
+
+The **✎** button next to the game dropdown opens Game Settings. From there you can:
+
+| Action           | Effect                                                                                                                     |
+|------------------|----------------------------------------------------------------------------------------------------------------------------|
+| Rename           | Changes the display name without affecting trophy data.                                                                    |
+| Refresh from PSN | Re-fetches the trophy list. New trophies are added unearned; removed trophies are flagged as orphaned rather than deleted. |
+| Reset progress   | Clears all earned and pinned states. Trophy list is kept.                                                                  |
+| Remove game      | Permanently removes the game from your list.                                                                               |
+
+### Orphaned Trophies
+
+If a game's trophy list changes on PlayStation, trophies that no longer exist in the PSN data are marked as
+orphaned rather than silently deleted. They appear with a dashed border and a warning label, and are excluded from
+progress calculations. You can clear them by doing a fresh Refresh from PSN.
+
+---
+
 ## Common Features
 
 ### Dark and Light Mode
@@ -221,15 +317,16 @@ The 👤 button in the header opens the account menu. You can create an account,
 
 **Without an account:** everything works as before — data is saved locally in your browser and never leaves your device.
 
-**With an account:** Level Goal Tracker and Thing Counter sync your games to Supabase. Data is pushed on every save and
-pulled on tool load, so your games are available on any device you sign in from. XP Tracker is session-based by design
-and does not sync.
+**With an account:** Level Goal Tracker, Thing Counter, and Trophy Hunter sync your games to Supabase. Data is pushed
+on every save and pulled on tool load, so your games are available on any device you sign in from. XP Tracker is
+session-based by design and does not sync.
 
 **Sign in nudge:** the first time you visit any tool without being signed in, a tooltip on the 👤 button reminds you
 that sync is available. It appears once and does not come back after you dismiss it.
 
-**Privacy:** your email address is stored solely for account recovery purposes and is never shared with or sold to any
-third party.
+**Privacy:** tap **Privacy notice** in the account menu for full details on what is and isn't stored. The short
+version: your email is for account recovery only, your game data is private to you, and the shared game catalog
+stores only anonymous title metadata — no usernames, no trophy progress from other players, nothing personal.
 
 #### Conflict Resolution
 
@@ -241,8 +338,8 @@ and lets you choose which copy to keep. The other copy is updated to match.
 
 Data is saved automatically. The local copy lives in your browser's `localStorage` and persists between sessions.
 
-When signed in, Level Goal Tracker and Thing Counter also store data in Supabase. If you clear your browser's
-localStorage, your data can be restored from the cloud the next time you open the tool while signed in.
+When signed in, Level Goal Tracker, Thing Counter, and Trophy Hunter also store data in Supabase. If you clear your
+browser's localStorage, your data can be restored from the cloud the next time you open the tool while signed in.
 
 **Clearing browser site data while not signed in will erase your data permanently.** If you are not signed in and
 want to back up your data, you can copy the relevant keys from your browser's developer tools (F12 → Application →
@@ -263,3 +360,6 @@ Local Storage).
 | `bgt:thing-counter:quick-counter-val`   | Thing Counter      | Quick Counter current value.                    |
 | `bgt:thing-counter:quick-counter-step`  | Thing Counter      | Quick Counter step size.                        |
 | `bgt:thing-counter:quick-counter-color` | Thing Counter      | Quick Counter accent color.                     |
+| `bgt:trophy-hunter:data`                | Trophy Hunter      | Personal game list and trophy states.           |
+| `bgt:trophy-hunter:selected-game`       | Trophy Hunter      | Last selected game ID.                          |
+| `bgt:trophy-hunter:catalog-cache`       | Trophy Hunter      | Local cache of recently viewed trophy lists.    |

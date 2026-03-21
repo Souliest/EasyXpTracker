@@ -49,7 +49,7 @@ BasicGamingTools/
 <script src="../common/header.js"></script>
 <script>
   initHeader('Tool Title');
-  initTheme(optionalCallback); // pass a redraw function if the tool has canvas charts
+  initTheme(optionalCallback);
 </script>
 <script type="module" src="js/main.js"></script>
 ```
@@ -83,16 +83,16 @@ the 👤 button. It must be awaited before `loadData()` so that `getUser()` retu
 
 Each tool's logic lives in `js/` as ES modules. The split follows these responsibilities:
 
-| Module                | Contents                                                                                                                             |
-|-----------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `storage.js`          | Storage key constants, `loadData()`, `saveData()`, and (for LGT/TC) `loadGame()`, `saveGame()`, `resolveCollision()`, `deleteGame()` |
-| `render.js`           | All render / DOM-update functions — receive data as parameters, no internal `loadData()` calls                                       |
-| `main.js`             | Module-level state, event wiring, `window.*` globals, init IIFE                                                                      |
-| Tool-specific modules | Pure helpers (dates, stats, nodes), modal logic, focus modals, etc.                                                                  |
+| Module                | Contents                                                                                                                                |
+|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `storage.js`          | Storage key constants, `loadData()`, `saveData()`, and (for LGT/TC/TH) `loadGame()`, `saveGame()`, `resolveCollision()`, `deleteGame()` |
+| `render.js`           | All render / DOM-update functions — receive data as parameters, no internal `loadData()` calls                                          |
+| `main.js`             | Module-level state, event wiring, `window.*` globals, init IIFE                                                                         |
+| Tool-specific modules | Pure helpers (dates, stats, nodes), modal logic, focus modals, etc.                                                                     |
 
-`storage.js` for LGT and ThingCounter is an **async hybrid**: reads from `localStorage` immediately, merges from
-Supabase when the user is signed in, and writes to both stores on every save. XpTracker's `storage.js` remains
-synchronous and localStorage-only — it is session-scoped by design.
+`storage.js` for LGT, ThingCounter, and TrophyHunter is an **async hybrid**: reads from `localStorage` immediately,
+merges from Supabase when the user is signed in, and writes to both stores on every save. XpTracker's `storage.js`
+remains synchronous and localStorage-only — it is session-scoped by design.
 
 ---
 
@@ -114,9 +114,9 @@ ES module imports are cached by URL.
 
 ---
 
-## Hybrid Storage Pattern (LGT and ThingCounter)
+## Hybrid Storage Pattern (LGT, ThingCounter, and TrophyHunter)
 
-Each tool that syncs to Supabase stores one row per game in its table:
+LGT and ThingCounter store one row per game in their respective tables:
 
 | Table                          | Tool             |
 |--------------------------------|------------------|
@@ -126,15 +126,96 @@ Each tool that syncs to Supabase stores one row per game in its table:
 Schema per table: `id uuid pk`, `user_id uuid → auth.users`, `name text`, `data jsonb`, `updated_at timestamptz`.
 RLS policies restrict all operations to `auth.uid() = user_id`.
 
+TrophyHunter uses three Supabase tables:
+
+| Table                       | Scope  | Contents                                              |
+|-----------------------------|--------|-------------------------------------------------------|
+| `bgt_trophy_hunter_games`   | User   | Personal game state — earned/pinned trophies per user |
+| `bgt_trophy_hunter_catalog` | Shared | Full trophy lists, keyed by NPWR ID                   |
+| `bgt_trophy_hunter_lookup`  | Shared | Title name → NPWR ID mappings (no user data)          |
+
+The shared tables have public read and anonymous insert access (RLS enabled, no update/delete policies). The
+personal games table is restricted to `auth.uid() = user_id`.
+
 **Read path:** `loadData()` reads localStorage first (immediate), then fetches the game list from Supabase and
 merges any games that exist remotely but not locally. Full game blobs are only fetched for games missing locally.
 
-**Write path:** `saveData(data)` writes to localStorage immediately, then upserts each game to Supabase. Individual
-game saves go through `saveGame(game)`, which also stamps `game.last_modified`.
+**Write path (LGT and ThingCounter):** `saveData(data)` writes to localStorage immediately, then upserts each game
+to Supabase. Individual game saves go through `saveGame(game)`, which also stamps `game.last_modified`.
+
+**Write path (TrophyHunter — debounced):** Trophy interactions write to localStorage immediately via `localSave()`
+and re-render the UI without waiting for Supabase. A 2-second debounce timer (`_scheduleSync` in `main.js`)
+fires a background Supabase write after the last interaction, batching rapid trophy toggles into a single write.
+The timer is flushed synchronously on game switch and on opening the add-game modal to prevent stale data.
 
 **Collision detection:** triggered on game select via `loadGame(gameId)`. Compares `game.last_modified` (local)
 against `updated_at` (Supabase). If they differ by more than 5 seconds, a modal presents both timestamps and lets
 the user pick Local or Cloud. The loser is updated accordingly.
+
+---
+
+## TrophyHunter — Cloudflare Worker
+
+TrophyHunter is the only tool that requires external infrastructure beyond Supabase. A Cloudflare Worker
+(`bgt-psn-proxy`) acts as a PSN API proxy, holding the NPSSO session token as an environment secret.
+
+The worker exposes three routes:
+
+| Route         | Method | Description                                                      |
+|---------------|--------|------------------------------------------------------------------|
+| `/resolve`    | GET    | CUSA/PPSA title IDs → NPWR communication IDs (surrogate account) |
+| `/trophies`   | GET    | NPWR ID → full trophy list (groups + individual trophies)        |
+| `/contribute` | POST   | PSN username → full title list (for lookup table enrichment)     |
+
+**Key architectural rule:** the worker never touches Supabase. It is a pure PSN proxy. All Supabase reads and
+writes are performed by `storage.js` in the browser. The worker returns data; `storage.js` decides what to save
+and where.
+
+The `/trophies` route delegates to a `FetchCoordinator` Durable Object for PSN token caching and concurrent
+request coalescing. Rate limiting uses a KV namespace.
+
+---
+
+## TrophyHunter — 4-Step Search Flow
+
+When a user searches for a game, `storage.js` runs a four-step cascade, falling back only when the previous step
+yields nothing. Before any search, the query is normalised: `™`, `®`, `©`, `:`, `-`, quotes, and other punctuation
+are stripped, and whitespace is collapsed. This allows `Batman Arkham Knight` to match `Batman™: Arkham Knight`.
+
+1. **`searchCatalog()`** — queries `bgt_trophy_hunter_catalog` by name. If found, data is already cached → instant add.
+2. **`searchLookupTable()`** — queries `bgt_trophy_hunter_lookup` by name. If found, NPWR is known → call `/trophies`.
+3. **Patch sites + `/resolve`** — queries OrbisPatches (PS4) and ProsperoPatches (PS5) for CUSA/PPSA IDs, then
+   calls `/resolve` to get the NPWR. Saves new mappings to the lookup table passively.
+4. **`/contribute`** — the modal asks for a PSN username. Calls `/contribute`, saves all new title→NPWR mappings
+   to the lookup table, then retries step 2. The username itself is never stored.
+
+Every step that discovers a new NPWR mapping saves it to `bgt_trophy_hunter_lookup`, so the catalog grows
+passively from normal search activity with no user tracking.
+
+Title names are normalised to Title Case (with apostrophe normalisation) before being saved to Supabase and before
+being used in `ilike` search queries, ensuring consistent matching regardless of how PSN returns the name.
+
+---
+
+## TrophyHunter — Render Patterns
+
+**Single-group auto-flatten:** if a game has only one trophy group (no DLC), `renderMain` forces
+`viewState.ungrouped = true` via `effectiveViewState` and hides the ungroup toggle. The group header would
+only duplicate the game header, so it is suppressed entirely.
+
+**Group platinum indicator:** `computeGroupStats` scans each group's trophies for a `type === 'platinum'` entry.
+If found, the group header renders the platinum trophy icon (colored if earned, dimmed if not) instead of the
+standard checkmark. All other groups keep checkmarks.
+
+**Section dividers:** when a filter (Earned / Unearned) is active, `filterTrophies` injects a sentinel object
+`{_divider: true, _label: '...'}` between the wanted and unwanted sections. The renderer checks for `_divider`
+and calls `renderSectionDivider(label)` instead of `renderTrophyRow`. The divider is only injected when both
+sections are non-empty. Pinned trophies float within the wanted section only, not across the divider.
+
+**Filter-aware toggle re-render:** when `viewState.filter !== 'all'`, `_toggleEarned` triggers a full
+`_doRenderMain()` instead of a targeted row swap, so the trophy moves to its correct section immediately.
+When filter is `'all'`, the cheaper targeted updates (`refreshTrophyRow`, `updateGroupHeader`,
+`updateGameHeader`) are used.
 
 ---
 
@@ -144,9 +225,11 @@ Exports a `TOOLS` array. Each entry:
 
 ```js
 {
-    name: 'Display Name', path
+    name: 'Display Name',
+        path
 :
-    './ToolFolder/', description
+    './ToolFolder/',
+        description
 :
     'One line description.'
 }
@@ -194,6 +277,9 @@ projects sharing the same origin (`souliest.github.io`).
 | `bgt:thing-counter:quick-counter-val`   | ThingCounter     | Quick Counter current value               |
 | `bgt:thing-counter:quick-counter-step`  | ThingCounter     | Quick Counter step size                   |
 | `bgt:thing-counter:quick-counter-color` | ThingCounter     | Quick Counter accent color (hex string)   |
+| `bgt:trophy-hunter:data`                | TrophyHunter     | JSON `{ games: [...] }` — personal state  |
+| `bgt:trophy-hunter:selected-game`       | TrophyHunter     | Selected game id string (UUID)            |
+| `bgt:trophy-hunter:catalog-cache`       | TrophyHunter     | LRU cache of up to 3 full trophy lists    |
 
 **Rules:**
 
@@ -217,6 +303,7 @@ Key variables:
 --muted /* secondary / label text */
 --accent /* primary accent (cyan: #00e5ff) */
 --accent2 /* secondary accent (orange: #ff6b35) */
+--accent3 /* tertiary accent (green: #7fff6b) */
 --input-bg /* form input background */
 --stat-bg /* stat/label row background */
 --glow
@@ -343,11 +430,8 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 - **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_level_goal_tracker_games`)
 - **Collision detection** runs on game select via `loadGame(gameId)`; resolved via modal in `main.js`
 - Daily snapshot rolls over at midnight: `maybeRollSnapshot(game)` checks `snapshot.date` vs today
-- `setInterval(tickRenderMain, 60000)` — ticks every minute to keep daily targets current past midnight.
-  `tickRenderMain` reads localStorage directly (no Supabase call) and only pushes to Supabase if the snapshot
-  actually rolled. Supabase is pulled from only once: on game select.
-- `renderSelector()` returns the data it loaded so callers can pass it directly to `renderMain(data)` without
-  a second `loadData()` call
+- `setInterval(tickRenderMain, 60000)` — ticks every minute to keep daily targets current past midnight
+- `renderSelector()` returns the data it loaded so callers can pass it directly without a second `loadData()` call
 - `dates.js` is a pure-function leaf imported by `snapshot.js`, `stats.js`, `render.js`, and `modal.js`
 
 ### ThingCounter (`/ThingCounter/`)
@@ -357,18 +441,38 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 - Hierarchical counter tracker: counters in an arbitrary-depth tree of branches, grouped by game
 - **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_thing_counter_games`)
 - **Collision detection** runs on game select via `loadGame(gameId)`; resolved via modal in `main.js`
-- `renderSelector()` returns the data it loaded so callers (`afterGameSaved`, `afterGameDeleted`) can pass it
-  directly to `doRenderMain(data)` without a second `loadData()` call
-- **Two UI bars:** selector bar and tree action bar (visible only when a game is selected)
-- **Counter types:** `open` (unbounded, value ≥ 0) and `bounded` (min/max/initial, fill bar shown)
-- **Decrement counters** (`decrement: true`): dominant button is `−`
+- **Counter types:** `open` (unbounded) and `bounded` (min/max/initial, fill bar shown)
 - **Edit mode** (global toggle): reveals node controls and ghost add buttons
-- **Single-node edit mode**: double-click or long-press any node, without entering global edit mode
 - **Focus modal**: tap counter name → large value display, ±1, editable step, ±step, ↺ reset, fill bar
 - **Quick Counter**: game-agnostic scratchpad. State persists across refresh/blur; wiped on ✕ close or game select
-- `focus.js` holds both the focus modal and Quick Counter; exposes `setFocusGameId(id)` and `syncFocusIfOpen(nodeId)`
 - `nodes.js` and `swatches.js` are pure-function leaves with no DOM or localStorage dependencies
 - The `callbacks` object pattern is used throughout `render.js` to avoid circular imports
+
+### TrophyHunter (`/TrophyHunter/`)
+
+**Modules:** `storage.js`, `render.js`, `modal.js`, `main.js`
+
+- Tracks PlayStation trophy progress across multiple games
+- **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_trophy_hunter_games`)
+- **Debounced sync:** trophy interactions write to localStorage immediately via `localSave()` and re-render
+  without waiting for Supabase. `_scheduleSync()` in `main.js` debounces the Supabase write to 2 seconds
+  after the last interaction. Timer is flushed on game switch and add-game modal open.
+- **Shared catalog:** `bgt_trophy_hunter_catalog` stores full trophy lists shared across all users
+- **Shared lookup table:** `bgt_trophy_hunter_lookup` maps title names to NPWR IDs; populated passively
+- **Collision detection** runs on game select via `loadGame(gameId)`; resolved via modal in `main.js`
+- **4-step search flow** in `runSearch()`: catalog → lookup → patch sites + `/resolve` → `/contribute`
+- **Search normalisation:** `stripSearchNoise()` strips `™®©`, colons, dashes, and quotes from the query
+  before `ilike` matching, so `Batman Arkham Knight` matches `Batman™: Arkham Knight`
+- **Cloudflare Worker** (`bgt-psn-proxy`) proxies all PSN API calls; never touches Supabase
+- **Single-group auto-flatten:** games with one group force `ungrouped: true`; ungroup toggle hidden
+- **Group platinum indicator:** detected by scanning group trophies for `type === 'platinum'`; renders
+  platinum icon instead of checkmark for that group
+- **Section dividers:** `filterTrophies` injects a `{_divider, _label}` sentinel between wanted/unwanted
+  sections when both are non-empty; renderer calls `renderSectionDivider(label)` for these
+- **Filter-aware toggle:** when filter is active, `_toggleEarned` triggers full re-render so sort order
+  updates immediately; when filter is `'all'`, cheaper targeted DOM updates are used
+- **`normaliseTitle()`** converts PSN title names to Title Case before saving or searching
+- `modal.js` sets `document.body.style.overflow = 'hidden'` on modal open, restores on close
 
 ---
 
@@ -387,20 +491,25 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
   secondary. If Supabase is unreachable, the app still works and syncs when connectivity returns.
 - **Per-game rows in Supabase** — each game is its own row (with a `name` column) so the selector dropdown can
   be populated with a lightweight `SELECT id, name` query. Full `data` blobs are only fetched on game select.
-- **Collision detection on game select, not on load** — checking per game on select is precise and non-intrusive.
-  Checking the whole tool on load would be coarser and harder to reason about.
-- **`tickRenderMain` reads localStorage only** — the database can't change itself between sessions. The interval
-  exists solely to roll the midnight snapshot; it should not make network calls for that purpose.
-- **`renderSelector()` returns data** — avoids the anti-pattern of calling `loadData()` twice in sequence
-  (once inside `renderSelector`, once again in the callback) after every save or delete
-- **`crypto.randomUUID()` for game IDs** — UUIDs serve as the primary key in both localStorage and Supabase,
-  so they must be globally unique. The old `'game_' + Date.now()` pattern is not collision-safe across devices.
-- **`auth-ui.js` loaded as a module import, not a script tag** — keeps HTML clean, leverages ES module caching
-  so `auth.js` and `supabase.js` are fetched once regardless of how many modules import them
-- **`import.meta.url` for CSS path in `auth-ui.js`** — the module always knows its own URL, so the CSS path
-  resolves correctly whether the page is the root `index.html` or a tool subdirectory
-- **Separate Add and Edit modals per node type** — cleaner UX; avoids type-change complexity when editing
-- **Callbacks pattern over direct imports in `render.js`** — keeps the dependency graph a strict tree, with
-  `main.js` at the root
-- **`setFocusGameId` instead of threading `selectedGameId` everywhere** — the focus modal needs the current game
-  id for many operations; a single setter on game change is cleaner than adding it to every function signature
+- **Collision detection on game select, not on load** — checking per game on select is precise and non-intrusive
+- **`tickRenderMain` reads localStorage only** — the interval exists solely to roll the midnight snapshot
+- **`renderSelector()` returns data** — avoids calling `loadData()` twice in sequence after every save or delete
+- **`crypto.randomUUID()` for game IDs** — UUIDs are collision-safe across devices; `Date.now()` is not
+- **`auth-ui.js` loaded as a module import** — keeps HTML clean; leverages ES module caching
+- **`import.meta.url` for CSS path in `auth-ui.js`** — resolves correctly from any tool subdirectory
+- **Callbacks pattern over direct imports in `render.js`** — keeps the dependency graph a strict tree
+- **TrophyHunter debounced sync instead of await-on-every-toggle** — trophy interactions are frequent and
+  rapid; awaiting Supabase on each toggle creates noticeable lag. localStorage is the source of truth and is
+  always written first. The debounce batches rapid toggles, reduces write volume, and keeps the UI instant.
+  The timer is flushed on navigation to prevent stale cloud data.
+- **TrophyHunter worker is a pure PSN proxy** — keeping Supabase out of the worker consolidates all
+  orchestration logic in `storage.js`, avoids a second set of credentials in Cloudflare, and keeps the
+  worker simple and stateless (except for the Durable Object token cache).
+- **TrophyHunter shared tables have no user data** — `bgt_trophy_hunter_catalog` and
+  `bgt_trophy_hunter_lookup` are anonymous game catalog data. Open read/insert access is intentional and safe.
+- **`normaliseTitle()` on both save and search** — ensures `ilike` matches work regardless of PSN capitalisation
+- **`stripSearchNoise()` on query only** — stored titles remain canonical; stripping is applied at query time
+  so searches are forgiving without corrupting the stored data
+- **Section divider as sentinel object** — injecting `{_divider: true}` into the filtered array keeps the
+  rendering logic in one place (`renderGroup`, `renderFlatList`) without needing separate before/after arrays
+  or post-processing passes
