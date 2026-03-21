@@ -126,7 +126,7 @@ export function computeGroupStats(group, trophyState) {
 // Platinum is included here when hasPlatinum is true.
 // Order is always P → G → S → B.
 
-function renderTierChips(tierEarned, tierTotal, size, hasPlatinum, platinumEarned) {
+function renderTierChips(tierEarned, tierTotal, size, hasPlatinum, platinumEarned, leadingIndicator = '') {
     const platChip = hasPlatinum
         ? `<span class="tier-chip">${trophyIcon('platinum', platinumEarned, size)}</span>`
         : '';
@@ -137,7 +137,7 @@ function renderTierChips(tierEarned, tierTotal, size, hasPlatinum, platinumEarne
             <span class="tier-chip-count" style="color:${TIERS[tier].color}">${e}</span>
         </span>`;
     }).join('');
-    return `<span class="th-chips-group">${platChip}${rest}</span>`;
+    return `<span class="th-chips-group">${leadingIndicator}${platChip}${rest}</span>`;
 }
 
 // ── Progress bar ──
@@ -385,8 +385,7 @@ export function renderGroupHeader(group, groupStats) {
         </div>
         <div class="th-group-header-stats">
             <div class="th-stats-chips-row">
-                <span class="th-group-completion">${completionIndicator}</span>
-                ${renderTierChips(groupStats.tierEarned, groupStats.tierTotal, 13, false, false)}
+                ${renderTierChips(groupStats.tierEarned, groupStats.tierTotal, 13, groupStats.hasPlatinum, groupStats.platinumEarned, completionIndicator)}
                 <span class="th-stat-fraction">${groupStats.earned}/${groupStats.total}</span>
             </div>
             <div class="th-stats-bar-row">

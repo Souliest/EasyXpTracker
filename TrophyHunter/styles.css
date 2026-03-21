@@ -189,10 +189,11 @@ select#gameSelect:focus {
   gap: 6px;
 }
 
-/* Row 2: bar (left, max-width) + percentage (right) */
+/* Row 2: bar (left) + percentage (right) */
 .th-stats-bar-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -224,12 +225,12 @@ select#gameSelect:focus {
 
   /* Deliberate gap between chips group and fraction in landscape */
   .th-stats-chips-row .th-stat-fraction {
-    margin-left: 16px;
+    margin-left: 24px;
   }
 
   /* Gap between the two rows when side-by-side */
   .th-stats-bar-row {
-    margin-left: 16px;
+    margin-left: 24px;
   }
 }
 
@@ -405,11 +406,11 @@ select#gameSelect:focus {
   }
 
   .th-group-header-stats .th-stats-chips-row .th-stat-fraction {
-    margin-left: 16px;
+    margin-left: 24px;
   }
 
   .th-group-header-stats .th-stats-bar-row {
-    margin-left: 16px;
+    margin-left: 24px;
   }
 }
 
