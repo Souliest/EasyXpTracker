@@ -16,22 +16,32 @@ const TIERS = {
 };
 
 // ── Trophy SVG paths ──
-// Standard trophy (gold/silver/bronze) — symmetrical handles.
-const TROPHY_SVG_PATH = 'M12 2H4v6c0 2.2 1.4 4 3.3 4.7L7 14H6v2h4v-2H9l-.3-1.3C10.6 12 12 10.2 12 8V2zM2 4H0v2c0 1.1.7 2 1.7 2.4V4H2zm12 0v4.4C15.3 8 16 7.1 16 6V4h-2z';
+// Standard trophy path (gold/silver/bronze) — symmetrical handles.
+const TROPHY_SVG_PATH = 'M3 1H13V8C13 11.5 10.8 14.2 8 15.1L7.5 17H6V19H10V17H8.5L8 15.1C5.2 14.2 3 11.5 3 8ZM3 2H1V5C1 6.4 1.9 7.5 3 7.9ZM13 2H15V5C15 6.4 14.1 7.5 13 7.9Z';
 
-// Platinum trophy — same base as standard, plus a 5-point star centered above the cup.
-// The star sits at the top to make platinum visually distinct at a glance.
-const PLATINUM_SVG_PATH = 'M8 0l.9 2.6H12l-2.3 1.7.9 2.7L8 5.3 5.4 7l.9-2.7L4 2.6h3.1L8 0zM11 5H5v3c0 2.2 1.4 4 3 4.7L7.7 14H7v2h2v-2h2v2h2v-2h-.7L12 12.7C13.6 12 15 10.2 15 8V5h-4zM3 6H1v2c0 1.1.6 2 1.5 2.3V6H3zm10 0v4.3c.9-.3 1.5-1.2 1.5-2.3V6h-1.5z';
+// Platinum trophy — standard cup with a star emblem on the face.
+// The star is rendered as a second path in a contrasting color via trophyIcon.
+const PLATINUM_CUP_PATH = 'M3 1H13V8C13 11.5 10.8 14.2 8 15.1L7.5 17H6V19H10V17H8.5L8 15.1C5.2 14.2 3 11.5 3 8ZM3 2H1V5C1 6.4 1.9 7.5 3 7.9ZM13 2H15V5C15 6.4 14.1 7.5 13 7.9Z';
+const PLATINUM_STAR_PATH = 'M8 2.5L8.7 4.7H11L9.2 5.9L9.8 8.1L8 6.9L6.2 8.1L6.8 5.9L5 4.7H7.3Z';
 
 function trophyIcon(tier, earned, size = 16) {
     const cfg = TIERS[tier] || TIERS.bronze;
-    // Always show tier color — full opacity when earned, dimmed when not
-    const color = earned ? cfg.color : cfg.color;
+    const color = cfg.color;
     const opacity = earned ? '1' : '0.25';
-    const path = tier === 'platinum' ? PLATINUM_SVG_PATH : TROPHY_SVG_PATH;
-    return `<svg class="trophy-icon" width="${size}" height="${size}" viewBox="0 0 16 16"
+
+    if (tier === 'platinum') {
+        // Two-path render: cup in tier color, star emblem in panel background color
+        // so it reads as engraved regardless of light/dark mode.
+        return `<svg class="trophy-icon" width="${size}" height="${size}" viewBox="0 0 16 20"
+            aria-hidden="true" opacity="${opacity}">
+            <path d="${PLATINUM_CUP_PATH}" fill="${color}"/>
+            <path d="${PLATINUM_STAR_PATH}" fill="var(--panel)"/>
+        </svg>`;
+    }
+
+    return `<svg class="trophy-icon" width="${size}" height="${size}" viewBox="0 0 16 20"
         aria-hidden="true" fill="${color}" opacity="${opacity}">
-        <path d="${path}"/>
+        <path d="${TROPHY_SVG_PATH}"/>
     </svg>`;
 }
 
@@ -80,7 +90,7 @@ export function computeGroupStats(group, trophyState) {
     let total = 0, earned = 0;
     let tierTotal = {platinum: 0, gold: 0, silver: 0, bronze: 0};
     let tierEarned = {platinum: 0, gold: 0, silver: 0, bronze: 0};
-    let isComplete = false;
+    let isComplete;
     let hasPlatinum = false;
     let platinumEarned = false;
 
@@ -118,7 +128,6 @@ export function computeGroupStats(group, trophyState) {
 function renderTierChips(tierEarned, tierTotal, size = 14) {
     return ['gold', 'silver', 'bronze'].map(tier => {
         const e = tierEarned[tier] || 0;
-        const t = tierTotal[tier] || 0;
         return `<span class="tier-chip">
             ${trophyIcon(tier, true, size)}
             <span class="tier-chip-count" style="color:${TIERS[tier].color}">${e}</span>
@@ -307,7 +316,7 @@ function renderFlatList(game, catalogEntry, callbacks, viewState) {
     return `<div class="th-flat-list">
         ${filtered.map(t => t._divider
         ? renderSectionDivider(t._label)
-        : renderTrophyRow(t, game.trophyState, callbacks)
+        : renderTrophyRow(t, game.trophyState)
     ).join('')}
     </div>`;
 }
@@ -347,7 +356,7 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
         ? `<div class="th-empty-filter">No ${vs.filter} trophies in this group.</div>`
         : ordered.map(t => t._divider
             ? renderSectionDivider(t._label)
-            : renderTrophyRow(t, game.trophyState, callbacks)
+            : renderTrophyRow(t, game.trophyState)
         ).join('')
     }
         </div>
@@ -384,7 +393,7 @@ export function renderGroupHeader(group, groupStats) {
 // renderTrophyRow — leaf node
 // ─────────────────────────────────────────────
 
-export function renderTrophyRow(trophy, trophyState, callbacks) {
+export function renderTrophyRow(trophy, trophyState) {
     const id = String(trophy.trophyId);
     const state = trophyState[id] || {};
     const earned = !!state.earned;
@@ -432,7 +441,7 @@ export function refreshTrophyRow(trophyId, trophy, trophyState, callbacks) {
     const el = document.querySelector(`.th-trophy-row[data-trophy-id="${trophyId}"]`);
     if (!el) return;
 
-    const newHtml = renderTrophyRow(trophy, trophyState, callbacks);
+    const newHtml = renderTrophyRow(trophy, trophyState);
     const tmp = document.createElement('div');
     tmp.innerHTML = newHtml;
     const newEl = tmp.firstElementChild;
