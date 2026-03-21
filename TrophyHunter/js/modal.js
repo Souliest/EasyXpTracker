@@ -16,6 +16,8 @@ import {
     normaliseTitle,
     createGameEntry,
     loadCatalogEntry,
+    ORBIS_SEARCH_URL,
+    PROSPERO_SEARCH_URL,
 } from './storage.js';
 import {getUser} from '../../common/auth.js';
 
@@ -296,9 +298,9 @@ async function _forceStepThree(personalGames, onGameAdded, onSelectExisting) {
 
     try {
         const [ps4, ps5] = await Promise.all([
-            fetch(`https://orbispatches.com/api/internal/search?term=${encoded}`)
+            fetch(`${ORBIS_SEARCH_URL}?term=${encoded}`)
                 .then(r => r.ok ? r.json() : null).catch(() => null),
-            fetch(`https://prosperopatches.com/api/internal/search?term=${encoded}`)
+            fetch(`${PROSPERO_SEARCH_URL}?term=${encoded}`)
                 .then(r => r.ok ? r.json() : null).catch(() => null),
         ]);
         for (const r of (ps4?.results || [])) {
@@ -535,6 +537,14 @@ export async function openGameSettingsModal(game, callbacks) {
     const newResetNo = resetNo.cloneNode(true);
     resetNo.replaceWith(newResetNo);
     newResetNo.addEventListener('click', () => _resetSettingsDangerZone());
+
+    const removeBtn = document.getElementById('settingsRemoveBtn');
+    const newRemoveBtn = removeBtn.cloneNode(true);
+    removeBtn.replaceWith(newRemoveBtn);
+    newRemoveBtn.addEventListener('click', () => {
+        document.getElementById('settingsRemoveConfirm').style.display = '';
+        document.getElementById('settingsRemoveBtn').style.opacity = '0.4';
+    });
 
     const removeYes = document.getElementById('settingsRemoveConfirmYes');
     const newRemoveYes = removeYes.cloneNode(true);

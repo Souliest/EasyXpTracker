@@ -25,8 +25,8 @@ const TABLE_LOOKUP = 'bgt_trophy_hunter_lookup';
 export const WORKER_URL = 'https://bgt-psn-proxy.souliest.workers.dev';
 
 // ── Patch site search URLs ──
-const ORBIS_SEARCH_URL = 'https://orbispatches.com/api/internal/search';
-const PROSPERO_SEARCH_URL = 'https://prosperopatches.com/api/internal/search';
+export const ORBIS_SEARCH_URL = 'https://orbispatches.com/api/internal/search';
+export const PROSPERO_SEARCH_URL = 'https://prosperopatches.com/api/internal/search';
 
 // ═══════════════════════════════════════════════
 // Title normalisation
