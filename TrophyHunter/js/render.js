@@ -6,7 +6,11 @@
 // Render — section builders and DOM orchestration
 // ═══════════════════════════════════════════════
 
-// ── Tier config ──
+// ── Trophy weights (Sony official point values) ──
+// Used for weighted progress bar and percentage only.
+// Platinum is excluded from weighted progress (Sony convention).
+// Fraction always uses raw counts including platinum.
+const TROPHY_WEIGHTS = {bronze: 15, silver: 30, gold: 90, platinum: 0};
 
 const TIERS = {
     platinum: {label: 'Platinum', color: '#d4c5f9', order: 0},
@@ -51,6 +55,7 @@ function trophyIcon(tier, earned, size = 16) {
 
 export function computeStats(groups, trophyState) {
     let total = 0, earned = 0;
+    let weightedTotal = 0, weightedEarned = 0;
     let tierTotal = {platinum: 0, gold: 0, silver: 0, bronze: 0};
     let tierEarned = {platinum: 0, gold: 0, silver: 0, bronze: 0};
     let hasPlatinum = false;
@@ -62,24 +67,28 @@ export function computeStats(groups, trophyState) {
             if (state.orphaned) continue;
 
             const type = trophy.type || 'bronze';
+            const weight = TROPHY_WEIGHTS[type] || 0;
 
-            // Platinum IS counted in total, fraction, and progress bar
             total++;
             tierTotal[type] = (tierTotal[type] || 0) + 1;
 
             if (type === 'platinum') {
                 hasPlatinum = true;
                 platinumEarned = !!state.earned;
+                // Platinum excluded from weighted progress (Sony convention)
+            } else {
+                weightedTotal += weight;
             }
 
             if (state.earned) {
                 earned++;
                 tierEarned[type] = (tierEarned[type] || 0) + 1;
+                if (type !== 'platinum') weightedEarned += weight;
             }
         }
     }
 
-    const pct = total > 0 ? Math.round((earned / total) * 100) : 0;
+    const pct = weightedTotal > 0 ? Math.round((weightedEarned / weightedTotal) * 100) : 0;
 
     return {
         total, earned, pct,
@@ -90,6 +99,7 @@ export function computeStats(groups, trophyState) {
 
 export function computeGroupStats(group, trophyState) {
     let total = 0, earned = 0;
+    let weightedTotal = 0, weightedEarned = 0;
     let tierTotal = {platinum: 0, gold: 0, silver: 0, bronze: 0};
     let tierEarned = {platinum: 0, gold: 0, silver: 0, bronze: 0};
     let isComplete;
@@ -100,22 +110,25 @@ export function computeGroupStats(group, trophyState) {
         const state = trophyState[String(trophy.trophyId)] || {};
         if (state.orphaned) continue;
         const type = trophy.type || 'bronze';
+        const weight = TROPHY_WEIGHTS[type] || 0;
 
         if (type === 'platinum') {
             hasPlatinum = true;
             platinumEarned = !!state.earned;
+        } else {
+            weightedTotal += weight;
         }
 
-        // Platinum IS counted in group fraction, bar, and percentage
         total++;
         tierTotal[type] = (tierTotal[type] || 0) + 1;
         if (state.earned) {
             earned++;
             tierEarned[type] = (tierEarned[type] || 0) + 1;
+            if (type !== 'platinum') weightedEarned += weight;
         }
     }
 
-    const pct = total > 0 ? Math.round((earned / total) * 100) : 0;
+    const pct = weightedTotal > 0 ? Math.round((weightedEarned / weightedTotal) * 100) : 0;
     isComplete = total > 0 && earned === total;
 
     return {total, earned, pct, tierTotal, tierEarned, isComplete, hasPlatinum, platinumEarned};
@@ -353,9 +366,13 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
     const nonDividers = ordered.filter(t => !t._divider);
     const isEmpty = nonDividers.length === 0 && vs.filter !== 'all';
 
+    const collapsedGroups = vs.collapsedGroups || [];
+    const isCollapsed = collapsedGroups.includes(group.groupId);
+    const toggleChar = isCollapsed ? '▶' : '▼';
+
     return `<div class="th-group" data-group-id="${_escHtml(group.groupId)}">
-        ${renderGroupHeader(group, groupStats)}
-        <div class="th-group-children" id="group-body-${_escHtml(group.groupId)}">
+        ${renderGroupHeader(group, groupStats, toggleChar)}
+        <div class="th-group-children${isCollapsed ? ' collapsed' : ''}" id="group-body-${_escHtml(group.groupId)}">
             ${isEmpty
         ? `<div class="th-empty-filter">No ${vs.filter} trophies in this group.</div>`
         : ordered.map(t => t._divider
@@ -371,7 +388,7 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
 // renderGroupHeader — branch-node style
 // ─────────────────────────────────────────────
 
-export function renderGroupHeader(group, groupStats) {
+export function renderGroupHeader(group, groupStats, toggleChar = '▼') {
     // Groups with platinum show the platinum icon instead of the checkmark
     const completionIndicator = groupStats.hasPlatinum
         ? trophyIcon('platinum', groupStats.platinumEarned, 14)
@@ -380,7 +397,7 @@ export function renderGroupHeader(group, groupStats) {
 
     return `<div class="th-group-header" data-group-id="${_escHtml(group.groupId)}">
         <div class="th-group-header-top">
-            <span class="th-group-toggle" aria-hidden="true">▼</span>
+            <span class="th-group-toggle" aria-hidden="true">${toggleChar}</span>
             <span class="th-group-name">${_escHtml(group.name)}</span>
         </div>
         <div class="th-group-header-stats">
@@ -464,23 +481,17 @@ export function refreshTrophyRow(trophyId, trophy, trophyState, callbacks) {
     el.replaceWith(newEl);
 }
 
-export function updateGroupHeader(groupId, group, groupStats) {
+export function updateGroupHeader(groupId, group, groupStats, collapsedGroups, onToggleGroup) {
     const header = document.querySelector(`.th-group-header[data-group-id="${groupId}"]`);
     if (!header) return;
 
+    const isCollapsed = (collapsedGroups || []).includes(groupId);
     const tmp = document.createElement('div');
-    tmp.innerHTML = renderGroupHeader(group, groupStats);
+    tmp.innerHTML = renderGroupHeader(group, groupStats, isCollapsed ? '▶' : '▼');
     const newHeader = tmp.firstElementChild;
 
-    const body = document.getElementById(`group-body-${groupId}`);
-    const isCollapsed = body && body.classList.contains('collapsed');
-    const toggle = newHeader.querySelector('.th-group-toggle');
-    if (toggle) toggle.textContent = isCollapsed ? '▶' : '▼';
-
     newHeader.addEventListener('click', () => {
-        if (body) body.classList.toggle('collapsed');
-        const t = newHeader.querySelector('.th-group-toggle');
-        if (t) t.textContent = body && body.classList.contains('collapsed') ? '▶' : '▼';
+        if (onToggleGroup) onToggleGroup(groupId);
     });
 
     header.replaceWith(newHeader);
@@ -536,13 +547,24 @@ export function filterTrophies(trophies, trophyState, filter) {
 
     const dimmed = unwanted.map(t => ({...t, _dimmed: true}));
 
-    // Only inject divider when both sections have trophies
-    if (wanted.length > 0 && dimmed.length > 0) {
-        const dividerLabel = wantEarned ? 'Unearned' : 'Earned';
-        return [...wanted, {_divider: true, _label: dividerLabel}, ...dimmed];
+    const primaryLabel = wantEarned ? 'Earned' : 'Unearned';
+    const secondaryLabel = wantEarned ? 'Unearned' : 'Earned';
+
+    const result = [];
+
+    // Always inject leading header for the primary section
+    if (wanted.length > 0) {
+        result.push({_divider: true, _label: primaryLabel});
+        result.push(...wanted);
     }
 
-    return [...wanted, ...dimmed];
+    // Only inject secondary header if that section is non-empty
+    if (dimmed.length > 0) {
+        result.push({_divider: true, _label: secondaryLabel});
+        result.push(...dimmed);
+    }
+
+    return result;
 }
 
 // ─────────────────────────────────────────────
@@ -576,11 +598,7 @@ function _wireToolbar(game, callbacks, isSingleGroup) {
     document.querySelectorAll('.th-group-header').forEach(header => {
         header.addEventListener('click', () => {
             const groupId = header.dataset.groupId;
-            const body = document.getElementById(`group-body-${groupId}`);
-            if (!body) return;
-            body.classList.toggle('collapsed');
-            const toggle = header.querySelector('.th-group-toggle');
-            if (toggle) toggle.textContent = body.classList.contains('collapsed') ? '▶' : '▼';
+            callbacks.onToggleGroup(groupId);
         });
     });
 }
@@ -646,8 +664,9 @@ function _attachLongPress(el, callback) {
 // ─────────────────────────────────────────────
 
 function renderSectionDivider(label) {
-    return `<div class="th-section-divider" aria-hidden="true">
-        <span class="th-section-divider-label">${_escHtml(label)}</span>
+    const color = label === 'Earned' ? 'var(--accent3)' : '#ff4444';
+    return `<div class="th-section-divider" style="border-color:${color}" aria-hidden="true">
+        <span class="th-section-divider-label" style="color:${color}">${_escHtml(label)}</span>
     </div>`;
 }
 

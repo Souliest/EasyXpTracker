@@ -8,7 +8,7 @@
 
 import {
     loadData, saveData, loadGame, resolveCollision, deleteGame,
-    loadCatalogEntry, saveCatalogEntry, mergeCatalogUpdate,
+    loadCatalogEntry, mergeCatalogUpdate,
     STORAGE_SELECTED, localSave,
 } from './storage.js';
 import {
@@ -105,8 +105,7 @@ async function selectGame(id) {
     const {game, collision} = await loadGame(selectedGameId);
     if (collision) {
         _showCollisionModal(selectedGameId, game.name, collision, async () => {
-            const fresh = await loadData();
-            _personalData = fresh;
+            _personalData = await loadData();
             await _loadCatalogAndRender();
         });
         return;
@@ -147,6 +146,7 @@ function _callbacks() {
         onToggleEarned: id => _toggleEarned(id),
         onTogglePinned: id => _togglePinned(id),
         onViewStateChange: vs => _updateViewState(vs),
+        onToggleGroup: id => _toggleGroup(id),
     };
 }
 
@@ -181,7 +181,8 @@ function _toggleEarned(trophyId) {
 
         const group = _findGroupForTrophy(trophyId);
         if (group) {
-            updateGroupHeader(group.groupId, group, computeGroupStats(group, game.trophyState));
+            const collapsed = game.viewState.collapsedGroups || [];
+            updateGroupHeader(group.groupId, group, computeGroupStats(group, game.trophyState), collapsed, id => _toggleGroup(id));
         }
 
         updateGameHeader(game, _catalogEntry, computeStats(_catalogEntry.groups, game.trophyState));
@@ -216,6 +217,31 @@ function _updateViewState(newViewState) {
 
     _doRenderMain();
     _scheduleSync();
+}
+
+function _toggleGroup(groupId) {
+    const game = _personalData.games.find(g => g.id === selectedGameId);
+    if (!game) return;
+
+    const collapsed = game.viewState.collapsedGroups || [];
+    const idx = collapsed.indexOf(groupId);
+    if (idx === -1) {
+        game.viewState.collapsedGroups = [...collapsed, groupId];
+    } else {
+        game.viewState.collapsedGroups = collapsed.filter(id => id !== groupId);
+    }
+
+    game.last_modified = new Date().toISOString();
+    localSave(_personalData);
+    _scheduleSync();
+
+    // Targeted DOM update — no full re-render needed for collapse toggle
+    const body = document.getElementById(`group-body-${groupId}`);
+    const header = document.querySelector(`.th-group-header[data-group-id="${groupId}"]`);
+    const toggle = header && header.querySelector('.th-group-toggle');
+
+    if (body) body.classList.toggle('collapsed', game.viewState.collapsedGroups.includes(groupId));
+    if (toggle) toggle.textContent = game.viewState.collapsedGroups.includes(groupId) ? '▶' : '▼';
 }
 
 // ═══════════════════════════════════════════════
@@ -376,8 +402,7 @@ function _showCollisionModal(gameId, gameName, collision, onResolved) {
     document.getElementById('collisionUseRemote').addEventListener('click', async () => {
         overlay.classList.remove('open');
         await resolveCollision(gameId, 'remote', collision.remoteData);
-        const fresh = await loadData();
-        _personalData = fresh;
+        _personalData = await loadData();
         onResolved();
     });
 }
