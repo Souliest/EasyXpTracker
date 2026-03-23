@@ -347,20 +347,40 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
     const sorted = sortTrophies(group.trophies, vs.sort);
     const filtered = filterTrophies(sorted, game.trophyState, vs.filter);
 
-    // Pinned trophies float to top within the wanted section only
-    const dividerIdx = filtered.findIndex(t => t._divider);
+    // Separate dividers from trophies, then reconstruct with pinning applied.
+    // filterTrophies may inject 0, 1, or 2 dividers (leading + secondary).
+    // We find the boundary between the primary and secondary sections (if any),
+    // apply pinning within the primary section only, then reassemble.
+    const primaryDividerIdx = filtered.findIndex(t => t._divider);
+    const secondaryDividerIdx = primaryDividerIdx >= 0
+        ? filtered.findIndex((t, i) => t._divider && i > primaryDividerIdx)
+        : -1;
+
     let ordered;
-    if (dividerIdx > 0) {
-        const wanted = filtered.slice(0, dividerIdx);
-        const divider = filtered[dividerIdx];
-        const unwanted = filtered.slice(dividerIdx + 1);
+
+    if (vs.filter === 'all') {
+        // No dividers — just apply pinning to the whole list
+        const pinned = filtered.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
+        const unpinned = filtered.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
+        ordered = [...pinned, ...unpinned];
+    } else if (secondaryDividerIdx >= 0) {
+        // Two sections: [leadingDivider, ...wanted, secondaryDivider, ...unwanted]
+        const leadingDivider = filtered[primaryDividerIdx];
+        const wanted = filtered.slice(primaryDividerIdx + 1, secondaryDividerIdx);
+        const secondaryDivider = filtered[secondaryDividerIdx];
+        const unwanted = filtered.slice(secondaryDividerIdx + 1);
         const pinnedW = wanted.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
         const restW = wanted.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
-        ordered = [...pinnedW, ...restW, divider, ...unwanted];
+        ordered = [leadingDivider, ...pinnedW, ...restW, secondaryDivider, ...unwanted];
+    } else if (primaryDividerIdx >= 0) {
+        // One section only (all earned or all unearned): [leadingDivider, ...trophies]
+        const leadingDivider = filtered[primaryDividerIdx];
+        const trophies = filtered.filter(t => !t._divider);
+        const pinned = trophies.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
+        const unpinned = trophies.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
+        ordered = [leadingDivider, ...pinned, ...unpinned];
     } else {
-        const pinned = filtered.filter(t => !t._divider && game.trophyState[String(t.trophyId)]?.pinned);
-        const unpinned = filtered.filter(t => !t._divider && !game.trophyState[String(t.trophyId)]?.pinned);
-        ordered = [...pinned, ...unpinned];
+        ordered = filtered;
     }
 
     const nonDividers = ordered.filter(t => !t._divider);
