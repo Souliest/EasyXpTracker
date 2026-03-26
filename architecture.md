@@ -180,7 +180,8 @@ request coalescing. Rate limiting uses a KV namespace.
 
 When a user searches for a game, `storage.js` runs a four-step cascade, falling back only when the previous step
 yields nothing. Before any search, the query is normalised: `™`, `®`, `©`, `:`, `-`, quotes, and other punctuation
-are stripped, and whitespace is collapsed. This allows `Batman Arkham Knight` to match `Batman™: Arkham Knight`.
+are stripped using Unicode escapes (`\uXXXX`) to avoid ambiguous character class duplication, and whitespace is
+collapsed. This allows `Batman Arkham Knight` to match `Batman™: Arkham Knight`.
 
 1. **`searchCatalog()`** — queries `bgt_trophy_hunter_catalog` by name. If found, data is already cached → instant add.
 2. **`searchLookupTable()`** — queries `bgt_trophy_hunter_lookup` by name. If found, NPWR is known → call `/trophies`.
@@ -192,8 +193,9 @@ are stripped, and whitespace is collapsed. This allows `Batman Arkham Knight` to
 Every step that discovers a new NPWR mapping saves it to `bgt_trophy_hunter_lookup`, so the catalog grows
 passively from normal search activity with no user tracking.
 
-Title names are normalised to Title Case (with apostrophe normalisation) before being saved to Supabase and before
-being used in `ilike` search queries, ensuring consistent matching regardless of how PSN returns the name.
+Title names are normalised to Title Case (with apostrophe normalisation via Unicode escapes) before being saved to
+Supabase and before being used in `ilike` search queries, ensuring consistent matching regardless of how PSN
+returns the name.
 
 ---
 
@@ -204,18 +206,51 @@ being used in `ilike` search queries, ensuring consistent matching regardless of
 only duplicate the game header, so it is suppressed entirely.
 
 **Group platinum indicator:** `computeGroupStats` scans each group's trophies for a `type === 'platinum'` entry.
-If found, the group header renders the platinum trophy icon (colored if earned, dimmed if not) instead of the
+If found, the group header renders the platinum trophy SVG (colored if earned, dimmed if not) instead of the
 standard checkmark. All other groups keep checkmarks.
 
-**Section dividers:** when a filter (Earned / Unearned) is active, `filterTrophies` injects a sentinel object
-`{_divider: true, _label: '...'}` between the wanted and unwanted sections. The renderer checks for `_divider`
-and calls `renderSectionDivider(label)` instead of `renderTrophyRow`. The divider is only injected when both
-sections are non-empty. Pinned trophies float within the wanted section only, not across the divider.
+**Platinum SVG icon:** rendered as two SVG paths — the cup shape and a small star emblem punched over the cup face
+using a solid dark fill (`#1a1a2e`). This is visually distinct from gold/silver/bronze at any size without
+requiring extra vertical space. The `viewBox` is `0 0 16 20` for all tiers.
+
+**Trophy weights:** `computeStats` and `computeGroupStats` both calculate a `weightedEarned` / `weightedTotal`
+alongside raw counts, using Sony's official point values (Bronze 15, Silver 30, Gold 90, Platinum 0). The progress
+bar and percentage use weighted values. The fraction always uses raw counts including platinum. Platinum is
+excluded from weighted progress following Sony's own convention.
+
+**Stats layout — portrait:** two rows below the title row. Row 1: tier chips left-aligned, fraction right-aligned.
+Row 2: progress bar (max-width capped) left-aligned, percentage right-aligned. Applies to both the game header
+and each group header (group stats always appear below the group name line).
+
+**Stats layout — landscape (≥480px):** single right-aligned row: chips, then a 24px gap to fraction, then a 24px
+gap to bar, then percentage. Both game header and group header use this layout.
+
+**Tier chip order:** always Platinum → Gold → Silver → Bronze. Platinum chip is included in the chips group when
+`hasPlatinum` is true (game header), or rendered as the `leadingIndicator` passed into `renderTierChips` (group
+header, where the completion indicator doubles as the platinum chip to avoid duplication).
+
+**Section dividers:** when a filter (Earned / Unearned) is active, `filterTrophies` always injects a leading
+sentinel `{_divider: true, _label}` at the start of the primary section, and a second sentinel before the
+secondary section if non-empty. The divider label is color-coded: green (`var(--accent3)`) for Earned, red
+(`#ff4444`) for Unearned. Dividers appear in both flat list and per-group rendering.
+
+**Group divider reconstruction:** `renderGroup` handles three cases explicitly — no filter (pin whole list),
+one section only (leading divider + trophies), two sections (leading divider + wanted + secondary divider +
+unwanted). Pinning is applied within the primary section only, preserving divider positions.
+
+**Collapse state persistence:** `viewState.collapsedGroups` is an array of group IDs stored inside the game's
+personal data in localStorage (and synced to Supabase via the debounce). `renderGroup` reads it to set the
+initial `collapsed` class and toggle character. `_toggleGroup` in `main.js` performs a targeted DOM update
+(no full re-render) and writes the updated array to localStorage immediately.
 
 **Filter-aware toggle re-render:** when `viewState.filter !== 'all'`, `_toggleEarned` triggers a full
 `_doRenderMain()` instead of a targeted row swap, so the trophy moves to its correct section immediately.
 When filter is `'all'`, the cheaper targeted updates (`refreshTrophyRow`, `updateGroupHeader`,
 `updateGameHeader`) are used.
+
+**Game icon display:** `object-fit: contain` (not `cover`) so the full icon is visible at correct aspect ratio,
+letterboxed against the panel background. Title allows up to 2 lines (`-webkit-line-clamp: 2`) before truncating
+with ellipsis.
 
 ---
 
@@ -264,22 +299,22 @@ tools. Keep entries in alphabetical order by name.
 All keys follow the pattern `bgt:tool-name:descriptor`. Namespace prefix `bgt` prevents collisions with other
 projects sharing the same origin (`souliest.github.io`).
 
-| Key                                     | Tool             | Contents                                  |
-|-----------------------------------------|------------------|-------------------------------------------|
-| `bgt:theme`                             | global           | `'light'` or `'dark'` (absent = dark)     |
-| `bgt:auth:nudge-seen`                   | global           | `'1'` once the sign-in nudge is dismissed |
-| `bgt:xp-tracker:gains`                  | XpTracker        | JSON array of `{ xp, ts }` objects        |
-| `bgt:xp-tracker:start`                  | XpTracker        | Session start timestamp as string         |
-| `bgt:level-goal-tracker:data`           | LevelGoalTracker | JSON `{ games: [...] }`                   |
-| `bgt:level-goal-tracker:selected-game`  | LevelGoalTracker | Selected game id string (UUID)            |
-| `bgt:thing-counter:data`                | ThingCounter     | JSON `{ games: [...] }`                   |
-| `bgt:thing-counter:selected-game`       | ThingCounter     | Selected game id string (UUID)            |
-| `bgt:thing-counter:quick-counter-val`   | ThingCounter     | Quick Counter current value               |
-| `bgt:thing-counter:quick-counter-step`  | ThingCounter     | Quick Counter step size                   |
-| `bgt:thing-counter:quick-counter-color` | ThingCounter     | Quick Counter accent color (hex string)   |
-| `bgt:trophy-hunter:data`                | TrophyHunter     | JSON `{ games: [...] }` — personal state  |
-| `bgt:trophy-hunter:selected-game`       | TrophyHunter     | Selected game id string (UUID)            |
-| `bgt:trophy-hunter:catalog-cache`       | TrophyHunter     | LRU cache of up to 3 full trophy lists    |
+| Key                                     | Tool             | Contents                                                    |
+|-----------------------------------------|------------------|-------------------------------------------------------------|
+| `bgt:theme`                             | global           | `'light'` or `'dark'` (absent = dark)                       |
+| `bgt:auth:nudge-seen`                   | global           | `'1'` once the sign-in nudge is dismissed                   |
+| `bgt:xp-tracker:gains`                  | XpTracker        | JSON array of `{ xp, ts }` objects                          |
+| `bgt:xp-tracker:start`                  | XpTracker        | Session start timestamp as string                           |
+| `bgt:level-goal-tracker:data`           | LevelGoalTracker | JSON `{ games: [...] }`                                     |
+| `bgt:level-goal-tracker:selected-game`  | LevelGoalTracker | Selected game id string (UUID)                              |
+| `bgt:thing-counter:data`                | ThingCounter     | JSON `{ games: [...] }`                                     |
+| `bgt:thing-counter:selected-game`       | ThingCounter     | Selected game id string (UUID)                              |
+| `bgt:thing-counter:quick-counter-val`   | ThingCounter     | Quick Counter current value                                 |
+| `bgt:thing-counter:quick-counter-step`  | ThingCounter     | Quick Counter step size                                     |
+| `bgt:thing-counter:quick-counter-color` | ThingCounter     | Quick Counter accent color (hex string)                     |
+| `bgt:trophy-hunter:data`                | TrophyHunter     | JSON `{ games: [...] }` — personal state including collapse |
+| `bgt:trophy-hunter:selected-game`       | TrophyHunter     | Selected game id string (UUID)                              |
+| `bgt:trophy-hunter:catalog-cache`       | TrophyHunter     | LRU cache of up to 3 full trophy lists                      |
 
 **Rules:**
 
@@ -334,6 +369,9 @@ Key variables:
   independently in each — avoids duplicate network calls and unnecessary re-parses.
 - Game IDs are generated with `crypto.randomUUID()` — used as the primary key in both localStorage and Supabase.
 - Node IDs within a counter tree are generated as `'node_' + Date.now() + '_' + Math.floor(Math.random() * 99999)`.
+- Regex character classes containing Unicode characters (curly quotes, special dashes, etc.) must use `\uXXXX`
+  escape sequences rather than literal UTF-8 characters to avoid duplicate-character linter warnings and
+  parser ambiguity.
 
 ---
 
@@ -461,16 +499,34 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 - **Shared lookup table:** `bgt_trophy_hunter_lookup` maps title names to NPWR IDs; populated passively
 - **Collision detection** runs on game select via `loadGame(gameId)`; resolved via modal in `main.js`
 - **4-step search flow** in `runSearch()`: catalog → lookup → patch sites + `/resolve` → `/contribute`
-- **Search normalisation:** `stripSearchNoise()` strips `™®©`, colons, dashes, and quotes from the query
-  before `ilike` matching, so `Batman Arkham Knight` matches `Batman™: Arkham Knight`
+- **Search normalisation:** `stripSearchNoise()` strips `™®©`, colons, dashes, and quotes using `\uXXXX`
+  Unicode escapes before `ilike` matching. `normaliseTitle()` also uses Unicode escapes for apostrophe
+  variants. Both functions avoid literal UTF-8 in regex character classes.
 - **Cloudflare Worker** (`bgt-psn-proxy`) proxies all PSN API calls; never touches Supabase
 - **Single-group auto-flatten:** games with one group force `ungrouped: true`; ungroup toggle hidden
 - **Group platinum indicator:** detected by scanning group trophies for `type === 'platinum'`; renders
-  platinum icon instead of checkmark for that group
-- **Section dividers:** `filterTrophies` injects a `{_divider, _label}` sentinel between wanted/unwanted
-  sections when both are non-empty; renderer calls `renderSectionDivider(label)` for these
+  platinum SVG icon (cup + star emblem) instead of checkmark for that group
+- **Platinum SVG:** two-path render — cup in tier color (`#d4c5f9`), star emblem in `#1a1a2e`. Same
+  `viewBox="0 0 16 20"` as gold/silver/bronze, no extra height needed.
+- **Trophy weights:** Sony official values — Bronze 15, Silver 30, Gold 90, Platinum 0. Progress bar and
+  percentage use weighted totals; fraction uses raw counts including platinum.
+- **Tier chip order:** always P → G → S → B. For game header, platinum chip is part of `renderTierChips`
+  when `hasPlatinum` is true. For group headers, the completion indicator (checkmark or platinum icon) is
+  passed as `leadingIndicator` to `renderTierChips` to avoid rendering two platinum icons.
+- **Stats layout:** portrait = two rows (chips + fraction / bar + percentage); landscape ≥480px = single
+  right-aligned row with 24px gaps between sections. Group stats always below the group name line.
+- **Section dividers:** `filterTrophies` always injects a leading `{_divider, _label}` sentinel for the
+  primary section, plus a secondary sentinel if both sections are non-empty. Dividers are color-coded:
+  green for Earned (`var(--accent3)`), red for Unearned (`#ff4444`). Appear in both flat and grouped mode.
+- **Group divider reconstruction:** `renderGroup` explicitly handles three cases: no filter, one section
+  (leading divider only), two sections (leading + secondary divider). Pinning applied within primary section.
+- **Collapse state persistence:** `viewState.collapsedGroups` (array of group IDs) lives inside each game's
+  personal data object in localStorage. Written immediately on toggle via `localSave()`; synced to Supabase
+  via the 2-second debounce. `_toggleGroup` in `main.js` does a targeted DOM update — no full re-render.
 - **Filter-aware toggle:** when filter is active, `_toggleEarned` triggers full re-render so sort order
   updates immediately; when filter is `'all'`, cheaper targeted DOM updates are used
+- **Game icon:** `object-fit: contain` to show full icon at correct aspect ratio. Title: `-webkit-line-clamp: 2`
+  before ellipsis.
 - **`normaliseTitle()`** converts PSN title names to Title Case before saving or searching
 - `modal.js` sets `document.body.style.overflow = 'hidden'` on modal open, restores on close
 
@@ -510,6 +566,23 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 - **`normaliseTitle()` on both save and search** — ensures `ilike` matches work regardless of PSN capitalisation
 - **`stripSearchNoise()` on query only** — stored titles remain canonical; stripping is applied at query time
   so searches are forgiving without corrupting the stored data
+- **Unicode escapes in regex** — literal UTF-8 curly quotes and special dashes in character classes are
+  flagged as duplicates by linters because the parser may not distinguish them from their ASCII counterparts.
+  `\uXXXX` is unambiguous and avoids the warning.
 - **Section divider as sentinel object** — injecting `{_divider: true}` into the filtered array keeps the
-  rendering logic in one place (`renderGroup`, `renderFlatList`) without needing separate before/after arrays
-  or post-processing passes
+  rendering logic in one place without needing separate before/after arrays or post-processing passes
+- **Leading divider always injected** — having a header for every active section (not just as a separator
+  between two sections) means the user always knows which section they're looking at, especially in groups
+  where only one section may be non-empty
+- **Collapse state in `viewState.collapsedGroups`** — storing group IDs as an array inside the game's
+  `viewState` object means collapse state travels with the game data: it syncs to Supabase, survives
+  page reloads, and persists across filter and sort changes without any extra storage key
+- **`_toggleGroup` targeted DOM update** — collapse toggling doesn't change any trophy data or stats;
+  a full re-render would be wasteful. The toggle only flips a CSS class and updates the chevron character,
+  both of which are cheap targeted DOM operations
+- **Platinum excluded from weighted progress** — follows Sony's own convention: earning all gold/silver/bronze
+  trophies is what drives the bar; the platinum is the reward for completing everything else, not a step
+  along the way. The fraction still counts it so the player sees an accurate trophy total.
+- **Trophy weight ratios (15/30/90)** — Sony's official point values. The 1:2:6 ratio reflects the real
+  relative difficulty of bronze/silver/gold on PSN. Using official values means the weighted percentage
+  matches what players are already familiar with from their PSN profile.

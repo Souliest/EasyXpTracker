@@ -24,20 +24,25 @@ The application is designed to be fast and practical — no PlayStation account 
 
 ## Features
 
-- Clean and responsive interface
+- Clean and responsive interface optimised for portrait mobile
 - Full trophy list for any PlayStation game (PS3, PS4, PS5, PS Vita)
-- Trophy progress header with platinum indicator, tier counts, fraction, and progress bar
-- Platinum counted in total, fraction, and progress bar — distinct SVG icon to distinguish it
+- Trophy progress header with tier counts (Platinum → Gold → Silver → Bronze), fraction, and weighted progress bar
+- Progress bar and percentage use Sony's official trophy point weights (Bronze 15 / Silver 30 / Gold 90);
+  platinum is excluded from weighted progress following Sony convention
+- Fraction (earned/total) always uses raw counts including platinum
+- Platinum trophy rendered as a distinct SVG icon with a star emblem; colored when earned, dimmed when not
 - Per-group progress tracking for base game and DLC expansions
 - Group containing the platinum trophy shows a platinum icon instead of a checkmark
 - Single-group games auto-flatten — the ungroup toggle is hidden when there is no DLC
-- Hierarchy line on grouped lists, consistent with Thing Counter
-- Filter by All / Earned / Unearned — with a labeled section divider between sections when both are present
+- Hierarchy line on grouped lists
+- Filter by All / Earned / Unearned — labeled section headers appear at the top of each section
+  (green Earned header, red Unearned header), both in flat list and per-group
 - Sort by PSN order, alphabetical, or grade; re-sorts immediately on trophy toggle when a filter is active
 - Flat list mode to ungroup DLC
 - Long-press any trophy to pin it (pinned trophies float to the top of their group)
-- Instant UI response — trophy state writes to localStorage immediately; Supabase syncs in the background after a
-  2-second debounce, batching rapid toggles into a single write
+- Group collapse/expand state persisted across reloads, refreshes, and filter changes
+- Instant UI response — trophy state writes to localStorage immediately; Supabase syncs in the background
+  after a 2-second debounce, batching rapid toggles into a single write
 - Orphaned trophy detection — trophies removed from PSN are flagged rather than silently deleted
 - Game settings: rename, reset progress, refresh from PSN, remove game
 - Collision detection: if local and cloud data differ, a prompt lets you choose which to keep
@@ -100,10 +105,11 @@ grows over time without any manual curation.
 
 ## Storage
 
-Personal game state (which trophies you've earned and pinned) is stored locally in `localStorage` under
-`bgt:trophy-hunter:data`. When signed in, each game's state is also persisted as an individual row in Supabase
-(`bgt_trophy_hunter_games`). Writes go to localStorage immediately on every interaction; Supabase is updated
-in the background after a 2-second debounce, batching rapid trophy toggles into a single write.
+Personal game state (which trophies you've earned and pinned, plus group collapse state) is stored locally in
+`localStorage` under `bgt:trophy-hunter:data`. When signed in, each game's state is also persisted as an
+individual row in Supabase (`bgt_trophy_hunter_games`). Writes go to localStorage immediately on every
+interaction; Supabase is updated in the background after a 2-second debounce, batching rapid trophy toggles
+into a single write.
 
 Trophy data (the actual trophy lists) is stored in a shared Supabase catalog (`bgt_trophy_hunter_catalog`) and
 cached locally in an LRU cache (max 3 entries) under `bgt:trophy-hunter:catalog-cache`. This table is shared
