@@ -88,7 +88,7 @@ export function computeStats(groups, trophyState) {
         }
     }
 
-    const pct = weightedTotal > 0 ? Math.round((weightedEarned / weightedTotal) * 100) : 0;
+    const pct = weightedTotal > 0 ? Math.floor((weightedEarned / weightedTotal) * 100) : 0;
 
     return {
         total, earned, pct,
@@ -128,7 +128,7 @@ export function computeGroupStats(group, trophyState) {
         }
     }
 
-    const pct = weightedTotal > 0 ? Math.round((weightedEarned / weightedTotal) * 100) : 0;
+    const pct = weightedTotal > 0 ? Math.floor((weightedEarned / weightedTotal) * 100) : 0;
     isComplete = total > 0 && earned === total;
 
     return {total, earned, pct, tierTotal, tierEarned, isComplete, hasPlatinum, platinumEarned};
