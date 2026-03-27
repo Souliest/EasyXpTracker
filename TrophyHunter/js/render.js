@@ -20,11 +20,7 @@ const TIERS = {
 };
 
 // ── Trophy SVG paths ──
-// Standard trophy path (gold/silver/bronze) — symmetrical handles.
 const TROPHY_SVG_PATH = 'M3 1H13V8C13 11.5 10.8 14.2 8 15.1L7.5 17H6V19H10V17H8.5L8 15.1C5.2 14.2 3 11.5 3 8ZM3 2H1V5C1 6.4 1.9 7.5 3 7.9ZM13 2H15V5C15 6.4 14.1 7.5 13 7.9Z';
-
-// Platinum trophy — standard cup with a star emblem on the face.
-// The star is rendered as a second path in a contrasting color via trophyIcon.
 const PLATINUM_CUP_PATH = 'M3 1H13V8C13 11.5 10.8 14.2 8 15.1L7.5 17H6V19H10V17H8.5L8 15.1C5.2 14.2 3 11.5 3 8ZM3 2H1V5C1 6.4 1.9 7.5 3 7.9ZM13 2H15V5C15 6.4 14.1 7.5 13 7.9Z';
 const PLATINUM_STAR_PATH = 'M8 2.5L8.7 4.7H11L9.2 5.9L9.8 8.1L8 6.9L6.2 8.1L6.8 5.9L5 4.7H7.3Z';
 
@@ -34,10 +30,6 @@ function trophyIcon(tier, earned, size = 16) {
     const opacity = earned ? '1' : '0.25';
 
     if (tier === 'platinum') {
-        // Two-path render: cup in tier color, star emblem punched through
-        // Use a color that contrasts in both light and dark mode:
-        // dark mode: --panel is dark → star needs to be dark too (paradox) — use the bg color
-        // We use a semi-transparent dark overlay that reads in both modes
         return `<svg class="trophy-icon" width="${size}" height="${size}" viewBox="0 0 16 20"
             aria-hidden="true" opacity="${opacity}">
             <path d="${PLATINUM_CUP_PATH}" fill="${color}"/>
@@ -75,7 +67,6 @@ export function computeStats(groups, trophyState) {
             if (type === 'platinum') {
                 hasPlatinum = true;
                 platinumEarned = !!state.earned;
-                // Platinum excluded from weighted progress (Sony convention)
             } else {
                 weightedTotal += weight;
             }
@@ -88,6 +79,7 @@ export function computeStats(groups, trophyState) {
         }
     }
 
+    // Math.floor matches PSN convention: tantalizingly close never rounds up to 100%
     const pct = weightedTotal > 0 ? Math.floor((weightedEarned / weightedTotal) * 100) : 0;
 
     return {
@@ -128,6 +120,7 @@ export function computeGroupStats(group, trophyState) {
         }
     }
 
+    // Math.floor matches PSN convention: tantalizingly close never rounds up to 100%
     const pct = weightedTotal > 0 ? Math.floor((weightedEarned / weightedTotal) * 100) : 0;
     isComplete = total > 0 && earned === total;
 
@@ -216,7 +209,6 @@ export function renderMain(selectedGameId, personalData, catalogEntry, callbacks
         renderTrophyList(game, catalogEntry, stats, callbacks, effectiveViewState),
     ].join('');
 
-    // Wire game icon error handler
     const gameIcon = content.querySelector('[data-icon="gameHeader"]');
     if (gameIcon) gameIcon.addEventListener('error', () => {
         gameIcon.style.display = 'none';
@@ -280,7 +272,6 @@ export function renderToolbar(viewState, callbacks, isSingleGroup = false) {
 
     const ungroupActive = viewState.ungrouped ? ' active' : '';
 
-    // Hide ungroup button when there's only one group — nothing to group/ungroup
     const ungroupBtn = isSingleGroup ? '' : `
         <button class="btn btn-ghost th-ungroup-btn${ungroupActive}"
             id="ungroupBtn" title="Ungroup DLC">
@@ -347,10 +338,6 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
     const sorted = sortTrophies(group.trophies, vs.sort);
     const filtered = filterTrophies(sorted, game.trophyState, vs.filter);
 
-    // Separate dividers from trophies, then reconstruct with pinning applied.
-    // filterTrophies may inject 0, 1, or 2 dividers (leading + secondary).
-    // We find the boundary between the primary and secondary sections (if any),
-    // apply pinning within the primary section only, then reassemble.
     const primaryDividerIdx = filtered.findIndex(t => t._divider);
     const secondaryDividerIdx = primaryDividerIdx >= 0
         ? filtered.findIndex((t, i) => t._divider && i > primaryDividerIdx)
@@ -359,12 +346,10 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
     let ordered;
 
     if (vs.filter === 'all') {
-        // No dividers — just apply pinning to the whole list
         const pinned = filtered.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
         const unpinned = filtered.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
         ordered = [...pinned, ...unpinned];
     } else if (secondaryDividerIdx >= 0) {
-        // Two sections: [leadingDivider, ...wanted, secondaryDivider, ...unwanted]
         const leadingDivider = filtered[primaryDividerIdx];
         const wanted = filtered.slice(primaryDividerIdx + 1, secondaryDividerIdx);
         const secondaryDivider = filtered[secondaryDividerIdx];
@@ -373,7 +358,6 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
         const restW = wanted.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
         ordered = [leadingDivider, ...pinnedW, ...restW, secondaryDivider, ...unwanted];
     } else if (primaryDividerIdx >= 0) {
-        // One section only (all earned or all unearned): [leadingDivider, ...trophies]
         const leadingDivider = filtered[primaryDividerIdx];
         const trophies = filtered.filter(t => !t._divider);
         const pinned = trophies.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
@@ -409,13 +393,17 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
 // ─────────────────────────────────────────────
 
 export function renderGroupHeader(group, groupStats, toggleChar = '▼') {
-    // Groups with platinum show the platinum icon instead of the checkmark
+    // Groups with platinum show the platinum icon instead of the checkmark.
     const completionIndicator = groupStats.hasPlatinum
         ? trophyIcon('platinum', groupStats.platinumEarned, 14)
         : `<span class="${groupStats.isComplete ? 'th-group-check complete' : 'th-group-check'}"
                 title="${groupStats.isComplete ? 'Complete' : 'Incomplete'}">✓</span>`;
 
-    return `<div class="th-group-header" data-group-id="${_escHtml(group.groupId)}">
+    // th-group-complete tint applied when every trophy in the group is earned.
+    // isComplete requires all trophies earned including platinum if present.
+    const completeClass = groupStats.isComplete ? ' th-group-complete' : '';
+
+    return `<div class="th-group-header${completeClass}" data-group-id="${_escHtml(group.groupId)}">
         <div class="th-group-header-top">
             <span class="th-group-toggle" aria-hidden="true">${toggleChar}</span>
             <span class="th-group-name">${_escHtml(group.name)}</span>
@@ -546,11 +534,6 @@ export function sortTrophies(trophies, sort) {
     return arr;
 }
 
-// filterTrophies returns wanted trophies first, unwanted dimmed at the end.
-// When filter is active (not 'all'), injects a sentinel divider object between
-// the two sections so the renderer can insert a visual separator.
-// The divider is only injected when BOTH sections are non-empty.
-
 export function filterTrophies(trophies, trophyState, filter) {
     if (filter === 'all') return trophies;
 
@@ -572,13 +555,11 @@ export function filterTrophies(trophies, trophyState, filter) {
 
     const result = [];
 
-    // Always inject leading header for the primary section
     if (wanted.length > 0) {
         result.push({_divider: true, _label: primaryLabel});
         result.push(...wanted);
     }
 
-    // Only inject secondary header if that section is non-empty
     if (dimmed.length > 0) {
         result.push({_divider: true, _label: secondaryLabel});
         result.push(...dimmed);
@@ -639,10 +620,6 @@ function _wireLongPress(game, catalogEntry, callbacks) {
     });
 }
 
-// ─────────────────────────────────────────────
-// Long-press helper
-// ─────────────────────────────────────────────
-
 function _attachLongPress(el, callback) {
     let timer = null;
     let startX = 0;
@@ -680,7 +657,7 @@ function _attachLongPress(el, callback) {
 }
 
 // ─────────────────────────────────────────────
-// Section divider — shown between earned/unearned sections when filter is active
+// Section divider
 // ─────────────────────────────────────────────
 
 function renderSectionDivider(label) {
@@ -690,17 +667,9 @@ function renderSectionDivider(label) {
     </div>`;
 }
 
-// ─────────────────────────────────────────────
-// Empty state helpers
-// ─────────────────────────────────────────────
-
 function renderEmptyFilter(filter) {
     return `<div class="th-empty-filter">No ${filter} trophies.</div>`;
 }
-
-// ─────────────────────────────────────────────
-// Utility
-// ─────────────────────────────────────────────
 
 function _escHtml(str) {
     return String(str)

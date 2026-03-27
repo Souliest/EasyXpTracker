@@ -370,11 +370,33 @@ select#gameSelect:focus {
   padding: 10px 12px;
   cursor: pointer;
   user-select: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background 0.2s;
 }
 
 .th-group-header:hover {
   border-color: var(--muted);
+}
+
+/* ── Completed group tint ──
+   Applied when every trophy in the group is earned.
+   Uses accent3 (green) at low opacity so it reads in both dark and light mode
+   without overwhelming the layout. Border gets a matching tint too. */
+.th-group-header.th-group-complete {
+  background: rgba(127, 255, 107, 0.06);
+  border-color: rgba(127, 255, 107, 0.3);
+}
+
+body.light .th-group-header.th-group-complete {
+  background: rgba(42, 138, 0, 0.06);
+  border-color: rgba(42, 138, 0, 0.3);
+}
+
+.th-group-header.th-group-complete:hover {
+  border-color: rgba(127, 255, 107, 0.5);
+}
+
+body.light .th-group-header.th-group-complete:hover {
+  border-color: rgba(42, 138, 0, 0.5);
 }
 
 /* Desktop: single row */
@@ -524,14 +546,14 @@ body.light .th-trophy-row.th-trophy-earned {
 
 .th-trophy-row.th-trophy-dimmed:hover {
   opacity: 0.7;
-  border-color: var(--border); /* no hover border change on dimmed rows */
+  border-color: var(--border);
 }
 
-/* Prevent earn button on dimmed rows from receiving focus and showing highlight */
-.th-trophy-row.th-trophy-dimmed .th-earn-btn {
-  pointer-events: none;
-  outline: none;
-}
+/* ── Bug fix: earn button on dimmed rows must remain clickable.
+   Previously pointer-events: none prevented toggling trophies in the
+   "unwanted" section when a filter was active. Removed. The dimmed
+   opacity still communicates "not your current focus" without
+   blocking interaction. ── */
 
 /* Earn checkbox button */
 .th-earn-btn {
@@ -765,7 +787,7 @@ body.light .th-trophy-row.th-trophy-earned {
 .form-group input {
   width: 100%;
   background: var(--input-bg);
-  color: var(--text);
+  color: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 9px 12px;
@@ -773,6 +795,10 @@ body.light .th-trophy-row.th-trophy-earned {
   font-size: 0.95rem;
   transition: border-color 0.2s;
   box-sizing: border-box;
+}
+
+.form-group input {
+  color: var(--text);
 }
 
 .form-group input:focus {
