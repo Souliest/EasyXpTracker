@@ -6,10 +6,6 @@
 //   - 👤 auth indicator (wired by auth-ui.js initAuth())
 //   - fullscreen toggle (hidden on devices where the Fullscreen API is unavailable)
 //   - dark/light theme toggle (wired to toggleTheme() from theme.js)
-//
-// The hub (index.html) does not call initHeader() but loads this file to get
-// toggleFullscreen() and the fullscreenchange listener. It wires its own
-// fullscreen button manually in its inline HTML.
 
 function initHeader(title) {
     const header = document.createElement('header');
@@ -30,32 +26,22 @@ function initHeader(title) {
   `;
     document.body.insertBefore(header, document.body.firstChild);
 
-    _initFullscreenBtn('fullscreenBtn');
-}
-
-// ── Called by both initHeader (tools) and the hub directly ──
-// Reveals the button if the API is available, wires the fullscreenchange listener.
-
-function _initFullscreenBtn(btnId) {
+    // Show the button only on devices that support the Fullscreen API.
+    // iOS Safari and Firefox iOS do not set fullscreenEnabled — hidden cleanly.
     if (document.fullscreenEnabled) {
-        const btn = document.getElementById(btnId);
+        const btn = document.getElementById('fullscreenBtn');
         if (btn) btn.style.display = '';
     }
 
-    // Only add the listener once — guard against double-init if somehow called twice.
+    // Keep icon in sync when the user exits fullscreen via browser gesture
+    // (back swipe, Escape key, etc.) rather than our button.
     if (!window._fullscreenListenerAttached) {
         document.addEventListener('fullscreenchange', _onFullscreenChange);
         window._fullscreenListenerAttached = true;
     }
 }
 
-// ── Hub entry point — call this from index.html after the button exists in the DOM ──
-
-function initFullscreenForHub() {
-    _initFullscreenBtn('fullscreenBtn');
-}
-
-// ── Fullscreen toggle — global, called by inline onclick on both hub and tool headers ──
+// ── Fullscreen toggle — global, called by inline onclick ──
 
 function toggleFullscreen() {
     if (!document.fullscreenEnabled) return;
@@ -67,8 +53,7 @@ function toggleFullscreen() {
     }
 }
 
-// ── Sync button icon to actual fullscreen state ──
-// Handles both the hub and tool buttons by ID — whichever is present on the page.
+// ── Sync button icon and active class to actual fullscreen state ──
 
 function _onFullscreenChange() {
     const btn = document.getElementById('fullscreenBtn');
@@ -89,10 +74,11 @@ function _onFullscreenChange() {
 // Enter: four L-shaped corners pointing outward (expand).
 // Exit:  four L-shaped corners pointing inward (compress).
 // Drawn on a 10×10 viewBox, stroke-based for crispness at small sizes.
-// Size set to 18×18 to visually match the emoji height of 👤 and 🌙.
+// Width/height left to CSS via the .fullscreen-toggle rule so sizing
+// is controlled in one place and matches the emoji button height exactly.
 
 function _fullscreenIconEnter() {
-    return `<svg width="18" height="18" viewBox="0 0 10 10"
+    return `<svg class="fullscreen-icon" viewBox="0 0 10 10"
         fill="none" stroke="currentColor" stroke-width="1.5"
         stroke-linecap="square" aria-hidden="true">
       <polyline points="3,1 1,1 1,3"/>
@@ -103,7 +89,7 @@ function _fullscreenIconEnter() {
 }
 
 function _fullscreenIconExit() {
-    return `<svg width="18" height="18" viewBox="0 0 10 10"
+    return `<svg class="fullscreen-icon" viewBox="0 0 10 10"
         fill="none" stroke="currentColor" stroke-width="1.5"
         stroke-linecap="square" aria-hidden="true">
       <polyline points="1,3 3,3 3,1"/>

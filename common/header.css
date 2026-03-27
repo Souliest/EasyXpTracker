@@ -82,13 +82,17 @@
 }
 
 /* ── Fullscreen toggle ──
-   padding: 4px 10px matches the theme toggle and auth button exactly.
-   The SVG is 18×18 to sit at the same visual weight as the 🌙 and 👤 emoji.
-   display:none by default — header.js reveals it when document.fullscreenEnabled
-   is true, so the button is invisible on iOS where the API is unsupported. */
+   The emoji buttons (👤 and 🌙) get their height from the emoji glyph itself.
+   An SVG-only button doesn't have that natural height, so we match it explicitly:
+   - Same padding as the other buttons: 4px 10px
+   - Same font-size reference: 1rem
+   - align-self: stretch forces the button to fill the full flex row height,
+     matching whatever the emoji buttons compute to — no magic pixel values needed.
+   The SVG itself is sized via the .fullscreen-icon class to sit comfortably
+   within that height without dictating it.
+   Hidden by default — shown only when document.fullscreenEnabled is true. */
 
-.tool-header .fullscreen-toggle,
-.fullscreen-toggle {
+.tool-header .fullscreen-toggle {
   background: none;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -97,23 +101,39 @@
   padding: 4px 10px;
   cursor: pointer;
   flex-shrink: 0;
-  display: flex;
+  align-self: stretch;
+  display: none;
   align-items: center;
   justify-content: center;
   transition: border-color 0.2s, color 0.2s;
   line-height: 0;
+  box-sizing: border-box;
 }
 
-.tool-header .fullscreen-toggle:hover,
-.fullscreen-toggle:hover {
+/* Override display:none only when the button is actively shown by header.js.
+   header.js sets style="display:none" initially and clears it to reveal —
+   we use flex here so the SVG centres correctly inside. */
+.tool-header .fullscreen-toggle[style=""],
+.tool-header .fullscreen-toggle:not([style="display: none;"]) {
+  display: flex;
+}
+
+.tool-header .fullscreen-toggle:hover {
   border-color: var(--accent);
   color: var(--accent);
 }
 
-/* Active/engaged state — subtle accent glow while in fullscreen */
-.tool-header .fullscreen-toggle.active,
-.fullscreen-toggle.active {
+/* Active state — accent glow while in fullscreen */
+.tool-header .fullscreen-toggle.active {
   border-color: var(--accent);
   color: var(--accent);
   box-shadow: var(--glow);
+}
+
+/* SVG icon — sized to sit naturally within the button's line height.
+   1em at font-size:1rem = 16px, which matches the emoji optical size. */
+.tool-header .fullscreen-toggle .fullscreen-icon {
+  width: 1em;
+  height: 1em;
+  display: block;
 }

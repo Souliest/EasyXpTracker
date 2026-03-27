@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Gaming Tools</title>
   <link rel="stylesheet" href="common/theme.css">
-  <link rel="stylesheet" href="common/header.css">
   <style>
     header {
       display: flex;
@@ -96,10 +95,6 @@
   <h1>Gaming Tools</h1>
   <div class="header-actions">
     <button class="auth-btn" id="authBtn" title="Account">👤</button>
-    <button class="fullscreen-toggle" id="fullscreenBtn" title="Enter fullscreen"
-            onclick="toggleFullscreen()" style="display:none">
-      <!-- Icon is set by header.js _onFullscreenChange / initFullscreenForHub -->
-    </button>
     <button class="theme-toggle" onclick="toggleTheme()">🌙</button>
   </div>
 </header>
@@ -110,7 +105,6 @@
 
 <script src="common/tools.js"></script>
 <script src="common/theme.js"></script>
-<script src="common/header.js"></script>
 <script>
     const list = document.getElementById('toolList');
     TOOLS.forEach(tool => {
@@ -123,12 +117,6 @@
         list.appendChild(a);
     });
     initTheme();
-
-    // Set the initial icon and reveal the button if the Fullscreen API is available.
-    // Must run after header.js is loaded and the button exists in the DOM.
-    const _fsBtn = document.getElementById('fullscreenBtn');
-    if (_fsBtn) _fsBtn.innerHTML = _fullscreenIconEnter();
-    initFullscreenForHub();
 </script>
 <script type="module">
     import {initAuth} from './common/auth-ui.js';
