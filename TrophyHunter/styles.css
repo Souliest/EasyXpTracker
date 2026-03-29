@@ -196,7 +196,10 @@ select#gameSelect:focus {
   gap: 8px;
 }
 
-/* Chips group — keeps plat+G+S+B together as one unit */
+/* ── Chips group ──
+   All chips bottom-align so every icon base sits on the same floor.
+   The platinum icon is taller (size+3) but shares that same bottom edge
+   with its neighbours — sitting on the shelf, not floating above it. */
 .th-chips-group {
   display: flex;
   align-items: flex-end;
@@ -249,30 +252,34 @@ select#gameSelect:focus {
   text-shadow: 0 0 8px rgba(212, 197, 249, 0.5);
 }
 
-/* ── Tier chips ── */
+/* ── Tier chips ──
+   Unified alignment: every chip is flex with align-items: flex-end.
+   This means the bottom of each SVG icon and the bottom of each text
+   span all sit on the same floor. No mixing of baseline and vertical-align
+   contexts — one system only.
 
-/* Standard chip: icon + earned count + /total, baseline-aligned */
+   Standard chip: [icon] [earned count] [/total]
+   Platinum chip: [icon] only — taller icon, same bottom edge. */
+
 .tier-chip {
   display: inline-flex;
-  align-items: baseline;
+  align-items: flex-end;
   gap: 2px;
   font-family: 'Orbitron', sans-serif;
   font-size: 0.75rem;
   font-weight: 700;
 }
 
-/* Platinum chip: icon only, no text — bottom-align with adjacent chips
-   so the base of the platinum icon sits level with the text baseline
-   of the gold/silver/bronze chips next to it. */
 .tier-chip-plat {
-  align-items: flex-end;
-  align-self: flex-end;
+  /* No additional rules needed — inherits flex-end from .tier-chip,
+     which is sufficient since it contains only the SVG icon. */
 }
 
 /* Earned count — primary datum, full size, full opacity.
    No min-width — the /total provides stable chip width now. */
 .tier-chip-count {
   text-align: left;
+  line-height: 1;
 }
 
 /* Separator + total — secondary datum.
@@ -283,15 +290,15 @@ select#gameSelect:focus {
   font-size: 0.6rem;
   font-weight: 400;
   opacity: 0.65;
+  line-height: 1;
   /* color is set inline from JS to match the tier */
 }
 
-/* All trophy icons bottom-align so the base of every icon — including
-   the slightly larger platinum — sits on the same visual floor. */
+/* Trophy icons — block display, no vertical-align override needed
+   since alignment is handled entirely by the flex-end parent. */
 .trophy-icon {
   flex-shrink: 0;
-  display: inline-block;
-  vertical-align: bottom;
+  display: block;
 }
 
 /* ── Stat fraction and percentage ── */
