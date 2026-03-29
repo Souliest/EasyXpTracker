@@ -10,6 +10,7 @@ import {
     loadData, saveData, loadGame, resolveCollision, deleteGame,
     loadCatalogEntry, mergeCatalogUpdate,
     STORAGE_SELECTED, localSave,
+    subscribeToGameChanges, unsubscribeFromGameChanges, REALTIME_ENABLED,
 } from './storage.js';
 import {
     renderMain, updateGameHeader, updateGroupHeader,
@@ -41,8 +42,46 @@ let _syncTimer = null;
 function _scheduleSync() {
     clearTimeout(_syncTimer);
     _syncTimer = setTimeout(() => {
+        _syncTimer = null;
         if (getUser()) saveData(_personalData);  // fire-and-forget
     }, 2000);
+}
+
+// ═══════════════════════════════════════════════
+// Realtime incoming update handler
+// Called by storage.js when a newer remote version of a game arrives.
+// Skipped if a local debounce timer is running — local changes take priority.
+// ═══════════════════════════════════════════════
+
+function _onRemoteUpdate(remoteGame, remoteUpdatedAt) {
+    // If we have unsaved local changes in flight, ignore the remote update.
+    // Our pending write will reach Supabase shortly and supersede it.
+    if (_syncTimer !== null) return;
+
+    const localGame = _personalData.games.find(g => g.id === remoteGame.id);
+
+    // If the game isn't in our local list at all, add it.
+    if (!localGame) {
+        _personalData.games.push({...remoteGame, last_modified: remoteUpdatedAt});
+        localSave(_personalData);
+        _rebuildSelector();
+        return;
+    }
+
+    // Compare timestamps — only apply if the remote is strictly newer.
+    const localTime = localGame.last_modified ? new Date(localGame.last_modified) : new Date(0);
+    const remoteTime = new Date(remoteUpdatedAt);
+    if (remoteTime <= localTime) return;
+
+    // Apply the remote state.
+    const idx = _personalData.games.findIndex(g => g.id === remoteGame.id);
+    _personalData.games[idx] = {...remoteGame, last_modified: remoteUpdatedAt};
+    localSave(_personalData);
+
+    // Re-render only if this game is currently selected.
+    if (selectedGameId === remoteGame.id) {
+        _doRenderMain();
+    }
 }
 
 // ═══════════════════════════════════════════════
@@ -64,23 +103,29 @@ async function renderSelector() {
     const data = await loadData();
     _personalData = data;
 
+    _rebuildSelector();
+    return data;
+}
+
+// _rebuildSelector — rebuilds the dropdown from current _personalData without
+// hitting Supabase. Used by the Realtime handler to update the selector when
+// a new game arrives from another device.
+function _rebuildSelector() {
     const sel = document.getElementById('gameSelect');
     sel.innerHTML = '<option value="">— select a game —</option>';
-    data.games.forEach(g => {
+    _personalData.games.forEach(g => {
         const opt = document.createElement('option');
         opt.value = g.id;
         opt.textContent = `${g.name} [${g.platform}]`;
         sel.appendChild(opt);
     });
 
-    if (selectedGameId && data.games.find(g => g.id === selectedGameId)) {
+    if (selectedGameId && _personalData.games.find(g => g.id === selectedGameId)) {
         sel.value = selectedGameId;
     }
 
-    const hasGame = !!selectedGameId && !!data.games.find(g => g.id === selectedGameId);
+    const hasGame = !!selectedGameId && !!_personalData.games.find(g => g.id === selectedGameId);
     updateSelectorButtons(hasGame);
-
-    return data;
 }
 
 async function selectGame(id) {
@@ -99,6 +144,7 @@ async function selectGame(id) {
 
     // Flush any pending sync before switching games
     clearTimeout(_syncTimer);
+    _syncTimer = null;
     if (getUser()) await saveData(_personalData);
 
     // Collision detection
@@ -250,6 +296,7 @@ function _toggleGroup(groupId) {
 
 function _openAddGame() {
     clearTimeout(_syncTimer);
+    _syncTimer = null;
     if (getUser()) saveData(_personalData);
 
     openAddGameModal(
@@ -322,6 +369,7 @@ async function _removeGame() {
     if (!selectedGameId) return;
 
     clearTimeout(_syncTimer);
+    _syncTimer = null;
     await deleteGame(selectedGameId);
     _personalData.games = _personalData.games.filter(g => g.id !== selectedGameId);
 
@@ -481,4 +529,22 @@ function _escHtml(str) {
     } else {
         _doRenderMain();
     }
+
+    // Wire Realtime subscription if enabled and user is signed in.
+    // Also re-wires on auth state change (sign-in / sign-out).
+    const user = getUser();
+    if (REALTIME_ENABLED && user) {
+        subscribeToGameChanges(user.id, _onRemoteUpdate);
+    }
+
+    // Re-wire subscription on auth state changes.
+    // auth-ui.js fires onAuthStateChange; we listen via the Supabase client directly
+    // since we need the user id to filter the subscription.
+    const {data: {subscription}} = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && REALTIME_ENABLED) {
+            subscribeToGameChanges(session.user.id, _onRemoteUpdate);
+        } else if (event === 'SIGNED_OUT') {
+            unsubscribeFromGameChanges();
+        }
+    });
 })();

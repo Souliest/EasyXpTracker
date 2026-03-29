@@ -22,6 +22,65 @@ export const ORBIS_SEARCH_URL = 'https://orbispatches.com/api/internal/search';
 export const PROSPERO_SEARCH_URL = 'https://prosperopatches.com/api/internal/search';
 
 // ═══════════════════════════════════════════════
+// Realtime sync flag
+// Set to true to enable live cross-device sync via Supabase Realtime.
+// Set to false to revert to the previous behaviour (sync on load/game-select only).
+// Requires the bgt_trophy_hunter_games table to have Update events enabled
+// under Database → Publications → supabase_realtime in the Supabase dashboard.
+// ═══════════════════════════════════════════════
+
+export const REALTIME_ENABLED = true;
+
+// ── Realtime channel handle ──
+let _realtimeChannel = null;
+
+// ═══════════════════════════════════════════════
+// Realtime subscription
+// ═══════════════════════════════════════════════
+
+// subscribeToGameChanges — opens a Realtime channel for the signed-in user.
+// onRemoteUpdate(gameData) is called when a newer remote version of a game
+// arrives from another device. The caller is responsible for deciding whether
+// to apply the update (e.g. skip if a local debounce timer is running).
+
+export function subscribeToGameChanges(userId, onRemoteUpdate) {
+    if (!REALTIME_ENABLED) return;
+    if (!userId) return;
+
+    // Tear down any existing channel before opening a new one.
+    unsubscribeFromGameChanges();
+
+    _realtimeChannel = supabase
+        .channel('trophy-hunter-games')
+        .on(
+            'postgres_changes',
+            {
+                event: 'UPDATE',
+                schema: 'public',
+                table: TABLE_GAMES,
+                filter: `user_id=eq.${userId}`,
+            },
+            payload => {
+                const remoteGame = payload.new?.data;
+                const remoteUpdatedAt = payload.new?.updated_at;
+                if (!remoteGame || !remoteUpdatedAt) return;
+                onRemoteUpdate(remoteGame, remoteUpdatedAt);
+            }
+        )
+        .subscribe();
+}
+
+// unsubscribeFromGameChanges — tears down the Realtime channel cleanly.
+// Call on sign-out or when the component unmounts.
+
+export function unsubscribeFromGameChanges() {
+    if (_realtimeChannel) {
+        supabase.removeChannel(_realtimeChannel);
+        _realtimeChannel = null;
+    }
+}
+
+// ═══════════════════════════════════════════════
 // Title normalisation
 // ═══════════════════════════════════════════════
 
