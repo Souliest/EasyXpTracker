@@ -35,6 +35,19 @@ select#gameSelect:focus {
   border-color: var(--accent);
 }
 
+/* ── Selector bar height normalisation ──
+   The dropdown, ✎ edit button, and + Add Game button each have
+   different content heights (glyphs and text render at different
+   sizes), so padding alone cannot guarantee equal button heights.
+   Setting an explicit height on all flex children of .selector-bar
+   locks them to match the dropdown's natural 35px height.
+   box-sizing: border-box ensures padding is included within that height. */
+.selector-bar select,
+.selector-bar .btn {
+  height: 35px;
+  box-sizing: border-box;
+}
+
 /* ── Buttons ── */
 .btn {
   font-family: 'Share Tech Mono', monospace;
@@ -96,16 +109,8 @@ select#gameSelect:focus {
   background: rgba(255, 107, 53, 0.1);
 }
 
-/* ── Game action button (✎ edit) ──
-   The ✎ glyph renders taller than standard text at the same font-size,
-   causing the button to be taller than its neighbours. We lock the height
-   explicitly to match the computed height of a standard .btn at 0.85rem
-   with 8px top/bottom padding: (0.85 * 16 * 1.2 line-height) + 16px padding
-   ≈ 32px. Using line-height: 1 collapses the glyph's extra leading. */
-.btn.game-action-btn {
+.game-action-btn {
   padding: 8px 11px;
-  font-size: 0.85rem;
-  line-height: 1;
 }
 
 /* ── Empty states ── */
@@ -375,9 +380,8 @@ select#gameSelect:focus {
 
 /* ── Sticky group header ──
    top: 6px gives breathing room from the viewport edge.
-   Background must be fully opaque — a transparent or semi-transparent
-   background causes trophy rows to bleed through when scrolling underneath
-   the stuck header. The base colour matches --panel exactly. */
+   Background must be fully opaque — semi-transparent backgrounds
+   cause trophy rows to bleed through the stuck header. */
 .th-group-header {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -401,19 +405,9 @@ body.light .th-group-header {
 }
 
 /* ── Completed group tint ──
-   Uses fully opaque colours derived by compositing the rgba tint over
-   the --panel base colour, so the background is solid and trophy rows
-   cannot bleed through when the header is sticky.
-   Dark mode: --panel is #111520, green tint at 0.06 opacity →
-     r: 17 + (127-17)*0.06 ≈ 24  → #18
-     g: 21 + (255-21)*0.06 ≈ 35  → #23
-     b: 32 + (107-32)*0.06 ≈ 36  → #24
-     result: #182324
-   Light mode: --panel is #ffffff, green tint at 0.06 opacity →
-     r: 255 + (42-255)*0.06 ≈ 242 → #f2
-     g: 255 + (138-255)*0.06 ≈ 248 → #f8
-     b: 255 + (0-255)*0.06  ≈ 240 → #f0
-     result: #f2f8f0                              */
+   Fully opaque colours — rgba tint composited over --panel base:
+   Dark  (#111520 + green@0.06): #182324
+   Light (#ffffff + green@0.06): #f2f8f0 */
 .th-group-header.th-group-complete {
   background: #182324;
   border-color: rgba(127, 255, 107, 0.3);
