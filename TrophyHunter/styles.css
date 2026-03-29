@@ -96,9 +96,13 @@ select#gameSelect:focus {
   background: rgba(255, 107, 53, 0.1);
 }
 
+/* ── Game action button (✎ edit) ──
+   Matches the font-size and padding of its .btn siblings so it renders
+   at the same height as the game dropdown and + Add Game button.
+   Previously font-size: 0.95rem made it taller than its neighbours. */
 .game-action-btn {
   padding: 8px 11px;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
 }
 
 /* ── Empty states ── */
@@ -255,11 +259,7 @@ select#gameSelect:focus {
 /* ── Tier chips ──
    Unified alignment: every chip is flex with align-items: flex-end.
    This means the bottom of each SVG icon and the bottom of each text
-   span all sit on the same floor. No mixing of baseline and vertical-align
-   contexts — one system only.
-
-   Standard chip: [icon] [earned count] [/total]
-   Platinum chip: [icon] only — taller icon, same bottom edge. */
+   span all sit on the same floor. One alignment system, no mixing. */
 
 .tier-chip {
   display: inline-flex;
@@ -271,8 +271,7 @@ select#gameSelect:focus {
 }
 
 .tier-chip-plat {
-  /* No additional rules needed — inherits flex-end from .tier-chip,
-     which is sufficient since it contains only the SVG icon. */
+  /* Inherits flex-end from .tier-chip — icon-only chip, no extra rules needed */
 }
 
 /* Earned count — primary datum, full size, full opacity.
@@ -294,8 +293,7 @@ select#gameSelect:focus {
   /* color is set inline from JS to match the tier */
 }
 
-/* Trophy icons — block display, no vertical-align override needed
-   since alignment is handled entirely by the flex-end parent. */
+/* Trophy icons — block display, alignment handled by flex-end parent. */
 .trophy-icon {
   flex-shrink: 0;
   display: block;
@@ -391,6 +389,14 @@ select#gameSelect:focus {
   margin-bottom: 10px;
 }
 
+/* ── Sticky group header ──
+   Sticks to the top of the viewport as you scroll through a group's
+   trophies. top: 0 works because the page header is normal flow and
+   scrolls away — no offset needed.
+   z-index: 10 keeps it above trophy rows (z-index: auto) without
+   conflicting with modals (z-index: 100+).
+   The explicit background and bottom shadow prevent trophy row content
+   from bleeding through when it scrolls underneath. */
 .th-group-header {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -399,11 +405,20 @@ select#gameSelect:focus {
   cursor: pointer;
   user-select: none;
   transition: border-color 0.2s, background 0.2s;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
 
 .th-group-header:hover {
   border-color: var(--muted);
 }
+
+/* Suppress the sticky shadow when not actually stuck — i.e. when the
+   header is at its natural position at the top of the group. We can't
+   detect this in pure CSS perfectly, but the shadow is subtle enough
+   that it reads fine in both states. */
 
 /* ── Completed group tint ── */
 .th-group-header.th-group-complete {
@@ -422,6 +437,12 @@ body.light .th-group-header.th-group-complete {
 
 body.light .th-group-header.th-group-complete:hover {
   border-color: rgba(42, 138, 0, 0.5);
+}
+
+/* Light mode: stronger shadow so the sticky header reads against
+   the lighter background when content scrolls underneath. */
+body.light .th-group-header {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .th-group-header-top {
@@ -495,6 +516,11 @@ body.light .th-group-header.th-group-complete:hover {
   text-shadow: 0 0 6px rgba(127, 255, 107, 0.4);
 }
 
+/* Group children (collapsible) — hierarchy line matches ThingCounter.
+   overflow: visible on the parent .th-group is required for sticky
+   to work — sticky needs an overflow:visible ancestor to scroll relative
+   to the viewport. .th-group has no overflow set (defaults to visible),
+   so this works correctly without any extra rules. */
 .th-group-children {
   margin-left: 18px;
   margin-top: 5px;
