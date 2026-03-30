@@ -45,8 +45,8 @@ The application is designed to be fast and practical — no PlayStation account 
 - Instant UI response — trophy state writes to localStorage immediately; Supabase syncs in the background after a
   2-second debounce, batching rapid toggles into a single write
 - Real-time cross-device sync — when signed in and `REALTIME_ENABLED = true` in `storage.js`, trophy state
-  changes on one device propagate silently to other signed-in devices via Supabase Realtime; can be toggled off
-  with a single flag if needed
+  changes propagate silently across devices; display preferences (filter, sort, view options) are intentionally
+  excluded from live sync so each device keeps its own session state
 - Orphaned trophy detection — trophies removed from PSN are flagged rather than silently deleted
 - Game settings: rename, reset progress, refresh from PSN, remove game
 - Collision detection: if local and cloud data differ, a prompt lets you choose which to keep
@@ -136,6 +136,12 @@ dashboard.
 
 **To disable:** set `REALTIME_ENABLED = false` in `storage.js`. The tool falls back to the previous sync
 behaviour — state is pulled on page load and on game select, and pushed after each debounced write.
+
+**What syncs and what doesn't:** only `trophyState` (earned/pinned) is applied when a live update arrives.
+`viewState` (filter, sort, ungrouped, collapsedGroups) is intentionally preserved from the local session —
+each device keeps its own display preferences while playing. `viewState` is still written to Supabase on every
+save, so your last-used settings are restored when you load the tool on a new device; they just don't overwrite
+the current session's preferences mid-play.
 
 **Conflict handling:** if a remote update arrives while a local debounce timer is running (i.e. you are actively
 tapping trophies), the remote update is ignored. Your in-progress local changes take priority and will reach

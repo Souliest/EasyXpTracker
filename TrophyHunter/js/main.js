@@ -51,6 +51,13 @@ function _scheduleSync() {
 // Realtime incoming update handler
 // Called by storage.js when a newer remote version of a game arrives.
 // Skipped if a local debounce timer is running — local changes take priority.
+//
+// viewState (filter, sort, ungrouped, collapsedGroups) is intentionally
+// excluded from the merge. trophyState syncs live across devices; viewState
+// is local-only at runtime. Each device keeps its own display preferences
+// during a session. viewState is still written to Supabase on every save
+// so it is restored on initial load — it just never overwrites the current
+// session's display preferences when a Realtime event arrives.
 // ═══════════════════════════════════════════════
 
 function _onRemoteUpdate(remoteGame, remoteUpdatedAt) {
@@ -73,9 +80,15 @@ function _onRemoteUpdate(remoteGame, remoteUpdatedAt) {
     const remoteTime = new Date(remoteUpdatedAt);
     if (remoteTime <= localTime) return;
 
-    // Apply the remote state.
+    // Apply the remote state — preserving the local viewState so display
+    // preferences (filter, sort, ungrouped, collapsedGroups) are not
+    // overwritten mid-session by another device's choices.
     const idx = _personalData.games.findIndex(g => g.id === remoteGame.id);
-    _personalData.games[idx] = {...remoteGame, last_modified: remoteUpdatedAt};
+    _personalData.games[idx] = {
+        ...remoteGame,
+        last_modified: remoteUpdatedAt,
+        viewState: localGame.viewState,  // keep this device's display preferences
+    };
     localSave(_personalData);
 
     // Re-render only if this game is currently selected.
@@ -531,16 +544,13 @@ function _escHtml(str) {
     }
 
     // Wire Realtime subscription if enabled and user is signed in.
-    // Also re-wires on auth state change (sign-in / sign-out).
     const user = getUser();
     if (REALTIME_ENABLED && user) {
         subscribeToGameChanges(user.id, _onRemoteUpdate);
     }
 
     // Re-wire subscription on auth state changes.
-    // auth-ui.js fires onAuthStateChange; we listen via the Supabase client directly
-    // since we need the user id to filter the subscription.
-    const {data: {subscription}} = supabase.auth.onAuthStateChange((event, session) => {
+    supabase.auth.onAuthStateChange((event, session) => {
         if (event === 'SIGNED_IN' && REALTIME_ENABLED) {
             subscribeToGameChanges(session.user.id, _onRemoteUpdate);
         } else if (event === 'SIGNED_OUT') {

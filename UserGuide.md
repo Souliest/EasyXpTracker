@@ -315,12 +315,16 @@ progress calculations. You can clear them by doing a fresh Refresh from PSN.
 When signed in, Trophy Hunter syncs trophy state in real time across your devices. If you earn a trophy on your
 phone, it appears on your tablet within seconds — no reload required.
 
-This works silently in the background. If you are actively tapping trophies on one device when an update arrives
-from another, your in-progress changes take priority. The incoming update is ignored, and your local state reaches
-the cloud within 2 seconds.
+**What syncs live:** trophy earned and pinned states only. The progress counts, progress bar, and percentage
+update automatically on all devices.
 
-If real-time sync ever needs to be turned off (e.g. to stay within connection limits), set `REALTIME_ENABLED =
-false` in `storage.js`. The tool falls back to its previous sync behaviour with no other changes required.
+**What stays local:** your display preferences — filter (All/Earned/Unearned), sort order, ungrouped mode, and
+collapsed groups — are personal to each device's session. You can have different views on different devices
+simultaneously. Your last-used display preferences are still saved to the cloud and restored when you open the
+tool on a new device; they just don't interrupt another device mid-session.
+
+If real-time sync ever needs to be turned off, set `REALTIME_ENABLED = false` in `storage.js`. The tool falls
+back to its previous sync behaviour with no other changes required.
 
 ---
 

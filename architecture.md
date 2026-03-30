@@ -146,9 +146,9 @@ to Supabase. Individual game saves go through `saveGame(game)`, which also stamp
 **Write path (TrophyHunter — debounced):** Trophy interactions write to localStorage immediately via `localSave()`
 and re-render the UI without waiting for Supabase. A 2-second debounce timer (`_scheduleSync` in `main.js`)
 fires a background Supabase write after the last interaction, batching rapid trophy toggles into a single write.
-The timer is flushed synchronously on game switch and on opening the add-game modal to prevent stale data.
-`_syncTimer` is explicitly set to `null` after clearing so the Realtime handler can distinguish "no pending
-changes" from "timer running".
+`_syncTimer` is explicitly set to `null` after firing so the Realtime handler can distinguish "no pending
+changes" from "timer running". Timer is flushed on game switch and on opening the add-game modal to prevent
+stale data.
 
 **Collision detection:** triggered on game select via `loadGame(gameId)`. Compares `game.last_modified` (local)
 against `updated_at` (Supabase). If they differ by more than 5 seconds, a modal presents both timestamps and lets
@@ -162,6 +162,7 @@ TrophyHunter supports live cross-device sync via Supabase Realtime when `REALTIM
 
 **Setup requirement:** the `bgt_trophy_hunter_games` table must have Update events enabled under
 **Database → Publications → supabase_realtime** in the Supabase dashboard. This is a one-time configuration.
+Only Update events are needed — Insert, Delete, and Truncate are not used.
 
 **Subscribe/unsubscribe:** `subscribeToGameChanges(userId, onRemoteUpdate)` in `storage.js` opens a
 `postgres_changes` channel filtered to `UPDATE` events on `bgt_trophy_hunter_games` for the signed-in user.
@@ -172,9 +173,16 @@ auth state changes (sign-in → subscribe, sign-out → unsubscribe).
 
 1. If `_syncTimer !== null` (local changes pending), ignore — local state takes priority.
 2. Compare `remoteUpdatedAt` against `localGame.last_modified`. Skip if remote is not strictly newer.
-3. Apply remote state to `_personalData`, write to localStorage via `localSave()`.
-4. If the affected game is currently selected, call `_doRenderMain()` to reflect the change.
-5. If the game isn't in the local list at all (added on another device), add it and rebuild the selector.
+3. Apply `trophyState` from the remote game; preserve the local `viewState` unchanged.
+4. Write merged state to localStorage via `localSave()`.
+5. If the affected game is currently selected, call `_doRenderMain()` to reflect the change.
+6. If the game isn't in the local list at all (added on another device), add it and rebuild the selector.
+
+**trophyState vs viewState split:** `trophyState` (earned/pinned) syncs live — it is the shared source of truth
+for progress across devices. `viewState` (filter, sort, ungrouped, collapsedGroups) is intentionally preserved
+from the local session on every Realtime merge. Each device maintains its own display preferences during play.
+`viewState` is still written to Supabase on every save so it is available for initial load on a new device —
+it just never overwrites the current session's preferences when a live update arrives.
 
 **Kill switch:** setting `REALTIME_ENABLED = false` in `storage.js` bypasses the subscription entirely.
 `subscribeToGameChanges` and `unsubscribeFromGameChanges` are no-ops when the flag is false. No other code
@@ -320,9 +328,8 @@ tools. Keep entries in alphabetical order by name.
   via a browser gesture (back swipe, Escape key) rather than the button. A `_fullscreenListenerAttached` guard
   prevents duplicate listeners.
 - SVG icons: enter = four outward corner brackets, exit = four inward corner brackets. Both drawn on a 10×10
-  viewBox using `<polyline>` strokes for crispness at small sizes. No `width`/`height` attributes on the SVG —
-  size is controlled via `.fullscreen-icon` in CSS (`width: 1em; height: 1em`) so it matches the emoji optical
-  weight of neighbouring buttons.
+  viewBox using `<polyline>` strokes for crispness at small sizes. Size controlled via `.fullscreen-icon` in CSS
+  (`width: 1em; height: 1em`) so it matches the emoji optical weight of neighbouring buttons.
 - Called identically in every tool — there are no per-tool variations.
 
 ---
@@ -528,9 +535,10 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
   distinguish "no pending changes" from "timer running". Timer is flushed on game switch and add-game modal open.
 - **Realtime sync:** `REALTIME_ENABLED` flag in `storage.js` gates live cross-device sync. When true,
   `subscribeToGameChanges(userId, onRemoteUpdate)` opens a `postgres_changes` channel for UPDATE events on
-  `bgt_trophy_hunter_games`. Incoming updates are applied only if `_syncTimer === null` and the remote
-  timestamp is strictly newer than local. Kill switch: set `REALTIME_ENABLED = false` to revert to
-  debounce-only sync with no other code changes.
+  `bgt_trophy_hunter_games`. Incoming updates merge only `trophyState` — `viewState` is always preserved from
+  the local session so each device keeps its own display preferences (filter, sort, ungrouped, collapsedGroups)
+  during play. `viewState` is still persisted to Supabase on every write for initial load on new devices.
+  Kill switch: set `REALTIME_ENABLED = false` to revert to debounce-only sync with no other code changes.
 - **Shared catalog:** `bgt_trophy_hunter_catalog` stores full trophy lists shared across all users
 - **Shared lookup table:** `bgt_trophy_hunter_lookup` maps title names to NPWR IDs; populated passively
 - **Collision detection** runs on game select via `loadGame(gameId)`; resolved via modal in `main.js`
@@ -589,6 +597,10 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
   rapid; awaiting Supabase on each toggle creates noticeable lag. localStorage is the source of truth and is
   always written first. The debounce batches rapid toggles, reduces write volume, and keeps the UI instant.
   The timer is flushed on navigation to prevent stale cloud data.
+- **TrophyHunter Realtime: trophyState-only merge** — `viewState` is excluded from Realtime merges so each
+  device keeps its own display preferences (filter, sort, view options) during a session. `viewState` is still
+  written to Supabase and read on initial load — it just never interrupts another device mid-play. This lets
+  you have different filters on your phone and tablet simultaneously without one stomping the other.
 - **TrophyHunter Realtime: local-changes-win policy** — if `_syncTimer !== null`, incoming remote updates are
   silently dropped. This prevents a remote event from overwriting in-progress local changes. The local write
   reaches Supabase within 2 seconds and supersedes the remote state naturally.
