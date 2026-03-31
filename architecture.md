@@ -20,8 +20,9 @@ BasicGamingTools/
 │   ├── header.css              # .tool-header styles
 │   ├── supabase.js             # Supabase client (URL + publishable key) — imported by auth.js
 │   ├── auth.js                 # Session management, getUser(), signUp/In/Out/reset
-│   ├── auth-ui.js              # 👤 popover, login/register/reset overlay, CSS injection
-│   └── auth.css                # Styles for auth overlay, popover, collision modal, header button
+│   ├── auth-ui.js              # 👤 popover, login/register/reset overlay, collision modal, CSS injection
+│   ├── auth.css                # Styles for auth overlay, popover, collision modal, header button
+│   └── utils.js                # Shared utilities: escHtml(), attachLongPress()
 └── ToolName/
     ├── index.html
     ├── styles.css
@@ -104,13 +105,64 @@ common/supabase.js   ← imports Supabase JS client from CDN (ESM)
 common/auth.js       ← imports supabase; manages session, exposes getUser() etc.
     ↑
 common/auth-ui.js    ← imports auth.js; injects overlay/popover, calls initAuthSession()
+                       also exports showCollisionModal() — used by tools with hybrid storage
     ↑
-tool/js/main.js      ← imports initAuth from auth-ui.js; also imports storage.js
+tool/js/main.js      ← imports initAuth and showCollisionModal from auth-ui.js
+                       also imports storage.js
 tool/js/storage.js   ← imports getUser from auth.js (cached module, no extra fetch)
 ```
 
 The browser fetches `supabase.js` and `auth.js` once per page load regardless of how many modules import them —
 ES module imports are cached by URL.
+
+---
+
+## common/utils.js
+
+Shared utility functions used across multiple tools. Import from `../../common/utils.js`.
+
+**`escHtml(str)`** — Escapes a string for safe insertion into HTML. Use wherever user-supplied or external data is
+rendered via `innerHTML`. Previously duplicated in each tool's `main.js` and `render.js`; now the single source.
+
+**`attachLongPress(el, callback)`** — Fires `callback` after a 500ms hold. Cancels if the pointer moves more than
+10px (scroll tolerance) or leaves the element. Used for single-node edit activation (ThingCounter) and trophy
+pinning (TrophyHunter). Previously duplicated in ThingCounter `render.js` and TrophyHunter `render.js`.
+
+---
+
+## Collision Modal (showCollisionModal)
+
+`showCollisionModal` is exported from `common/auth-ui.js` and used by all three hybrid-storage tools (LGT,
+ThingCounter, TrophyHunter). Its styles live in `auth.css` alongside the rest of the auth UI.
+
+**Signature:**
+
+```js
+showCollisionModal(gameId, gameName, collision, resolveCollision, onResolved)
+```
+
+| Parameter          | Description                                                                                                                                            |
+|--------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `gameId`           | The ID of the game with conflicting data                                                                                                               |
+| `gameName`         | Display name shown in the modal                                                                                                                        |
+| `collision`        | Object from `loadGame()`: `{ localTime, remoteTime, remoteData }`                                                                                      |
+| `resolveCollision` | The tool's own `resolveCollision` function from its `storage.js` — passed as a parameter so `auth-ui.js` does not import tool-specific storage modules |
+| `onResolved`       | Callback fired after the user picks a side; caller re-loads and re-renders                                                                             |
+
+**Usage pattern in `main.js`:**
+
+```js
+import {initAuth, showCollisionModal} from '../../common/auth-ui.js';
+import {loadGame, resolveCollision} from './storage.js';
+
+const {game, collision} = await loadGame(id);
+if (collision) {
+    showCollisionModal(id, game.name, collision, resolveCollision, () => renderMain());
+}
+```
+
+`resolveCollision` is passed in rather than imported directly by `auth-ui.js`. This keeps the dependency graph
+clean: `auth-ui.js` has no knowledge of any tool's storage module.
 
 ---
 
@@ -137,8 +189,10 @@ TrophyHunter uses three Supabase tables:
 The shared tables have public read and anonymous insert access (RLS enabled, no update/delete policies). The
 personal games table is restricted to `auth.uid() = user_id`.
 
-**Read path:** `loadData()` reads localStorage first (immediate), then fetches the game list from Supabase and
-merges any games that exist remotely but not locally. Full game blobs are only fetched for games missing locally.
+**Read path:** `loadData()` reads localStorage first (immediate), then fetches the lightweight game list
+(`id, name, updated_at`) from Supabase to identify any games missing locally. If any are missing, their full
+`data` blobs are fetched in a **single batched query** using `.in('id', missingIds)` rather than one round trip
+per game. This keeps first-sync cost at two queries total regardless of library size.
 
 **Write path (LGT and ThingCounter):** `saveData(data)` writes to localStorage immediately, then upserts each game
 to Supabase. Individual game saves go through `saveGame(game)`, which also stamps `game.last_modified`.
@@ -151,8 +205,8 @@ changes" from "timer running". Timer is flushed on game switch and on opening th
 stale data.
 
 **Collision detection:** triggered on game select via `loadGame(gameId)`. Compares `game.last_modified` (local)
-against `updated_at` (Supabase). If they differ by more than 5 seconds, a modal presents both timestamps and lets
-the user pick Local or Cloud. The loser is updated accordingly.
+against `updated_at` (Supabase). If they differ by more than 5 seconds, `showCollisionModal` (from `auth-ui.js`)
+presents both timestamps and lets the user pick Local or Cloud. The loser is updated accordingly.
 
 ---
 
@@ -167,7 +221,8 @@ Only Update events are needed — Insert, Delete, and Truncate are not used.
 **Subscribe/unsubscribe:** `subscribeToGameChanges(userId, onRemoteUpdate)` in `storage.js` opens a
 `postgres_changes` channel filtered to `UPDATE` events on `bgt_trophy_hunter_games` for the signed-in user.
 `unsubscribeFromGameChanges()` tears it down. Both are called from `main.js` — on init if signed in, and on
-auth state changes (sign-in → subscribe, sign-out → unsubscribe).
+auth state changes (sign-in → subscribe, sign-out → unsubscribe). `main.js` imports `supabase` directly from
+`../../common/supabase.js` to wire the `onAuthStateChange` listener.
 
 **Incoming update handling (`_onRemoteUpdate` in `main.js`):**
 
@@ -291,12 +346,8 @@ Exports a `TOOLS` array. Each entry:
 ```js
 {
     name: 'Display Name',
-        path
-:
-    './ToolFolder/',
-        description
-:
-    'One line description.'
+    path: './ToolFolder/',
+    description: 'One line description.'
 }
 ```
 
@@ -381,9 +432,7 @@ Key variables:
 --accent3 /* tertiary accent (green: #7fff6b) */
 --input-bg /* form input background */
 --stat-bg /* stat/label row background */
---glow
-
-/* box-shadow glow using accent color */
+--glow /* box-shadow glow using accent color */
 ```
 
 - Dark mode is the default (no class on `<body>`)
@@ -409,6 +458,8 @@ Key variables:
   independently in each — avoids duplicate network calls and unnecessary re-parses.
 - Game IDs are generated with `crypto.randomUUID()` — used as the primary key in both localStorage and Supabase.
 - Node IDs within a counter tree are generated as `'node_' + Date.now() + '_' + Math.floor(Math.random() * 99999)`.
+- Shared utility functions (`escHtml`, `attachLongPress`) live in `common/utils.js` and are imported from there.
+  Do not redefine them locally in tool modules.
 
 ---
 
@@ -463,6 +514,7 @@ directly:
 const callbacks = {
     onCounterStep: (id, dir) => counterStep(id, dir),
     onOpenFocusModal: id => openFocusModal(id, selectedGameId),
+    onAttachLongPress: (el, cb) => attachLongPress(el, cb),  // attachLongPress from common/utils.js
     // ...
 };
 renderMain(selectedGameId, editMode, nodeEditActive, collapsedBranches, callbacks, data);
@@ -503,7 +555,8 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 
 - Tracks levelling progress toward a deadline across multiple games
 - **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_level_goal_tracker_games`)
-- **Collision detection** runs on game select via `loadGame(gameId)`; resolved via modal in `main.js`
+- **Collision detection** runs on game select via `loadGame(gameId)`; resolved via `showCollisionModal` from
+  `auth-ui.js`
 - Daily snapshot rolls over at midnight: `maybeRollSnapshot(game)` checks `snapshot.date` vs today
 - `setInterval(tickRenderMain, 60000)` — ticks every minute to keep daily targets current past midnight
 - `renderSelector()` returns the data it loaded so callers can pass it directly without a second `loadData()` call
@@ -515,13 +568,15 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 
 - Hierarchical counter tracker: counters in an arbitrary-depth tree of branches, grouped by game
 - **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_thing_counter_games`)
-- **Collision detection** runs on game select via `loadGame(gameId)`; resolved via modal in `main.js`
+- **Collision detection** runs on game select via `loadGame(gameId)`; resolved via `showCollisionModal` from
+  `auth-ui.js`
 - **Counter types:** `open` (unbounded) and `bounded` (min/max/initial, fill bar shown)
 - **Edit mode** (global toggle): reveals node controls and ghost add buttons
 - **Focus modal**: tap counter name → large value display, ±1, editable step, ±step, ↺ reset, fill bar
 - **Quick Counter**: game-agnostic scratchpad. State persists across refresh/blur; wiped on ✕ close or game select
 - `nodes.js` and `swatches.js` are pure-function leaves with no DOM or localStorage dependencies
-- The `callbacks` object pattern is used throughout `render.js` to avoid circular imports
+- The `callbacks` object pattern is used throughout `render.js` to avoid circular imports; `attachLongPress`
+  from `common/utils.js` is passed in via `callbacks.onAttachLongPress`
 
 ### TrophyHunter (`/TrophyHunter/`)
 
@@ -541,11 +596,14 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
   Kill switch: set `REALTIME_ENABLED = false` to revert to debounce-only sync with no other code changes.
 - **Shared catalog:** `bgt_trophy_hunter_catalog` stores full trophy lists shared across all users
 - **Shared lookup table:** `bgt_trophy_hunter_lookup` maps title names to NPWR IDs; populated passively
-- **Collision detection** runs on game select via `loadGame(gameId)`; resolved via modal in `main.js`
+- **Collision detection** runs on game select via `loadGame(gameId)`; resolved via `showCollisionModal` from
+  `auth-ui.js`
 - **4-step search flow** in `runSearch()`: catalog → lookup → patch sites + `/resolve` → `/contribute`
 - **Search normalisation:** `stripSearchNoise()` strips `™®©`, colons, dashes, and quotes from the query
   before `ilike` matching, so `Batman Arkham Knight` matches `Batman™: Arkham Knight`
 - **Cloudflare Worker** (`bgt-psn-proxy`) proxies all PSN API calls; never touches Supabase
+- `main.js` imports `supabase` directly from `../../common/supabase.js` to wire `onAuthStateChange` for
+  Realtime subscription management
 - **Single-group auto-flatten:** games with one group force `ungrouped: true`; ungroup toggle hidden
 - **Group platinum indicator:** detected by scanning group trophies for `type === 'platinum'`; renders
   platinum icon instead of checkmark for that group; platinum icon rendered at `size + 3` for visual distinction
@@ -585,8 +643,20 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 - **Hybrid storage: local-first** — localStorage gives immediate reads and offline capability; Supabase is
   secondary. If Supabase is unreachable, the app still works and syncs when connectivity returns.
 - **Per-game rows in Supabase** — each game is its own row (with a `name` column) so the selector dropdown can
-  be populated with a lightweight `SELECT id, name` query. Full `data` blobs are only fetched on game select.
+  be populated with a lightweight `SELECT id, name` query. Full `data` blobs are only fetched on game select
+  or for games missing locally on first sync.
+- **Batch fetch for missing games** — `loadData()` identifies all games missing locally, then fetches their
+  full blobs in a single `.in('id', missingIds)` query. This caps first-sync cost at two queries regardless
+  of library size, replacing the previous pattern of one sequential query per missing game.
 - **Collision detection on game select, not on load** — checking per game on select is precise and non-intrusive
+- **`showCollisionModal` in `auth-ui.js`, not tool `main.js`** — the collision UI is shared across all three
+  hybrid-storage tools and its styles already live in `auth.css`. Centralising it eliminates the only verbatim
+  code duplication across tool `main.js` files. `resolveCollision` is passed as a parameter rather than
+  imported by `auth-ui.js` directly, keeping the dependency graph clean: `auth-ui.js` has no knowledge of any
+  tool's storage module.
+- **`escHtml` and `attachLongPress` in `common/utils.js`** — both were previously duplicated across tool
+  modules (`escHtml` in four files, `attachLongPress` in two). A single source in `common/` is easier to
+  audit for correctness and ensures any future fix propagates everywhere automatically.
 - **`tickRenderMain` reads localStorage only** — the interval exists solely to roll the midnight snapshot
 - **`renderSelector()` returns data** — avoids calling `loadData()` twice in sequence after every save or delete
 - **`crypto.randomUUID()` for game IDs** — UUIDs are collision-safe across devices; `Date.now()` is not
