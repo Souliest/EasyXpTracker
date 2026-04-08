@@ -15,8 +15,8 @@ import {
 import {
     renderMain, updateGameHeader, updateGroupHeader,
     refreshTrophyRow, updateSelectorButtons,
-    computeStats, computeGroupStats,
 } from './render.js';
+import {computeStats, computeGroupStats} from './stats.js';
 import {
     openAddGameModal, closeSearchModal,
     openGameSettingsModal, closeGameSettingsModal,

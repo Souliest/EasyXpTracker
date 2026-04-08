@@ -90,7 +90,9 @@ BasicGamingTools/
 │   ├── supabase.js     # Supabase client (URL + publishable key)
 │   ├── auth.js         # Session management, sign-up/in/out/reset
 │   ├── auth-ui.js      # 👤 popover, login/register/reset overlay, CSS injection
-│   └── auth.css        # Styles for auth overlay, popover, and header button
+│   ├── auth.css        # Styles for auth overlay, popover, and header button
+│   ├── collision.js    # showCollisionModal — shared across hybrid-storage tools
+│   └── utils.js        # Shared utilities: escHtml(), attachLongPress()
 │
 ├── XpTracker/
 │   ├── index.html
@@ -116,17 +118,34 @@ BasicGamingTools/
 │   │   └── modal.js
 │   └── README.md
 │
-└── ThingCounter/
+├── ThingCounter/
+│   ├── index.html
+│   ├── styles.css
+│   ├── js/
+│   │   ├── main.js
+│   │   ├── storage.js
+│   │   ├── swatches.js
+│   │   ├── nodes.js
+│   │   ├── render.js
+│   │   ├── focus.js
+│   │   ├── quick-counter.js
+│   │   ├── modal.js
+│   │   ├── modal-node.js
+│   │   └── modal-game.js
+│   └── README.md
+│
+└── TrophyHunter/
     ├── index.html
     ├── styles.css
     ├── js/
     │   ├── main.js
     │   ├── storage.js
-    │   ├── swatches.js
-    │   ├── nodes.js
+    │   ├── psn.js
+    │   ├── stats.js
     │   ├── render.js
-    │   ├── focus.js
-    │   └── modal.js
+    │   ├── modal.js
+    │   ├── modal-search.js
+    │   └── modal-settings.js
     └── README.md
 ```
 

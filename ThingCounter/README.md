@@ -52,13 +52,16 @@ ThingCounter/
 ├── index.html
 ├── styles.css
 ├── js/
-│   ├── main.js       # Entry point: state, tree interactions, globals, init
-│   ├── storage.js    # Hybrid storage: localStorage keys, loadData, saveData, loadGame, saveGame, resolveCollision, deleteGame
-│   ├── swatches.js   # Color palette data and lookup helper
-│   ├── nodes.js      # Pure tree helpers: find, insert, remove, clamp, etc.
-│   ├── render.js     # Tree, counter card, and branch row rendering
-│   ├── focus.js      # Focus modal and Quick Counter modal
-│   └── modal.js      # Branch, counter, and game modals; confirm-delete flow
+│   ├── main.js          # Entry point: state, tree interactions, globals, init
+│   ├── storage.js       # Hybrid storage: localStorage keys, loadData, saveData, loadGame, saveGame, resolveCollision, deleteGame
+│   ├── swatches.js      # Color palette data and lookup helper
+│   ├── nodes.js         # Pure tree helpers: find, insert, remove, clamp, etc.
+│   ├── render.js        # Tree, counter card, and branch row rendering
+│   ├── focus.js         # Focus modal (per-counter large-target view); re-exports Quick Counter
+│   ├── quick-counter.js # Quick Counter modal — game-agnostic scratchpad counter
+│   ├── modal.js         # Barrel: re-exports from modal-node.js and modal-game.js
+│   ├── modal-node.js    # Swatch popover, parent selector, add/edit branch, add/edit counter
+│   └── modal-game.js    # Add/edit game, game settings, reset counters, confirm-delete
 └── README.md
 ```
 

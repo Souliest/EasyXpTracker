@@ -20,8 +20,9 @@ BasicGamingTools/
 │   ├── header.css              # .tool-header styles
 │   ├── supabase.js             # Supabase client (URL + publishable key) — imported by auth.js
 │   ├── auth.js                 # Session management, getUser(), signUp/In/Out/reset
-│   ├── auth-ui.js              # 👤 popover, login/register/reset overlay, collision modal, CSS injection
+│   ├── auth-ui.js              # 👤 popover, login/register/reset overlay, CSS injection
 │   ├── auth.css                # Styles for auth overlay, popover, collision modal, header button
+│   ├── collision.js            # showCollisionModal — shared across all hybrid-storage tools
 │   └── utils.js                # Shared utilities: escHtml(), attachLongPress()
 └── ToolName/
     ├── index.html
@@ -132,8 +133,9 @@ pinning (TrophyHunter). Previously duplicated in ThingCounter `render.js` and Tr
 
 ## Collision Modal (showCollisionModal)
 
-`showCollisionModal` is exported from `common/auth-ui.js` and used by all three hybrid-storage tools (LGT,
-ThingCounter, TrophyHunter). Its styles live in `auth.css` alongside the rest of the auth UI.
+`showCollisionModal` lives in `common/collision.js` and is re-exported from `common/auth-ui.js` for backward
+compatibility. Tool `main.js` files may import it from either path; the canonical source is `collision.js`. Its styles
+live in `auth.css` alongside the rest of the auth UI.
 
 **Signature:**
 
@@ -346,8 +348,12 @@ Exports a `TOOLS` array. Each entry:
 ```js
 {
     name: 'Display Name',
-    path: './ToolFolder/',
-    description: 'One line description.'
+        path
+:
+    './ToolFolder/',
+        description
+:
+    'One line description.'
 }
 ```
 
@@ -432,7 +438,9 @@ Key variables:
 --accent3 /* tertiary accent (green: #7fff6b) */
 --input-bg /* form input background */
 --stat-bg /* stat/label row background */
---glow /* box-shadow glow using accent color */
+--glow
+
+/* box-shadow glow using accent color */
 ```
 
 - Dark mode is the default (no class on `<body>`)
@@ -564,7 +572,8 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 
 ### ThingCounter (`/ThingCounter/`)
 
-**Modules:** `storage.js`, `swatches.js`, `nodes.js`, `render.js`, `focus.js`, `modal.js`, `main.js`
+**Modules:** `storage.js`, `swatches.js`, `nodes.js`, `render.js`, `focus.js`, `quick-counter.js`, `modal-node.js`,
+`modal-game.js`, `modal.js` (barrel), `main.js`
 
 - Hierarchical counter tracker: counters in an arbitrary-depth tree of branches, grouped by game
 - **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_thing_counter_games`)
@@ -572,15 +581,23 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
   `auth-ui.js`
 - **Counter types:** `open` (unbounded) and `bounded` (min/max/initial, fill bar shown)
 - **Edit mode** (global toggle): reveals node controls and ghost add buttons
-- **Focus modal**: tap counter name → large value display, ±1, editable step, ±step, ↺ reset, fill bar
-- **Quick Counter**: game-agnostic scratchpad. State persists across refresh/blur; wiped on ✕ close or game select
+- **Focus modal** (`focus.js`): tap counter name → large value display, ±1, editable step, ±step, ↺ reset, fill bar
+- **Quick Counter** (`quick-counter.js`): game-agnostic scratchpad. State persists across refresh/blur; wiped on ✕ close
+  or game select. `focus.js` re-exports all Quick Counter functions so `main.js` imports remain unchanged.
+- **Node modals** (`modal-node.js`): swatch popover, parent selector, add/edit branch, add/edit counter — all share
+  `populateParentSelect` and the `currentSwatchColor` module state
+- **Game modal** (`modal-game.js`): add/edit game, game settings, reset counters, confirm-delete — fully independent
+  from node modals
+- **`modal.js`** is a barrel re-exporting from both `modal-node.js` and `modal-game.js`; `main.js` import list is
+  unchanged
 - `nodes.js` and `swatches.js` are pure-function leaves with no DOM or localStorage dependencies
 - The `callbacks` object pattern is used throughout `render.js` to avoid circular imports; `attachLongPress`
   from `common/utils.js` is passed in via `callbacks.onAttachLongPress`
 
 ### TrophyHunter (`/TrophyHunter/`)
 
-**Modules:** `storage.js`, `render.js`, `modal.js`, `main.js`
+**Modules:** `storage.js`, `psn.js`, `stats.js`, `render.js`, `modal-search.js`, `modal-settings.js`, `modal.js` (
+barrel), `main.js`
 
 - Tracks PlayStation trophy progress across multiple games
 - **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_trophy_hunter_games`)
@@ -598,7 +615,20 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 - **Shared lookup table:** `bgt_trophy_hunter_lookup` maps title names to NPWR IDs; populated passively
 - **Collision detection** runs on game select via `loadGame(gameId)`; resolved via `showCollisionModal` from
   `auth-ui.js`
-- **4-step search flow** in `runSearch()`: catalog → lookup → patch sites + `/resolve` → `/contribute`
+- **PSN module** (`psn.js`): Cloudflare Worker calls (`workerResolve`, `workerContribute`, `workerFetchTrophies`) and
+  the 4-step search flow (`runSearch`, `runContribute`). These are the only functions that touch external APIs. `psn.js`
+  imports catalog/lookup helpers from `storage.js`; `modal-search.js` and `modal-settings.js` import worker functions
+  directly from `psn.js` rather than reaching into `storage.js` for non-storage concerns.
+- **Stats module** (`stats.js`): `computeStats` and `computeGroupStats` — pure functions with no DOM dependency.
+  `render.js` re-exports them for backward compatibility; `main.js` imports directly from `stats.js`. Consistent with
+  the `stats.js` pattern in LevelGoalTracker and XpTracker.
+- **Search modal** (`modal-search.js`): 4-step search flow UI, contribute prompt, result rows, all internal state (
+  `_currentQuery`)
+- **Settings modal** (`modal-settings.js`): rename, reset progress, refresh from PSN, remove game — no dependency on
+  search modal
+- **`modal.js`** is a barrel re-exporting from both `modal-search.js` and `modal-settings.js`; `main.js` import list is
+  unchanged
+- **4-step search flow** in `runSearch()` (in `psn.js`): catalog → lookup → patch sites + `/resolve` → `/contribute`
 - **Search normalisation:** `stripSearchNoise()` strips `™®©`, colons, dashes, and quotes from the query
   before `ilike` matching, so `Batman Arkham Knight` matches `Batman™: Arkham Knight`
 - **Cloudflare Worker** (`bgt-psn-proxy`) proxies all PSN API calls; never touches Supabase
@@ -625,7 +655,8 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 - **Selector bar height:** `height: 35px; box-sizing: border-box` on `.selector-bar select` and
   `.selector-bar .btn` normalises all three elements to identical height regardless of glyph rendering
 - **`normaliseTitle()`** converts PSN title names to Title Case before saving or searching
-- `modal.js` sets `document.body.style.overflow = 'hidden'` on modal open, restores on close
+- `modal-search.js` and `modal-settings.js` set `document.body.style.overflow = 'hidden'` on modal open, restores on
+  close
 
 ---
 
@@ -679,9 +710,29 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 - **TrophyHunter Realtime: Publications not Replication** — Supabase Realtime is enabled per-table under
   Database → Publications → supabase_realtime (Update events only). Replication is a separate paid feature
   for database mirroring and is not used.
-- **TrophyHunter worker is a pure PSN proxy** — keeping Supabase out of the worker consolidates all
-  orchestration logic in `storage.js`, avoids a second set of credentials in Cloudflare, and keeps the
-  worker simple and stateless (except for the Durable Object token cache).
+- **`showCollisionModal` moved to `common/collision.js`** — the collision UI has nothing to do with authentication; it
+  is shared game-data infrastructure used by all three hybrid-storage tools. `auth-ui.js` re-exports it so existing tool
+  imports are unbroken. The styles remain in `auth.css` since they share the same overlay and button patterns as the
+  rest of the auth UI.
+- **ThingCounter `modal-node.js` + `modal-game.js`** — the game modal (add/edit/settings/danger zone/confirm-delete) has
+  no shared state or code with the branch and counter modals. Splitting makes each file's scope clear and reduces the
+  size of the heaviest file in the project. `modal.js` is retained as a barrel so `main.js` imports are unchanged.
+- **ThingCounter `quick-counter.js`** — the Quick Counter and the focus modal share almost no code (different DOM IDs,
+  different state, different storage keys). Extracting it to its own file makes each concern findable by name.
+  `focus.js` re-exports all Quick Counter symbols for backward compatibility.
+- **TrophyHunter `stats.js`** — `computeStats` and `computeGroupStats` are pure functions with no DOM dependency. Both
+  `main.js` and `render.js` imported them from `render.js`, which is the wrong layer; pure data functions should not
+  live in a DOM-manipulation module. Consistent with the `stats.js` pattern used in LevelGoalTracker and XpTracker.
+  `render.js` re-exports them for any callers that still import from there.
+- **TrophyHunter `modal-search.js` + `modal-settings.js`** — the search modal has its own internal state (
+  `_currentQuery`), a 4-step UI flow, a contribute prompt, and result rendering. The settings modal is a completely
+  independent form with no shared state. Splitting eliminates the largest file in the project and makes each modal
+  findable by name. `modal.js` is retained as a barrel.
+- **TrophyHunter `psn.js`** — `modal-search.js` and `modal-settings.js` both needed worker functions, but importing them
+  from `storage.js` was a layering smell: modal code was reaching into the storage layer to get non-storage functions.
+  `psn.js` gives these functions a clean home at the right layer. `psn.js` imports catalog/lookup helpers from
+  `storage.js` (correct direction); modal files import worker/search functions from `psn.js` (also correct direction).
+  `storage.js` re-exports the PSN symbols for any callers that still import from there.
 - **TrophyHunter shared tables have no user data** — `bgt_trophy_hunter_catalog` and
   `bgt_trophy_hunter_lookup` are anonymous game catalog data. Open read/insert access is intentional and safe.
 - **`normaliseTitle()` on both save and search** — ensures `ilike` matches work regardless of PSN capitalisation

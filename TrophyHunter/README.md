@@ -68,10 +68,14 @@ TrophyHunter/
 ├── index.html
 ├── styles.css
 ├── js/
-│   ├── main.js       # Entry point: state, selector, interactions, debounced sync, Realtime, globals, init
-│   ├── storage.js    # Hybrid storage: localStorage, Supabase, Realtime subscription, worker calls, 4-step search flow
-│   ├── render.js     # All HTML section builders and DOM update functions for the main view
-│   └── modal.js      # Search modal, contribute prompt, game settings modal
+│   ├── main.js           # Entry point: state, selector, interactions, debounced sync, Realtime, globals, init
+│   ├── storage.js        # Hybrid storage: localStorage, Supabase, Realtime subscription, catalog, lookup
+│   ├── psn.js            # Cloudflare Worker calls and 4-step search flow
+│   ├── stats.js          # Pure stat computation: computeStats, computeGroupStats
+│   ├── render.js         # All HTML section builders and DOM update functions for the main view
+│   ├── modal.js          # Barrel: re-exports from modal-search.js and modal-settings.js
+│   ├── modal-search.js   # Search modal, contribute prompt, result rows, 4-step search UI
+│   └── modal-settings.js # Game settings modal: rename, reset, refresh from PSN, remove
 └── README.md
 ```
 
