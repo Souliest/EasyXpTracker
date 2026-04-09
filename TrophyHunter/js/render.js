@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════
 
 import {escHtml, attachLongPress} from '../../common/utils.js';
+import {computeStats, computeGroupStats} from './stats.js';
 
 export {computeStats, computeGroupStats} from './stats.js';
 
