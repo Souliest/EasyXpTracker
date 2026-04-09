@@ -616,9 +616,11 @@ barrel), `main.js`
 - **Collision detection** runs on game select via `loadGame(gameId)`; resolved via `showCollisionModal` from
   `auth-ui.js`
 - **PSN module** (`psn.js`): Cloudflare Worker calls (`workerResolve`, `workerContribute`, `workerFetchTrophies`) and
-  the 4-step search flow (`runSearch`, `runContribute`). These are the only functions that touch external APIs. `psn.js`
-  imports catalog/lookup helpers from `storage.js`; `modal-search.js` and `modal-settings.js` import worker functions
-  directly from `psn.js` rather than reaching into `storage.js` for non-storage concerns.
+  URL constants only. These are the only functions that touch external APIs. `psn.js` has no imports — it is a pure leaf
+  module. `runSearch` and `runContribute` live in `storage.js` (where they have natural access to `searchCatalog`,
+  `searchLookupTable`, `saveLookupEntries`, and `normaliseTitle`) to avoid a circular dependency. `storage.js` imports
+  the worker calls from `psn.js`; `modal-search.js` imports worker calls from `psn.js` and search flow functions from
+  `storage.js`.
 - **Stats module** (`stats.js`): `computeStats` and `computeGroupStats` — pure functions with no DOM dependency.
   `render.js` re-exports them for backward compatibility; `main.js` imports directly from `stats.js`. Consistent with
   the `stats.js` pattern in LevelGoalTracker and XpTracker.
@@ -730,9 +732,12 @@ barrel), `main.js`
   findable by name. `modal.js` is retained as a barrel.
 - **TrophyHunter `psn.js`** — `modal-search.js` and `modal-settings.js` both needed worker functions, but importing them
   from `storage.js` was a layering smell: modal code was reaching into the storage layer to get non-storage functions.
-  `psn.js` gives these functions a clean home at the right layer. `psn.js` imports catalog/lookup helpers from
-  `storage.js` (correct direction); modal files import worker/search functions from `psn.js` (also correct direction).
-  `storage.js` re-exports the PSN symbols for any callers that still import from there.
+  `psn.js` gives the three worker functions and URL constants a clean home. `psn.js` has no imports — it is a pure leaf
+  module. `runSearch` and `runContribute` remain in `storage.js` because they call catalog/lookup helpers that live
+  there; moving them to `psn.js` would require `psn.js` to import from `storage.js`, which combined with `storage.js`
+  re-exporting from `psn.js` would create a circular dependency and break module evaluation. `storage.js` imports the
+  worker calls it needs from `psn.js`; `modal-search.js` imports worker calls from `psn.js` and search flow functions
+  from `storage.js` directly.
 - **TrophyHunter shared tables have no user data** — `bgt_trophy_hunter_catalog` and
   `bgt_trophy_hunter_lookup` are anonymous game catalog data. Open read/insert access is intentional and safe.
 - **`normaliseTitle()` on both save and search** — ensures `ilike` matches work regardless of PSN capitalisation

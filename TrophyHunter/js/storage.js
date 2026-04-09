@@ -5,6 +5,7 @@
 
 import {supabase} from '../../common/supabase.js';
 import {getUser} from '../../common/auth.js';
+import {workerResolve, workerContribute, ORBIS_SEARCH_URL, PROSPERO_SEARCH_URL} from './psn.js';
 
 // ── Storage key constants ──
 export const STORAGE_KEY = 'bgt:trophy-hunter:data';
@@ -17,7 +18,7 @@ const TABLE_GAMES = 'bgt_trophy_hunter_games';
 const TABLE_CATALOG = 'bgt_trophy_hunter_catalog';
 const TABLE_LOOKUP = 'bgt_trophy_hunter_lookup';
 
-// PSN worker calls and search flow have moved to psn.js.
+// PSN worker calls have moved to psn.js.
 // Re-exported here so any existing direct imports from storage.js continue to work.
 export {
     WORKER_URL,
@@ -26,8 +27,6 @@ export {
     workerResolve,
     workerContribute,
     workerFetchTrophies,
-    runSearch,
-    runContribute,
 } from './psn.js';
 
 // ═══════════════════════════════════════════════
@@ -469,6 +468,120 @@ export async function saveLookupEntries(mappings) {
     } catch {
         // Network unavailable — not fatal
     }
+}
+
+// ═══════════════════════════════════════════════
+// 4-step search flow
+// ═══════════════════════════════════════════════
+
+export async function runSearch(query, userId) {
+    const trimmed = query.trim();
+
+    const catalogResults = await searchCatalog(trimmed);
+    if (catalogResults.length > 0) {
+        return {results: catalogResults, needsUsername: false, source: 'catalog'};
+    }
+
+    const lookupResults = await searchLookupTable(trimmed);
+    if (lookupResults.length > 0) {
+        const results = lookupResults.map(r => ({
+            npCommId: r.npCommId,
+            name: r.titleName,
+            platform: _platformFromService(r.platform, r.npServiceName),
+            iconUrl: null,
+        }));
+        return {results, needsUsername: false, source: 'lookup'};
+    }
+
+    const titleIds = await _searchPatchSites(trimmed);
+    if (titleIds.length > 0) {
+        try {
+            const {mappings} = await workerResolve(titleIds, userId);
+            if (mappings && mappings.length > 0) {
+                await saveLookupEntries(mappings);
+                const seen = new Set();
+                const results = [];
+                for (const m of mappings) {
+                    if (seen.has(m.npCommId)) continue;
+                    seen.add(m.npCommId);
+                    results.push({
+                        npCommId: m.npCommId,
+                        name: normaliseTitle(m.titleName) || normaliseTitle(trimmed),
+                        platform: _platformFromTitleId(m.npTitleId, m.npServiceName),
+                        iconUrl: null,
+                    });
+                }
+                return {results, needsUsername: false, source: 'resolve'};
+            }
+        } catch {
+            // fall through to step 4
+        }
+    }
+
+    return {results: [], needsUsername: true, source: null};
+}
+
+export async function runContribute(query, username, userId) {
+    const trimmed = query.trim();
+
+    let contribution;
+    try {
+        contribution = await workerContribute(username, userId);
+    } catch (err) {
+        throw new Error(`Could not fetch ${username}'s library: ${err.message}`);
+    }
+
+    if (contribution.mappings && contribution.mappings.length > 0) {
+        await saveLookupEntries(contribution.mappings);
+    }
+
+    const lookupResults = await searchLookupTable(trimmed);
+    if (lookupResults.length > 0) {
+        return lookupResults.map(r => ({
+            npCommId: r.npCommId,
+            name: r.titleName,
+            platform: _platformFromService(r.platform, r.npServiceName),
+            iconUrl: null,
+        }));
+    }
+
+    return [];
+}
+
+// ── Private helpers ──
+
+async function _searchPatchSites(query) {
+    const encoded = encodeURIComponent(query);
+    const titleIds = new Set();
+
+    const [ps4, ps5] = await Promise.all([
+        fetch(`${ORBIS_SEARCH_URL}?term=${encoded}`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null),
+        fetch(`${PROSPERO_SEARCH_URL}?term=${encoded}`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null),
+    ]);
+
+    for (const result of (ps4?.results || [])) {
+        if (result.titleid) titleIds.add(`${result.titleid}_00`);
+    }
+    for (const result of (ps5?.results || [])) {
+        if (result.titleid) titleIds.add(`${result.titleid}_00`);
+    }
+
+    return [...titleIds];
+}
+
+function _platformFromService(platform, npServiceName) {
+    if (platform) return platform;
+    return npServiceName === 'trophy2' ? 'PS5' : 'PS4';
+}
+
+function _platformFromTitleId(npTitleId, npServiceName) {
+    if (npTitleId && npTitleId.startsWith('PPSA')) return 'PS5';
+    if (npTitleId && npTitleId.startsWith('CUSA')) return 'PS4';
+    return _platformFromService('', npServiceName);
 }
 
 // ═══════════════════════════════════════════════

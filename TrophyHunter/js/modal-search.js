@@ -7,16 +7,20 @@
 // ═══════════════════════════════════════════════
 
 import {
-    runSearch,
-    runContribute,
     workerResolve,
     workerFetchTrophies,
-    saveLookupEntries,
-    normaliseTitle,
     ORBIS_SEARCH_URL,
     PROSPERO_SEARCH_URL,
 } from './psn.js';
-import {saveCatalogEntry, loadCatalogEntry, createGameEntry} from './storage.js';
+import {
+    saveCatalogEntry,
+    loadCatalogEntry,
+    createGameEntry,
+    runSearch,
+    runContribute,
+    saveLookupEntries,
+    normaliseTitle,
+} from './storage.js';
 import {getUser} from '../../common/auth.js';
 
 // ── State ──
