@@ -125,7 +125,7 @@ async function _handleRefresh(game, callbacks) {
             groups: freshEntry.groups || [],
         };
 
-        await saveCatalogEntry(entry);
+        saveCatalogEntry(entry);
         const result = callbacks.onRefresh(entry);
 
         if (result.addedCount === 0 && result.orphanedCount === 0) {

@@ -188,8 +188,10 @@ TrophyHunter uses three Supabase tables:
 | `bgt_trophy_hunter_catalog` | Shared | Full trophy lists, keyed by NPWR ID                   |
 | `bgt_trophy_hunter_lookup`  | Shared | Title name → NPWR ID mappings (no user data)          |
 
-The shared tables have public read and anonymous insert access (RLS enabled, no update/delete policies). The
-personal games table is restricted to `auth.uid() = user_id`.
+The personal games table is restricted to `auth.uid() = user_id` (full CRUD). The two shared tables have public
+read access only — no client INSERT or UPDATE policies exist. All writes to the shared tables are performed
+exclusively by the Cloudflare Worker using a dedicated Supabase secret key (`SUPABASE_BGT_SECRET_KEY`), which
+bypasses RLS entirely. The browser client never writes to the shared tables.
 
 **Read path:** `loadData()` reads localStorage first (immediate), then fetches the lightweight game list
 (`id, name, updated_at`) from Supabase to identify any games missing locally. If any are missing, their full
@@ -250,7 +252,8 @@ changes are needed — the tool falls back to the existing debounced sync behavi
 ## TrophyHunter — Cloudflare Worker
 
 TrophyHunter is the only tool that requires external infrastructure beyond Supabase. A Cloudflare Worker
-(`bgt-psn-proxy`) acts as a PSN API proxy, holding the NPSSO session token as an environment secret.
+(`bgt-psn-proxy`) acts as both a PSN API proxy and the exclusive writer to the shared Supabase tables. It holds
+the PSN NPSSO session token and a Supabase secret key as environment secrets.
 
 The worker exposes three routes:
 
@@ -260,12 +263,21 @@ The worker exposes three routes:
 | `/trophies`   | GET    | NPWR ID → full trophy list (groups + individual trophies)        |
 | `/contribute` | POST   | PSN username → full title list (for lookup table enrichment)     |
 
-**Key architectural rule:** the worker never touches Supabase. It is a pure PSN proxy. All Supabase reads and
-writes are performed by `storage.js` in the browser. The worker returns data; `storage.js` decides what to save
-and where.
+**Worker responsibilities:**
+
+- Proxies all PSN API calls using the NPSSO secret
+- After each successful PSN fetch, writes the result to the appropriate shared Supabase table using
+  `SUPABASE_BGT_SECRET_KEY` before returning the response to the browser
+- `/trophies` writes to `bgt_trophy_hunter_catalog`
+- `/resolve` and `/contribute` write to `bgt_trophy_hunter_lookup`
+
+**Key architectural rule:** the browser client never writes to the shared tables. The worker is the sole trust
+boundary for shared data — only data sourced directly from PlayStation can enter the shared catalog. The browser
+reads from the shared tables and writes only to its own personal game state (`bgt_trophy_hunter_games`).
 
 The `/trophies` route delegates to a `FetchCoordinator` Durable Object for PSN token caching and concurrent
-request coalescing. Rate limiting uses a KV namespace.
+request coalescing. Rate limiting uses a KV namespace. `DEV_MODE` is set via a Cloudflare environment variable
+(not hardcoded) so it can be toggled from the dashboard without a redeploy.
 
 ---
 
@@ -278,12 +290,14 @@ are stripped, and whitespace is collapsed. This allows `Batman Arkham Knight` to
 1. **`searchCatalog()`** — queries `bgt_trophy_hunter_catalog` by name. If found, data is already cached → instant add.
 2. **`searchLookupTable()`** — queries `bgt_trophy_hunter_lookup` by name. If found, NPWR is known → call `/trophies`.
 3. **Patch sites + `/resolve`** — queries OrbisPatches (PS4) and ProsperoPatches (PS5) for CUSA/PPSA IDs, then
-   calls `/resolve` to get the NPWR. Saves new mappings to the lookup table passively.
-4. **`/contribute`** — the modal asks for a PSN username. Calls `/contribute`, saves all new title→NPWR mappings
-   to the lookup table, then retries step 2. The username itself is never stored.
+   calls `/resolve` to get the NPWR. The worker writes new mappings to the lookup table before returning; the
+   browser re-queries the lookup table to confirm.
+4. **`/contribute`** — the modal asks for a PSN username. Calls `/contribute`; the worker writes all new title→NPWR
+   mappings to the lookup table before returning. The browser re-queries the lookup table to find the game.
+   The username itself is never stored.
 
-Every step that discovers a new NPWR mapping saves it to `bgt_trophy_hunter_lookup`, so the catalog grows
-passively from normal search activity with no user tracking.
+Every step that discovers a new NPWR mapping causes the worker to save it to `bgt_trophy_hunter_lookup`, so the
+catalog grows passively from normal search activity with no user tracking and no client-side DB writes.
 
 Title names are normalised to Title Case (with apostrophe normalisation) before being saved to Supabase and before
 being used in `ilike` search queries, ensuring consistent matching regardless of how PSN returns the name.
@@ -611,29 +625,32 @@ barrel), `main.js`
   the local session so each device keeps its own display preferences (filter, sort, ungrouped, collapsedGroups)
   during play. `viewState` is still persisted to Supabase on every write for initial load on new devices.
   Kill switch: set `REALTIME_ENABLED = false` to revert to debounce-only sync with no other code changes.
-- **Shared catalog:** `bgt_trophy_hunter_catalog` stores full trophy lists shared across all users
-- **Shared lookup table:** `bgt_trophy_hunter_lookup` maps title names to NPWR IDs; populated passively
+- **Shared catalog write path:** the browser client never writes to `bgt_trophy_hunter_catalog` or
+  `bgt_trophy_hunter_lookup`. All writes to those tables go through the Cloudflare Worker using
+  `SUPABASE_BGT_SECRET_KEY`, which bypasses RLS. The browser has read-only access to both shared tables.
+  `saveCatalogEntry()` in `storage.js` writes to the local LRU cache only. `saveLookupEntries()` has been
+  removed — the worker handles lookup writes server-side before returning each response.
 - **Collision detection** runs on game select via `loadGame(gameId)`; resolved via `showCollisionModal` from
   `auth-ui.js`
 - **PSN module** (`psn.js`): Cloudflare Worker calls (`workerResolve`, `workerContribute`, `workerFetchTrophies`) and
   URL constants only. These are the only functions that touch external APIs. `psn.js` has no imports — it is a pure leaf
   module. `runSearch` and `runContribute` live in `storage.js` (where they have natural access to `searchCatalog`,
-  `searchLookupTable`, `saveLookupEntries`, and `normaliseTitle`) to avoid a circular dependency. `storage.js` imports
-  the worker calls from `psn.js`; `modal-search.js` imports worker calls from `psn.js` and search flow functions from
-  `storage.js`.
+  `searchLookupTable`, and `normaliseTitle`) to avoid a circular dependency. `storage.js` imports the worker calls
+  from `psn.js`; `modal-search.js` imports worker calls from `psn.js` and search flow functions from `storage.js`.
 - **Stats module** (`stats.js`): `computeStats` and `computeGroupStats` — pure functions with no DOM dependency.
   `render.js` re-exports them for backward compatibility; `main.js` imports directly from `stats.js`. Consistent with
   the `stats.js` pattern in LevelGoalTracker and XpTracker.
 - **Search modal** (`modal-search.js`): 4-step search flow UI, contribute prompt, result rows, all internal state (
-  `_currentQuery`)
+  `_currentQuery`). Uses `escHtml` from `common/utils.js`.
 - **Settings modal** (`modal-settings.js`): rename, reset progress, refresh from PSN, remove game — no dependency on
   search modal
 - **`modal.js`** is a barrel re-exporting from both `modal-search.js` and `modal-settings.js`; `main.js` import list is
   unchanged
-- **4-step search flow** in `runSearch()` (in `psn.js`): catalog → lookup → patch sites + `/resolve` → `/contribute`
+- **4-step search flow** in `runSearch()` (in `storage.js`): catalog → lookup → patch sites + `/resolve` → `/contribute`
 - **Search normalisation:** `stripSearchNoise()` strips `™®©`, colons, dashes, and quotes from the query
   before `ilike` matching, so `Batman Arkham Knight` matches `Batman™: Arkham Knight`
-- **Cloudflare Worker** (`bgt-psn-proxy`) proxies all PSN API calls; never touches Supabase
+- **Cloudflare Worker** (`bgt-psn-proxy`) proxies all PSN API calls and writes results to the shared Supabase
+  tables using a dedicated secret key. `DEV_MODE` is controlled via a Cloudflare environment variable.
 - `main.js` imports `supabase` directly from `../../common/supabase.js` to wire `onAuthStateChange` for
   Realtime subscription management
 - **Single-group auto-flatten:** games with one group force `ungrouped: true`; ungroup toggle hidden
@@ -688,8 +705,8 @@ barrel), `main.js`
   imported by `auth-ui.js` directly, keeping the dependency graph clean: `auth-ui.js` has no knowledge of any
   tool's storage module.
 - **`escHtml` and `attachLongPress` in `common/utils.js`** — both were previously duplicated across tool
-  modules (`escHtml` in four files, `attachLongPress` in two). A single source in `common/` is easier to
-  audit for correctness and ensures any future fix propagates everywhere automatically.
+  modules. A single source in `common/` is easier to audit for correctness and ensures any future fix
+  propagates everywhere automatically.
 - **`tickRenderMain` reads localStorage only** — the interval exists solely to roll the midnight snapshot
 - **`renderSelector()` returns data** — avoids calling `loadData()` twice in sequence after every save or delete
 - **`crypto.randomUUID()` for game IDs** — UUIDs are collision-safe across devices; `Date.now()` is not
@@ -702,8 +719,7 @@ barrel), `main.js`
   The timer is flushed on navigation to prevent stale cloud data.
 - **TrophyHunter Realtime: trophyState-only merge** — `viewState` is excluded from Realtime merges so each
   device keeps its own display preferences (filter, sort, view options) during a session. `viewState` is still
-  written to Supabase and read on initial load — it just never interrupts another device mid-play. This lets
-  you have different filters on your phone and tablet simultaneously without one stomping the other.
+  written to Supabase and read on initial load — it just never interrupts another device mid-play.
 - **TrophyHunter Realtime: local-changes-win policy** — if `_syncTimer !== null`, incoming remote updates are
   silently dropped. This prevents a remote event from overwriting in-progress local changes. The local write
   reaches Supabase within 2 seconds and supersedes the remote state naturally.
@@ -712,6 +728,21 @@ barrel), `main.js`
 - **TrophyHunter Realtime: Publications not Replication** — Supabase Realtime is enabled per-table under
   Database → Publications → supabase_realtime (Update events only). Replication is a separate paid feature
   for database mirroring and is not used.
+- **TrophyHunter shared tables: worker-only writes** — the browser client has read-only access to
+  `bgt_trophy_hunter_catalog` and `bgt_trophy_hunter_lookup`. All writes go through the Cloudflare Worker
+  using `SUPABASE_BGT_SECRET_KEY`, which bypasses RLS. This ensures only data sourced directly from PlayStation
+  can enter the shared catalog, eliminating the risk of client-side catalog poisoning. The worker writes before
+  returning each response, so by the time the browser re-queries the lookup table the rows are already present.
+- **`saveLookupEntries()` removed** — previously a no-op wrapper kept for call-site compatibility during the
+  migration. Once all call sites were updated, the function was deleted entirely. Worker handles all lookup
+  writes server-side.
+- **`DEV_MODE` as a Cloudflare environment variable** — previously hardcoded in the worker source, requiring a
+  redeploy to toggle. Moving it to a Cloudflare variable (`env.DEV_MODE === 'true'`) allows toggling from the
+  dashboard with immediate effect. The value is non-sensitive so it lives in `wrangler.toml` vars rather than
+  as a secret.
+- **`SUPABASE_BGT_SECRET_KEY` named per-project** — a dedicated secret key for BGT rather than the default
+  secret key allows independent revocation without affecting other projects on the same Supabase instance. Each
+  revocation event is also individually auditable in the Supabase audit log.
 - **`showCollisionModal` moved to `common/collision.js`** — the collision UI has nothing to do with authentication; it
   is shared game-data infrastructure used by all three hybrid-storage tools. `auth-ui.js` re-exports it so existing tool
   imports are unbroken. The styles remain in `auth.css` since they share the same overlay and button patterns as the
@@ -734,12 +765,11 @@ barrel), `main.js`
   from `storage.js` was a layering smell: modal code was reaching into the storage layer to get non-storage functions.
   `psn.js` gives the three worker functions and URL constants a clean home. `psn.js` has no imports — it is a pure leaf
   module. `runSearch` and `runContribute` remain in `storage.js` because they call catalog/lookup helpers that live
-  there; moving them to `psn.js` would require `psn.js` to import from `storage.js`, which combined with `storage.js`
-  re-exporting from `psn.js` would create a circular dependency and break module evaluation. `storage.js` imports the
-  worker calls it needs from `psn.js`; `modal-search.js` imports worker calls from `psn.js` and search flow functions
-  from `storage.js` directly.
-- **TrophyHunter shared tables have no user data** — `bgt_trophy_hunter_catalog` and
-  `bgt_trophy_hunter_lookup` are anonymous game catalog data. Open read/insert access is intentional and safe.
+  there; moving them to `psn.js` would create a circular dependency. `storage.js` imports the worker calls it needs
+  from `psn.js`; `modal-search.js` imports worker calls from `psn.js` and search flow functions from `storage.js`.
+- **TrophyHunter shared tables have no client write access** — `bgt_trophy_hunter_catalog` and
+  `bgt_trophy_hunter_lookup` have public read and no client write policies. Open read access is intentional and
+  safe — the data is anonymous game catalog metadata. Writes are gated at the worker level.
 - **`normaliseTitle()` on both save and search** — ensures `ilike` matches work regardless of PSN capitalisation
 - **`stripSearchNoise()` on query only** — stored titles remain canonical; stripping is applied at query time
   so searches are forgiving without corrupting the stored data

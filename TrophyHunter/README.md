@@ -109,8 +109,8 @@ stripped so that e.g. `Batman Arkham Knight` matches `Batman™: Arkham Knight`.
    Their title list is fetched, the game's NPWR ID is saved to the shared lookup table for future searches, and
    the search retries automatically. The username itself is never stored.
 
-Every step that discovers a new title→NPWR mapping saves it passively to the shared lookup table, so the catalog
-grows over time without any manual curation.
+Every step that discovers a new title→NPWR mapping saves it passively to the shared lookup table via the
+Cloudflare Worker, so the catalog grows over time without any manual curation.
 
 ---
 
@@ -122,11 +122,12 @@ Personal game state (which trophies you've earned and pinned) is stored locally 
 in the background after a 2-second debounce, batching rapid trophy toggles into a single write.
 
 Trophy data (the actual trophy lists) is stored in a shared Supabase catalog (`bgt_trophy_hunter_catalog`) and
-cached locally in an LRU cache (max 3 entries) under `bgt:trophy-hunter:catalog-cache`. This table is shared
-across all users — fetching a game's trophies once makes them available to everyone.
+cached locally in an LRU cache (max 3 entries) under `bgt:trophy-hunter:catalog-cache`. A third shared table
+(`bgt_trophy_hunter_lookup`) maps game titles to their PlayStation NPWR IDs.
 
-A third shared table (`bgt_trophy_hunter_lookup`) maps game titles to their PlayStation NPWR IDs. It is populated
-passively during searches and never stores user data.
+All writes to the two shared tables go exclusively through the Cloudflare Worker using a secret key — the browser
+client has read-only access. This ensures that only data sourced directly from PlayStation can enter the shared
+catalog. The browser writes only to its own personal game state table.
 
 ---
 
@@ -156,7 +157,7 @@ Supabase within 2 seconds, superseding the remote state.
 ## Infrastructure
 
 Trophy Hunter relies on a Cloudflare Worker (`bgt-psn-proxy`) as a PlayStation API proxy. The worker holds the
-PSN session token as an environment secret and exposes three routes:
+PSN session token and Supabase secret key as environment secrets and exposes three routes:
 
 | Route         | Method | Description                                                      |
 |---------------|--------|------------------------------------------------------------------|
@@ -164,7 +165,10 @@ PSN session token as an environment secret and exposes three routes:
 | `/trophies`   | GET    | Fetches the full trophy list for a given NPWR ID                 |
 | `/contribute` | POST   | Fetches a PSN user's full title list for lookup table enrichment |
 
-The worker never connects to Supabase. All Supabase reads and writes are handled by `storage.js` in the browser.
+The worker is the sole writer to the shared Supabase tables (`bgt_trophy_hunter_catalog` and
+`bgt_trophy_hunter_lookup`). After fetching data from PlayStation, it writes the results to Supabase using a
+dedicated secret key before returning the response to the browser. The browser never writes to these tables
+directly.
 
 ---
 

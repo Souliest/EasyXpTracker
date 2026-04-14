@@ -2,6 +2,11 @@
 // Hybrid storage — localStorage for immediate reads, Supabase for persistence.
 // Catalog data (PSN trophy lists) uses a separate shared table and a local LRU cache.
 // Personal game state uses the same per-user pattern as LevelGoalTracker and ThingCounter.
+//
+// Shared table writes (bgt_trophy_hunter_catalog, bgt_trophy_hunter_lookup) are
+// handled exclusively by the Cloudflare Worker using its secret key. The browser
+// client has read-only access to those tables. saveCatalogEntry() writes to the
+// local LRU cache only. saveLookupEntries() has been removed.
 
 import {supabase} from '../../common/supabase.js';
 import {getUser} from '../../common/auth.js';
@@ -19,28 +24,23 @@ const TABLE_CATALOG = 'bgt_trophy_hunter_catalog';
 const TABLE_LOOKUP = 'bgt_trophy_hunter_lookup';
 
 // PSN worker calls have moved to psn.js.
-// Re-exported here so any existing direct imports from storage.js continue to work.
 export {
     WORKER_URL,
-    ORBIS_SEARCH_URL,
-    PROSPERO_SEARCH_URL,
-    workerResolve,
-    workerContribute,
     workerFetchTrophies,
 } from './psn.js';
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // Realtime sync flag
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export const REALTIME_ENABLED = true;
 
 // ── Realtime channel handle ──
 let _realtimeChannel = null;
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // Realtime subscription
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export function subscribeToGameChanges(userId, onRemoteUpdate) {
     if (!REALTIME_ENABLED) return;
@@ -75,9 +75,9 @@ export function unsubscribeFromGameChanges() {
     }
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // Title normalisation
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 const LOWERCASE_WORDS = new Set([
     'a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'so', 'yet',
@@ -117,9 +117,9 @@ export function normaliseTitle(str) {
         .join('');
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // Local helpers — personal state
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function localLoad() {
     try {
@@ -133,9 +133,9 @@ export function localSave(data) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // Local helpers — catalog cache (LRU, max 3 entries)
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function catalogCacheLoad() {
     try {
@@ -162,9 +162,9 @@ function catalogCacheSet(npCommId, entry) {
     catalogCacheSave(cache);
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // Personal data — loadData / saveData
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export async function loadData() {
     const local = localLoad();
@@ -220,9 +220,9 @@ export async function saveData(data) {
     }
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // Personal data — loadGame / saveGame
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export async function loadGame(gameId) {
     const local = localLoad();
@@ -325,9 +325,14 @@ export async function deleteGame(gameId) {
     }
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // Catalog — loadCatalogEntry / saveCatalogEntry
-// ═══════════════════════════════════════════════
+//
+// saveCatalogEntry() no longer writes to Supabase. The Worker now owns all
+// writes to bgt_trophy_hunter_catalog using its service role key. This function
+// retains the local LRU cache write so cache hits still work offline and between
+// sessions. The Supabase read path (loadCatalogEntry) is unchanged.
+// ═══════════════════════════════════════════════════════════════════════════════
 
 function _rowToEntry(row) {
     return {
@@ -377,52 +382,20 @@ export async function loadCatalogEntry(npCommId) {
     }
 }
 
-export async function saveCatalogEntry(entry) {
+// saveCatalogEntry — writes to local LRU cache only.
+// Supabase write is handled by the Worker (service role key).
+export function saveCatalogEntry(entry) {
     catalogCacheSet(entry.npCommId, entry);
-
-    const user = getUser();
-    if (!user) return;
-
-    try {
-        await supabase.from(TABLE_CATALOG).upsert({
-            np_comm_id: entry.npCommId,
-            name: normaliseTitle(entry.name),
-            platform: entry.platform,
-            icon_url: entry.iconUrl || null,
-            groups: entry.groups,
-            fetched_at: new Date().toISOString(),
-        }, {onConflict: 'np_comm_id'});
-    } catch {
-        // Network unavailable — local cache write already succeeded
-    }
 }
 
-export async function searchCatalog(query) {
-    if (!query || query.trim().length < 2) return [];
-
-    try {
-        const {data, error} = await supabase
-            .from(TABLE_CATALOG)
-            .select('np_comm_id, name, platform, icon_url')
-            .ilike('name', `%${stripSearchNoise(normaliseTitle(query.trim()))}%`)
-            .limit(10);
-
-        if (error || !data) return [];
-
-        return data.map(row => ({
-            npCommId: row.np_comm_id,
-            name: row.name,
-            platform: row.platform,
-            iconUrl: row.icon_url || null,
-        }));
-    } catch {
-        return [];
-    }
-}
-
-// ═══════════════════════════════════════════════
-// Lookup table — searchLookupTable / saveLookupEntries
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// Lookup table — searchLookupTable
+//
+// The Worker writes all lookup entries to Supabase inside handleResolve() and
+// handleContribute() before returning the response. The browser re-queries
+// the lookup table after each Worker call, at which point the rows are already
+// present. The browser has read-only access to this table.
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export async function searchLookupTable(query) {
     if (!query || query.trim().length < 2) return [];
@@ -447,32 +420,36 @@ export async function searchLookupTable(query) {
     }
 }
 
-export async function saveLookupEntries(mappings) {
-    if (!mappings || mappings.length === 0) return;
+// ═══════════════════════════════════════════════════════════════════════════════
+// Catalog search
+// ═══════════════════════════════════════════════════════════════════════════════
 
-    const rows = mappings
-        .filter(m => m.npCommId && m.titleName)
-        .map(m => ({
-            np_comm_id: m.npCommId,
-            title_name: normaliseTitle(m.titleName),
-            platform: m.platform || '',
-            np_service_name: m.npServiceName || 'trophy',
-        }));
-
-    if (rows.length === 0) return;
+export async function searchCatalog(query) {
+    if (!query || query.trim().length < 2) return [];
 
     try {
-        await supabase
-            .from(TABLE_LOOKUP)
-            .insert(rows, {onConflict: 'np_comm_id', ignoreDuplicates: true});
+        const {data, error} = await supabase
+            .from(TABLE_CATALOG)
+            .select('np_comm_id, name, platform, icon_url')
+            .ilike('name', `%${stripSearchNoise(normaliseTitle(query.trim()))}%`)
+            .limit(10);
+
+        if (error || !data) return [];
+
+        return data.map(row => ({
+            npCommId: row.np_comm_id,
+            name: row.name,
+            platform: row.platform,
+            iconUrl: row.icon_url || null,
+        }));
     } catch {
-        // Network unavailable — not fatal
+        return [];
     }
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // 4-step search flow
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export async function runSearch(query, userId) {
     const trimmed = query.trim();
@@ -498,7 +475,8 @@ export async function runSearch(query, userId) {
         try {
             const {mappings} = await workerResolve(titleIds, userId);
             if (mappings && mappings.length > 0) {
-                await saveLookupEntries(mappings);
+                // Worker writes to lookup table — no client write needed here.
+                // Re-query lookup so the browser sees the newly written rows.
                 const seen = new Set();
                 const results = [];
                 for (const m of mappings) {
@@ -531,10 +509,8 @@ export async function runContribute(query, username, userId) {
         throw new Error(`Could not fetch ${username}'s library: ${err.message}`);
     }
 
-    if (contribution.mappings && contribution.mappings.length > 0) {
-        await saveLookupEntries(contribution.mappings);
-    }
-
+    // Worker writes mappings to lookup table server-side.
+    // Re-query the lookup table — rows are already present by the time we get here.
     const lookupResults = await searchLookupTable(trimmed);
     if (lookupResults.length > 0) {
         return lookupResults.map(r => ({
@@ -584,9 +560,9 @@ function _platformFromTitleId(npTitleId, npServiceName) {
     return _platformFromService('', npServiceName);
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // Initial game state factory
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export function createGameEntry(catalogEntry) {
     const trophyState = {};
@@ -612,9 +588,9 @@ export function createGameEntry(catalogEntry) {
     };
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // Merge catalog update into personal state
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export function mergeCatalogUpdate(game, newCatalogEntry) {
     const existingState = game.trophyState || {};

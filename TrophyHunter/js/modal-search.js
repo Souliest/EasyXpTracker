@@ -18,10 +18,10 @@ import {
     createGameEntry,
     runSearch,
     runContribute,
-    saveLookupEntries,
     normaliseTitle,
 } from './storage.js';
 import {getUser} from '../../common/auth.js';
+import {escHtml} from '../../common/utils.js';
 
 // ── State ──
 let _currentQuery = '';   // preserved so contribute can retry the same query
@@ -126,7 +126,7 @@ function _showContributePrompt(personalGames, onGameAdded, onSelectExisting) {
     resultsEl.innerHTML = `
         <div class="contribute-prompt">
             <div class="contribute-message">
-                <strong>${_escHtml(_currentQuery)}</strong> isn't in our catalog yet.
+                <strong>${escHtml(_currentQuery)}</strong> isn't in our catalog yet.
                 A PSN username from someone who has played this game can help us find it.
             </div>
             <div class="contribute-input-row">
@@ -212,7 +212,7 @@ async function _runContribute(personalGames, onGameAdded, onSelectExisting) {
 
     if (results.length === 0) {
         _setContributeStatus(
-            `${_escHtml(username)} hasn't played "${_escHtml(_currentQuery)}" either. Try a different username.`,
+            `${escHtml(username)} hasn't played "${escHtml(_currentQuery)}" either. Try a different username.`,
             true
         );
         document.getElementById('contributeSubmitBtn').disabled = false;
@@ -239,7 +239,7 @@ function _renderSearchResults(results, source, personalGames, onGameAdded, onSel
     const resultsEl = document.getElementById('searchResults');
 
     if (results.length === 0) {
-        resultsEl.innerHTML = `<div class="search-empty">No results found for "${_escHtml(_currentQuery)}".</div>`;
+        resultsEl.innerHTML = `<div class="search-empty">No results found for "${escHtml(_currentQuery)}".</div>`;
         return;
     }
 
@@ -326,7 +326,6 @@ async function _forceStepThree(personalGames, onGameAdded, onSelectExisting) {
     try {
         const {mappings} = await workerResolve([...titleIds], userId);
         if (mappings && mappings.length > 0) {
-            await saveLookupEntries(mappings);
             const seen = new Set();
             const results = [];
             for (const m of mappings) {
@@ -464,7 +463,7 @@ async function _addFromPSN(result, onGameAdded) {
             groups: catalogEntry.groups || [],
         };
 
-        await saveCatalogEntry(entry);
+        saveCatalogEntry(entry);
         const game = createGameEntry(entry);
         closeSearchModal();
         onGameAdded(game, entry);
@@ -486,16 +485,4 @@ function _setSearchStatus(msg, isError) {
     if (!el) return;
     el.textContent = msg;
     el.className = isError ? 'search-status error' : 'search-status';
-}
-
-// ─────────────────────────────────────────────
-// Utility
-// ─────────────────────────────────────────────
-
-function _escHtml(str) {
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
 }

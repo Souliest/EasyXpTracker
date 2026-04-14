@@ -242,7 +242,7 @@ If a game isn't in the catalog, the search will work through a series of fallbac
 the search panel switches to a **Look Up** prompt:
 
 1. Enter a PSN username — yours, if you've played the game, or any player known to have played it.
-   [PSNProfiles.com](https://psnprofiles.com) is a good resource for finding prolific players.
+   [PSNProfiles.com](https://psnprofiles.com) is a good resource for finding prolific players for any title.
 2. Click **Look Up**. The tool fetches that player's title list, finds the game, and shows it as a result.
 
 **What is stored:** only the game title and its PlayStation trophy ID. The username you entered is never saved.
