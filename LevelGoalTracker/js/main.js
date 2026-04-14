@@ -5,7 +5,18 @@
 // Main — state, selector, renderMain, updateLevel, init
 // ═══════════════════════════════════════════════════════════════
 
-import {loadData, saveData, loadGame, resolveCollision, deleteGame, STORAGE_KEY, STORAGE_SELECTED} from './storage.js';
+import {
+    loadData,
+    saveData,
+    localSave,
+    loadGame,
+    resolveCollision,
+    deleteGame,
+    STORAGE_KEY,
+    STORAGE_SELECTED,
+    subscribeToGameChanges,
+    unsubscribeFromGameChanges
+} from './storage.js';
 import {maybeRollSnapshot} from './snapshot.js';
 import {computeStats} from './stats.js';
 import {
@@ -29,6 +40,8 @@ import {
     confirmDelete,
 } from './modal.js';
 import {initAuth, showCollisionModal} from '../../common/auth-ui.js';
+import {supabase} from '../../common/supabase.js';
+import {getUser} from '../../common/auth.js';
 
 // ── Module-level state ──
 let selectedGameId = null;
@@ -102,7 +115,7 @@ async function updateLevel() {
     if (clamped !== newLevel) input.value = clamped;
 
     game.snapshot.currentLevel = clamped;
-    await saveData(data);
+    await saveData(data, selectedGameId);
     renderMain();
 }
 
@@ -127,7 +140,7 @@ async function renderMain(preloaded) {
     }
 
     const snapshotRolled = maybeRollSnapshot(game);
-    if (snapshotRolled) await saveData(data);
+    if (snapshotRolled) await saveData(data, selectedGameId);
 
     const s = computeStats(game);
 
@@ -151,27 +164,74 @@ async function renderMain(preloaded) {
 }
 
 // ── Interval tick: update display from local data only, push if snapshot rolled ──
-// The database can't change itself — we only need to pull from Supabase once
-// (on game select). The interval exists solely to keep daily rates current past
-// midnight. We read localStorage directly to avoid unnecessary network calls.
 
 async function tickRenderMain() {
     if (!selectedGameId) {
         renderMain();
         return;
     }
-    // Read from localStorage only — no Supabase call
     const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"games":[]}');
     const game = data.games.find(g => g.id === selectedGameId);
     if (!game) return;
 
     const snapshotRolled = maybeRollSnapshot(game);
     if (snapshotRolled) {
-        // Snapshot rolled past midnight — persist locally and push to Supabase
-        await saveData(data);
+        await saveData(data, selectedGameId);
     }
 
     renderMain(data);
+}
+
+// ── Realtime: handle an incoming remote update ──
+// Called by the Supabase Realtime subscription whenever another device saves a game.
+
+function _onRemoteUpdate(row) {
+    if (!row || !row.data) return;
+
+    const remoteGame = {...row.data, last_modified: row.updated_at};
+    const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"games":[]}');
+
+    const localGame = local.games.find(g => g.id === remoteGame.id);
+
+    // Skip if remote isn't strictly newer than what we already have locally.
+    if (localGame) {
+        const localTime = localGame.last_modified ? new Date(localGame.last_modified) : null;
+        const remoteTime = remoteGame.last_modified ? new Date(remoteGame.last_modified) : null;
+        if (localTime && remoteTime && remoteTime <= localTime) return;
+    }
+
+    // Apply remote data to localStorage.
+    const idx = local.games.findIndex(g => g.id === remoteGame.id);
+    if (idx !== -1) {
+        local.games[idx] = remoteGame;
+    } else {
+        // Game added on another device — add it and rebuild the selector.
+        local.games.push(remoteGame);
+        localSave(local);
+        _rebuildSelector(local);
+        return;
+    }
+    localSave(local);
+
+    // Re-render if the updated game is the one currently on screen.
+    if (remoteGame.id === selectedGameId) {
+        renderMain(local);
+    }
+}
+
+// Rebuild just the selector dropdown from already-loaded data, preserving selection.
+function _rebuildSelector(data) {
+    const sel = document.getElementById('gameSelect');
+    sel.innerHTML = '<option value="">— select a game —</option>';
+    data.games.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.id;
+        opt.textContent = g.name;
+        sel.appendChild(opt);
+    });
+    if (selectedGameId && data.games.find(g => g.id === selectedGameId)) {
+        sel.value = selectedGameId;
+    }
 }
 
 // ── Callbacks for modal save / delete ──
@@ -209,11 +269,25 @@ window.confirmDelete = () => confirmDelete(afterDelete);
 
 (async function init() {
     await initAuth();
+
+    // Wire Realtime subscribe/unsubscribe to auth state changes.
+    supabase.auth.onAuthStateChange((event, session) => {
+        if (session?.user) {
+            subscribeToGameChanges(session.user.id, _onRemoteUpdate);
+        } else {
+            unsubscribeFromGameChanges();
+        }
+    });
+
     const data = await loadData();
     selectedGameId = restoreSelectedGame(data);
     await renderSelector();
     renderMain(data);
+
+    // Subscribe immediately if already signed in.
+    const user = getUser();
+    if (user) subscribeToGameChanges(user.id, _onRemoteUpdate);
+
     // Tick every minute to keep daily targets current past midnight.
-    // Reads localStorage only — no Supabase pull — pushes only if snapshot rolled.
     setInterval(tickRenderMain, 60000);
 })();
