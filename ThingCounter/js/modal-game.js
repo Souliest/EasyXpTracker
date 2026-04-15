@@ -59,7 +59,7 @@ export async function saveGame(selectedGameId, onSaved) {
         data.games.push(game);
         savedId = game.id;
     }
-    await saveData(data);
+    await saveData(data, savedId);
     closeGameModal();
     onSaved(savedId);
 }
@@ -90,7 +90,7 @@ export async function confirmResetCounters(selectedGameId, onDone) {
     }
 
     resetNodes(game.nodes || []);
-    await saveData(data);
+    await saveData(data, selectedGameId);
     closeGameModal();
     onDone();
 }
@@ -142,7 +142,7 @@ export async function confirmDelete(selectedGameId, onDeleted) {
     if (pendingDeleteType === 'node') {
         const game = data.games.find(g => g.id === selectedGameId);
         if (game) removeNode(game.nodes, pendingDeleteId);
-        await saveData(data);
+        await saveData(data, selectedGameId);
     }
     const deletedId = pendingDeleteId;
     const deletedType = pendingDeleteType;

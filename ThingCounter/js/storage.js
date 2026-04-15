@@ -15,6 +15,41 @@ export const STORAGE_QC_COLOR = 'bgt:thing-counter:quick-counter-color';
 
 const TABLE = 'bgt_thing_counter_games';
 
+// ── Realtime ──
+// Set to false to fall back to load-on-select sync only.
+
+export const REALTIME_ENABLED = true;
+
+let _realtimeChannel = null;
+
+// Subscribe to UPDATE events for the signed-in user's games.
+// onRemoteUpdate(row) is called with the raw Supabase postgres_changes payload.new.
+export function subscribeToGameChanges(userId, onRemoteUpdate) {
+    if (!REALTIME_ENABLED) return;
+    unsubscribeFromGameChanges();
+
+    _realtimeChannel = supabase
+        .channel('tc-games-' + userId)
+        .on(
+            'postgres_changes',
+            {
+                event: 'UPDATE',
+                schema: 'public',
+                table: TABLE,
+                filter: `user_id=eq.${userId}`,
+            },
+            payload => onRemoteUpdate(payload.new),
+        )
+        .subscribe();
+}
+
+export function unsubscribeFromGameChanges() {
+    if (_realtimeChannel) {
+        supabase.removeChannel(_realtimeChannel);
+        _realtimeChannel = null;
+    }
+}
+
 // ── Local helpers ──
 
 function localLoad() {
@@ -25,15 +60,17 @@ function localLoad() {
     }
 }
 
-function localSave(data) {
+export function localSave(data) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
 // ── loadData ──
 // Returns { games: [...] } from localStorage immediately.
-// If online, fetches the game list from Supabase and merges any games that
-// exist remotely but not locally — using a single batched query instead of
-// one round trip per missing game.
+// If online, fetches the full remote game list and:
+//   - Adds any games that exist remotely but not locally.
+//   - Updates any local games where the remote version is strictly newer
+//     (remote updated_at > local last_modified).
+// This ensures all devices converge to the freshest data on every load.
 
 export async function loadData() {
     const local = localLoad();
@@ -48,21 +85,41 @@ export async function loadData() {
 
         if (error || !rows) return local;
 
-        const missingIds = rows
-            .filter(row => !local.games.find(g => g.id === row.id))
-            .map(row => row.id);
+        const missingIds = [];
+        const staleIds = [];
 
-        if (missingIds.length > 0) {
+        for (const row of rows) {
+            const localGame = local.games.find(g => g.id === row.id);
+            if (!localGame) {
+                missingIds.push(row.id);
+            } else {
+                // No local timestamp → treat as stale so last_modified gets stamped.
+                const localTime = localGame.last_modified ? new Date(localGame.last_modified) : null;
+                const remoteTime = row.updated_at ? new Date(row.updated_at) : null;
+                if (!localTime || (remoteTime && remoteTime > localTime)) {
+                    staleIds.push(row.id);
+                }
+            }
+        }
+
+        const idsToFetch = [...missingIds, ...staleIds];
+
+        if (idsToFetch.length > 0) {
             const {data: fullRows} = await supabase
                 .from(TABLE)
                 .select('id, data, updated_at')
-                .in('id', missingIds)
+                .in('id', idsToFetch)
                 .eq('user_id', user.id);
 
             if (fullRows) {
                 for (const row of fullRows) {
-                    if (row.data) {
-                        local.games.push({...row.data, last_modified: row.updated_at});
+                    if (!row.data) continue;
+                    const remoteGame = {...row.data, last_modified: row.updated_at};
+                    const idx = local.games.findIndex(g => g.id === row.id);
+                    if (idx !== -1) {
+                        local.games[idx] = remoteGame;
+                    } else {
+                        local.games.push(remoteGame);
                     }
                 }
                 localSave(local);
@@ -123,15 +180,24 @@ export async function loadGame(gameId) {
 }
 
 // ── saveData ──
+// Writes the full games array to localStorage.
+// Pass changedGameId to upsert only that one game to Supabase (fast path).
+// All call sites in ThingCounter know which game changed and pass its ID.
 
-export async function saveData(data) {
+export async function saveData(data, changedGameId) {
     localSave(data);
     const user = getUser();
     if (!user) return;
 
     try {
-        for (const game of data.games) {
-            await saveGame(game);
+        if (changedGameId) {
+            const game = data.games.find(g => g.id === changedGameId);
+            if (game) await saveGame(game);
+        } else {
+            // Fallback: upsert all (should not be reached in normal usage).
+            for (const game of data.games) {
+                await saveGame(game);
+            }
         }
     } catch {
         // Network unavailable — localStorage write already succeeded

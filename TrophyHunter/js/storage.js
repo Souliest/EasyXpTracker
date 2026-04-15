@@ -166,6 +166,12 @@ function catalogCacheSet(npCommId, entry) {
 // Personal data — loadData / saveData
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// loadData — reads localStorage first (immediate), then fetches from Supabase and:
+//   - Adds any games that exist remotely but not locally.
+//   - Updates any local games where the remote version is strictly newer
+//     (remote updated_at > local last_modified).
+// This ensures all devices converge to the freshest data on every load.
+
 export async function loadData() {
     const local = localLoad();
     const user = getUser();
@@ -179,21 +185,41 @@ export async function loadData() {
 
         if (error || !rows) return local;
 
-        const missingIds = rows
-            .filter(row => !local.games.find(g => g.id === row.id))
-            .map(row => row.id);
+        const missingIds = [];
+        const staleIds = [];
 
-        if (missingIds.length > 0) {
+        for (const row of rows) {
+            const localGame = local.games.find(g => g.id === row.id);
+            if (!localGame) {
+                missingIds.push(row.id);
+            } else {
+                // No local timestamp → treat as stale so last_modified gets stamped.
+                const localTime = localGame.last_modified ? new Date(localGame.last_modified) : null;
+                const remoteTime = row.updated_at ? new Date(row.updated_at) : null;
+                if (!localTime || (remoteTime && remoteTime > localTime)) {
+                    staleIds.push(row.id);
+                }
+            }
+        }
+
+        const idsToFetch = [...missingIds, ...staleIds];
+
+        if (idsToFetch.length > 0) {
             const {data: fullRows} = await supabase
                 .from(TABLE_GAMES)
                 .select('id, data, updated_at')
-                .in('id', missingIds)
+                .in('id', idsToFetch)
                 .eq('user_id', user.id);
 
             if (fullRows) {
                 for (const row of fullRows) {
-                    if (row.data) {
-                        local.games.push({...row.data, last_modified: row.updated_at});
+                    if (!row.data) continue;
+                    const remoteGame = {...row.data, last_modified: row.updated_at};
+                    const idx = local.games.findIndex(g => g.id === row.id);
+                    if (idx !== -1) {
+                        local.games[idx] = remoteGame;
+                    } else {
+                        local.games.push(remoteGame);
                     }
                 }
                 localSave(local);
@@ -206,14 +232,25 @@ export async function loadData() {
     return local;
 }
 
-export async function saveData(data) {
+// saveData — writes to localStorage immediately, then upserts only the changed game.
+// Pass changedGameId to upsert only that one game to Supabase (fast path).
+// _removeGame does not call saveData — it calls deleteGame() directly, so there
+// is no case where we need to omit changedGameId in normal usage.
+
+export async function saveData(data, changedGameId) {
     localSave(data);
     const user = getUser();
     if (!user) return;
 
     try {
-        for (const game of data.games) {
-            await saveGame(game);
+        if (changedGameId) {
+            const game = data.games.find(g => g.id === changedGameId);
+            if (game) await saveGame(game);
+        } else {
+            // Fallback: upsert all (should not be reached in normal usage).
+            for (const game of data.games) {
+                await saveGame(game);
+            }
         }
     } catch {
         // Network unavailable — localStorage write already succeeded
@@ -390,11 +427,6 @@ export function saveCatalogEntry(entry) {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Lookup table — searchLookupTable
-//
-// The Worker writes all lookup entries to Supabase inside handleResolve() and
-// handleContribute() before returning the response. The browser re-queries
-// the lookup table after each Worker call, at which point the rows are already
-// present. The browser has read-only access to this table.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export async function searchLookupTable(query) {
@@ -475,8 +507,6 @@ export async function runSearch(query, userId) {
         try {
             const {mappings} = await workerResolve(titleIds, userId);
             if (mappings && mappings.length > 0) {
-                // Worker writes to lookup table — no client write needed here.
-                // Re-query lookup so the browser sees the newly written rows.
                 const seen = new Set();
                 const results = [];
                 for (const m of mappings) {
@@ -509,8 +539,6 @@ export async function runContribute(query, username, userId) {
         throw new Error(`Could not fetch ${username}'s library: ${err.message}`);
     }
 
-    // Worker writes mappings to lookup table server-side.
-    // Re-query the lookup table — rows are already present by the time we get here.
     const lookupResults = await searchLookupTable(trimmed);
     if (lookupResults.length > 0) {
         return lookupResults.map(r => ({

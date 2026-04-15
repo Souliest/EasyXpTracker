@@ -141,7 +141,7 @@ export async function saveAddBranch(selectedGameId, onSaved) {
         insertNode(game, node, newParentId);
     }
 
-    await saveData(data);
+    await saveData(data, selectedGameId);
     closeAddBranchModal();
     onSaved();
 }
@@ -281,7 +281,7 @@ export async function saveAddCounter(selectedGameId, onSaved) {
         insertNode(game, node, newParentId);
     }
 
-    await saveData(data);
+    await saveData(data, selectedGameId);
     closeAddCounterModal();
     onSaved();
 }

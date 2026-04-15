@@ -193,59 +193,86 @@ read access only — no client INSERT or UPDATE policies exist. All writes to th
 exclusively by the Cloudflare Worker using a dedicated Supabase secret key (`SUPABASE_BGT_SECRET_KEY`), which
 bypasses RLS entirely. The browser client never writes to the shared tables.
 
-**Read path:** `loadData()` reads localStorage first (immediate), then fetches the lightweight game list
-(`id, name, updated_at`) from Supabase to identify any games missing locally. If any are missing, their full
-`data` blobs are fetched in a **single batched query** using `.in('id', missingIds)` rather than one round trip
-per game. This keeps first-sync cost at two queries total regardless of library size.
+**Read path — selector:** `loadData()` always reads localStorage first (immediate, no network). It then issues a
+single lightweight `SELECT id, name, updated_at` query to Supabase to get the full remote game list. This is used
+to build the selector dropdown and to identify which local games need updating. Two categories are identified:
+games missing locally entirely (`missingIds`) and games whose remote `updated_at` is strictly newer than the local
+`last_modified` (`staleIds`). Both sets are fetched together in a single batched `SELECT ... WHERE id IN (...)`
+query. On a fresh device this downloads everything; in the steady state it downloads nothing (all games are local
+and up to date). The selector is always populated from the merged local data — never directly from Supabase row
+metadata.
 
-**Write path (LGT and ThingCounter):** `saveData(data)` writes to localStorage immediately, then upserts each game
-to Supabase. Individual game saves go through `saveGame(game)`, which also stamps `game.last_modified`.
+**Read path — game select:** When the user selects a game, `loadGame(gameId)` fetches only that game's row from
+Supabase to check for a collision (local `last_modified` vs remote `updated_at`). If they differ by more than
+5 seconds, `showCollisionModal` lets the user choose which copy to keep. No other games are touched.
+
+**Write path:** `saveData(data, changedGameId)` writes to localStorage immediately, then upserts only the game
+identified by `changedGameId` to Supabase. All call sites pass the ID of the game they just modified — no tool
+ever upserts its full game list in response to a single change. The second parameter is required in practice;
+omitting it falls back to upsert-all, which should not occur in normal usage.
+
+**Collision detection:** triggered on game select via `loadGame(gameId)`. Compares `game.last_modified` (local)
+against `updated_at` (Supabase). If they differ by more than 5 seconds, `showCollisionModal` (from `auth-ui.js`)
+presents both timestamps and lets the user pick Local or Cloud. The loser is updated accordingly.
 
 **Write path (TrophyHunter — debounced):** Trophy interactions write to localStorage immediately via `localSave()`
 and re-render the UI without waiting for Supabase. A 2-second debounce timer (`_scheduleSync` in `main.js`)
 fires a background Supabase write after the last interaction, batching rapid trophy toggles into a single write.
 `_syncTimer` is explicitly set to `null` after firing so the Realtime handler can distinguish "no pending
 changes" from "timer running". Timer is flushed on game switch and on opening the add-game modal to prevent
-stale data.
-
-**Collision detection:** triggered on game select via `loadGame(gameId)`. Compares `game.last_modified` (local)
-against `updated_at` (Supabase). If they differ by more than 5 seconds, `showCollisionModal` (from `auth-ui.js`)
-presents both timestamps and lets the user pick Local or Cloud. The loser is updated accordingly.
+stale data. `_scheduleSync` always passes `selectedGameId` — only the currently viewed game can change during
+play.
 
 ---
 
-## TrophyHunter — Realtime Sync
+## Realtime Sync (LGT, ThingCounter, and TrophyHunter)
 
-TrophyHunter supports live cross-device sync via Supabase Realtime when `REALTIME_ENABLED = true` in `storage.js`.
+All three hybrid-storage tools support live cross-device sync via Supabase Realtime.
 
-**Setup requirement:** the `bgt_trophy_hunter_games` table must have Update events enabled under
-**Database → Publications → supabase_realtime** in the Supabase dashboard. This is a one-time configuration.
-Only Update events are needed — Insert, Delete, and Truncate are not used.
+**Setup requirement:** each tool's personal games table must have Update events enabled under
+**Database → Publications → supabase_realtime** in the Supabase dashboard. This is a one-time configuration per
+table. Only Update events are needed — Insert, Delete, and Truncate are not used.
+
+| Table                          | Tool             |
+|--------------------------------|------------------|
+| `bgt_level_goal_tracker_games` | LevelGoalTracker |
+| `bgt_thing_counter_games`      | ThingCounter     |
+| `bgt_trophy_hunter_games`      | TrophyHunter     |
 
 **Subscribe/unsubscribe:** `subscribeToGameChanges(userId, onRemoteUpdate)` in `storage.js` opens a
-`postgres_changes` channel filtered to `UPDATE` events on `bgt_trophy_hunter_games` for the signed-in user.
-`unsubscribeFromGameChanges()` tears it down. Both are called from `main.js` — on init if signed in, and on
-auth state changes (sign-in → subscribe, sign-out → unsubscribe). `main.js` imports `supabase` directly from
-`../../common/supabase.js` to wire the `onAuthStateChange` listener.
+`postgres_changes` channel filtered to `UPDATE` events on the tool's personal games table for the signed-in user.
+`unsubscribeFromGameChanges()` tears it down. Both are called from `main.js`:
+
+- On init, immediately after `loadData()`, if the user is already signed in.
+- On `supabase.auth.onAuthStateChange`: subscribe on `SIGNED_IN`, unsubscribe on `SIGNED_OUT`.
+
+`main.js` imports `supabase` directly from `../../common/supabase.js` to wire the `onAuthStateChange` listener.
+
+**Kill switch:** setting `REALTIME_ENABLED = false` in a tool's `storage.js` bypasses the subscription entirely.
+`subscribeToGameChanges` and `unsubscribeFromGameChanges` become no-ops. The tool falls back to the existing
+load-on-select sync behaviour with no other code changes needed.
 
 **Incoming update handling (`_onRemoteUpdate` in `main.js`):**
 
-1. If `_syncTimer !== null` (local changes pending), ignore — local state takes priority.
-2. Compare `remoteUpdatedAt` against `localGame.last_modified`. Skip if remote is not strictly newer.
-3. Apply `trophyState` from the remote game; preserve the local `viewState` unchanged.
-4. Write merged state to localStorage via `localSave()`.
-5. If the affected game is currently selected, call `_doRenderMain()` to reflect the change.
-6. If the game isn't in the local list at all (added on another device), add it and rebuild the selector.
+For LGT and ThingCounter, `_onRemoteUpdate` receives the raw `payload.new` row from the Supabase channel:
 
-**trophyState vs viewState split:** `trophyState` (earned/pinned) syncs live — it is the shared source of truth
-for progress across devices. `viewState` (filter, sort, ungrouped, collapsedGroups) is intentionally preserved
-from the local session on every Realtime merge. Each device maintains its own display preferences during play.
-`viewState` is still written to Supabase on every save so it is available for initial load on a new device —
-it just never overwrites the current session's preferences when a live update arrives.
+1. Skip if remote game data is missing.
+2. Compare `remoteGame.last_modified` against the local copy's `last_modified`. Skip if remote is not strictly
+   newer — this prevents echoing back our own writes.
+3. Apply the remote game data to localStorage.
+4. If the game is not in the local list at all (added on another device), add it and rebuild the selector.
+5. If the affected game is currently selected, call `renderMain` to reflect the change immediately.
 
-**Kill switch:** setting `REALTIME_ENABLED = false` in `storage.js` bypasses the subscription entirely.
-`subscribeToGameChanges` and `unsubscribeFromGameChanges` are no-ops when the flag is false. No other code
-changes are needed — the tool falls back to the existing debounced sync behaviour automatically.
+For TrophyHunter, `_onRemoteUpdate` additionally:
+
+1. Skips the update entirely if `_syncTimer !== null` — local changes are in progress and take priority.
+2. Preserves the local `viewState` (filter, sort, ungrouped, collapsedGroups) when applying the remote game,
+   so each device keeps its own display preferences during a session.
+
+**trophyState vs viewState split (TrophyHunter):** `trophyState` (earned/pinned) syncs live. `viewState`
+(display preferences) is intentionally excluded from Realtime merges. `viewState` is still written to Supabase
+on every save so it is available for initial load on a new device — it just never overwrites the current
+session's preferences when a live update arrives.
 
 ---
 
@@ -278,6 +305,24 @@ reads from the shared tables and writes only to its own personal game state (`bg
 The `/trophies` route delegates to a `FetchCoordinator` Durable Object for PSN token caching and concurrent
 request coalescing. Rate limiting uses a KV namespace. `DEV_MODE` is set via a Cloudflare environment variable
 (not hardcoded) so it can be toggled from the dashboard without a redeploy.
+
+---
+
+## TrophyHunter — Catalog Cache
+
+TrophyHunter maintains a local LRU cache (max 3 entries) of PSN trophy lists under
+`bgt:trophy-hunter:catalog-cache`. This cache is for **catalog data** (the full PSN trophy lists for games you've
+looked at) — not for personal game state (which trophies you've earned). Personal game state for all your games
+is always stored in full in localStorage under `bgt:trophy-hunter:data`, following the same pattern as LGT and
+ThingCounter.
+
+The LRU cache exists because trophy lists are large (~200 trophies with names and descriptions) and do not change
+frequently. Rather than re-fetching from Supabase every time you switch to a game, the cache provides an
+immediate local hit. A background refresh from Supabase happens silently after each cache hit to keep the cache
+warm. On a cache miss, the full blob is fetched from `bgt_trophy_hunter_catalog` and stored in the cache.
+
+The cache size limit (3 entries) caps localStorage usage for catalog data. Games evicted from the cache are
+re-fetched from Supabase on next access — they are never lost.
 
 ---
 
@@ -425,7 +470,7 @@ projects sharing the same origin (`souliest.github.io`).
 | `bgt:thing-counter:quick-counter-color` | ThingCounter     | Quick Counter accent color (hex string)   |
 | `bgt:trophy-hunter:data`                | TrophyHunter     | JSON `{ games: [...] }` — personal state  |
 | `bgt:trophy-hunter:selected-game`       | TrophyHunter     | Selected game id string (UUID)            |
-| `bgt:trophy-hunter:catalog-cache`       | TrophyHunter     | LRU cache of up to 3 full trophy lists    |
+| `bgt:trophy-hunter:catalog-cache`       | TrophyHunter     | LRU cache of up to 3 trophy list blobs    |
 
 **Rules:**
 
@@ -577,8 +622,13 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 
 - Tracks levelling progress toward a deadline across multiple games
 - **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_level_goal_tracker_games`)
+- **Realtime sync:** `subscribeToGameChanges(userId, onRemoteUpdate)` opens a `postgres_changes` channel for
+  UPDATE events on `bgt_level_goal_tracker_games`. `_onRemoteUpdate` in `main.js` checks timestamps, applies
+  the update to localStorage, and re-renders if the affected game is selected. Subscribe on init if signed in;
+  wire `supabase.auth.onAuthStateChange` for sign-in/sign-out. Kill switch: `REALTIME_ENABLED` in `storage.js`.
 - **Collision detection** runs on game select via `loadGame(gameId)`; resolved via `showCollisionModal` from
   `auth-ui.js`
+- **saveData(data, changedGameId):** always pass the ID of the game that changed — only that game is upserted
 - Daily snapshot rolls over at midnight: `maybeRollSnapshot(game)` checks `snapshot.date` vs today
 - `setInterval(tickRenderMain, 60000)` — ticks every minute to keep daily targets current past midnight
 - `renderSelector()` returns the data it loaded so callers can pass it directly without a second `loadData()` call
@@ -591,8 +641,15 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 
 - Hierarchical counter tracker: counters in an arbitrary-depth tree of branches, grouped by game
 - **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_thing_counter_games`)
+- **Realtime sync:** `subscribeToGameChanges(userId, onRemoteUpdate)` opens a `postgres_changes` channel for
+  UPDATE events on `bgt_thing_counter_games`. `_onRemoteUpdate` in `main.js` checks timestamps, applies the
+  update to localStorage, re-renders if the affected game is selected, and rebuilds the selector if a new game
+  arrived from another device. Subscribe on init if signed in; wire `supabase.auth.onAuthStateChange` for
+  sign-in/sign-out. Kill switch: `REALTIME_ENABLED` in `storage.js`.
 - **Collision detection** runs on game select via `loadGame(gameId)`; resolved via `showCollisionModal` from
   `auth-ui.js`
+- **saveData(data, changedGameId):** always pass the ID of the game that changed — only that game is upserted.
+  All call sites in `main.js`, `modal-game.js`, and `modal-node.js` pass the game ID explicitly.
 - **Counter types:** `open` (unbounded) and `bounded` (min/max/initial, fill bar shown)
 - **Edit mode** (global toggle): reveals node controls and ghost add buttons
 - **Focus modal** (`focus.js`): tap counter name → large value display, ±1, editable step, ±step, ↺ reset, fill bar
@@ -614,22 +671,25 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 barrel), `main.js`
 
 - Tracks PlayStation trophy progress across multiple games
-- **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_trophy_hunter_games`)
+- **Hybrid storage:** `loadData()` reads localStorage, merges from Supabase (`bgt_trophy_hunter_games`).
+  Personal game state (trophyState, viewState) for all games is stored locally in full; the 3-entry LRU cache
+  (`bgt:trophy-hunter:catalog-cache`) is for PSN trophy list blobs only, not personal state.
 - **Debounced sync:** trophy interactions write to localStorage immediately via `localSave()` and re-render
   without waiting for Supabase. `_scheduleSync()` in `main.js` debounces the Supabase write to 2 seconds
   after the last interaction. `_syncTimer` is set to `null` after firing so the Realtime handler can
   distinguish "no pending changes" from "timer running". Timer is flushed on game switch and add-game modal open.
+  `_scheduleSync` always passes `selectedGameId` as `changedGameId` — only the currently viewed game changes.
 - **Realtime sync:** `REALTIME_ENABLED` flag in `storage.js` gates live cross-device sync. When true,
   `subscribeToGameChanges(userId, onRemoteUpdate)` opens a `postgres_changes` channel for UPDATE events on
-  `bgt_trophy_hunter_games`. Incoming updates merge only `trophyState` — `viewState` is always preserved from
-  the local session so each device keeps its own display preferences (filter, sort, ungrouped, collapsedGroups)
-  during play. `viewState` is still persisted to Supabase on every write for initial load on new devices.
-  Kill switch: set `REALTIME_ENABLED = false` to revert to debounce-only sync with no other code changes.
+  `bgt_trophy_hunter_games`. Incoming updates skip if `_syncTimer !== null` (local changes pending). Remote
+  updates merge only `trophyState` — `viewState` is always preserved from the local session. Kill switch:
+  set `REALTIME_ENABLED = false` to revert to debounce-only sync with no other code changes.
+- **saveData(data, changedGameId):** always pass the ID of the game that changed. All call sites in `main.js`
+  pass the game ID explicitly. `_removeGame` calls `deleteGame()` directly and does not call `saveData`.
 - **Shared catalog write path:** the browser client never writes to `bgt_trophy_hunter_catalog` or
   `bgt_trophy_hunter_lookup`. All writes to those tables go through the Cloudflare Worker using
   `SUPABASE_BGT_SECRET_KEY`, which bypasses RLS. The browser has read-only access to both shared tables.
-  `saveCatalogEntry()` in `storage.js` writes to the local LRU cache only. `saveLookupEntries()` has been
-  removed — the worker handles lookup writes server-side before returning each response.
+  `saveCatalogEntry()` in `storage.js` writes to the local LRU cache only.
 - **Collision detection** runs on game select via `loadGame(gameId)`; resolved via `showCollisionModal` from
   `auth-ui.js`
 - **PSN module** (`psn.js`): Cloudflare Worker calls (`workerResolve`, `workerContribute`, `workerFetchTrophies`) and
@@ -693,12 +753,22 @@ barrel), `main.js`
 - **Hybrid storage: local-first** — localStorage gives immediate reads and offline capability; Supabase is
   secondary. If Supabase is unreachable, the app still works and syncs when connectivity returns.
 - **Per-game rows in Supabase** — each game is its own row (with a `name` column) so the selector dropdown can
-  be populated with a lightweight `SELECT id, name` query. Full `data` blobs are only fetched on game select
-  or for games missing locally on first sync.
-- **Batch fetch for missing games** — `loadData()` identifies all games missing locally, then fetches their
-  full blobs in a single `.in('id', missingIds)` query. This caps first-sync cost at two queries regardless
-  of library size, replacing the previous pattern of one sequential query per missing game.
+  be populated with a lightweight `SELECT id, name, updated_at` query. Full `data` blobs are only fetched on
+  game select or for games that are missing or stale locally on sync.
+- **Stale game detection in loadData** — `loadData()` compares `updated_at` (remote) against `last_modified`
+  (local) for every game, not just missing ones. Games modified on another device while this device was offline
+  are identified as stale and their blobs are fetched in the same batched query as missing games. This is what
+  makes cross-device sync work correctly on reload — previously, existing-but-stale games were silently ignored.
+- **Single-game upsert in saveData** — `saveData(data, changedGameId)` upserts only the game that actually
+  changed, not the entire library. This makes the per-game Supabase row model meaningful: writes are scoped to
+  what changed, and Realtime listeners on other devices receive only relevant UPDATE events.
+- **Batch fetch for missing/stale games** — `loadData()` fetches all missing and stale blobs in a single
+  `.in('id', idsToFetch)` query. This caps first-sync cost at two queries regardless of library size.
 - **Collision detection on game select, not on load** — checking per game on select is precise and non-intrusive
+- **Realtime on all three hybrid tools** — LGT and ThingCounter now follow the same Realtime pattern as
+  TrophyHunter, giving all three tools live cross-device updates without a page reload. The implementation is
+  identical in structure: `subscribeToGameChanges` in `storage.js`, `_onRemoteUpdate` in `main.js`, auth state
+  wiring via `supabase.auth.onAuthStateChange`, and a `REALTIME_ENABLED` kill switch.
 - **`showCollisionModal` in `auth-ui.js`, not tool `main.js`** — the collision UI is shared across all three
   hybrid-storage tools and its styles already live in `auth.css`. Centralising it eliminates the only verbatim
   code duplication across tool `main.js` files. `resolveCollision` is passed as a parameter rather than
@@ -723,9 +793,9 @@ barrel), `main.js`
 - **TrophyHunter Realtime: local-changes-win policy** — if `_syncTimer !== null`, incoming remote updates are
   silently dropped. This prevents a remote event from overwriting in-progress local changes. The local write
   reaches Supabase within 2 seconds and supersedes the remote state naturally.
-- **TrophyHunter Realtime: kill switch flag** — `REALTIME_ENABLED` in `storage.js` lets the feature be
-  disabled with a one-line change if connection limits or other issues arise. No architectural changes needed.
-- **TrophyHunter Realtime: Publications not Replication** — Supabase Realtime is enabled per-table under
+- **Realtime: kill switch flag in storage.js** — `REALTIME_ENABLED` lets any tool's Realtime be disabled with
+  a one-line change if connection limits or other issues arise. No architectural changes needed.
+- **Realtime: Publications not Replication** — Supabase Realtime is enabled per-table under
   Database → Publications → supabase_realtime (Update events only). Replication is a separate paid feature
   for database mirroring and is not used.
 - **TrophyHunter shared tables: worker-only writes** — the browser client has read-only access to

@@ -5,7 +5,11 @@
 // Main — state, tree interactions, globals, init
 // ═══════════════════════════════════════════════
 
-import {loadData, saveData, loadGame, resolveCollision, deleteGame, STORAGE_SELECTED} from './storage.js';
+import {
+    loadData, saveData, localSave, loadGame, resolveCollision, deleteGame,
+    STORAGE_KEY, STORAGE_SELECTED,
+    subscribeToGameChanges, unsubscribeFromGameChanges,
+} from './storage.js';
 import {findNode, clampValue, initialValue} from './nodes.js';
 import {
     renderMain,
@@ -65,6 +69,8 @@ import {
 } from './modal.js';
 import {initAuth, showCollisionModal} from '../../common/auth-ui.js';
 import {attachLongPress} from '../../common/utils.js';
+import {supabase} from '../../common/supabase.js';
+import {getUser} from '../../common/auth.js';
 
 // ═══════════════════════════════════════════════
 // Module-level state
@@ -94,6 +100,62 @@ const callbacks = {
     onOpenFocusModal: id => openFocusModal(id, selectedGameId),
     onAttachLongPress: (el, cb) => attachLongPress(el, cb),
 };
+
+// ═══════════════════════════════════════════════
+// Realtime: handle an incoming remote update
+// Called by the Supabase Realtime subscription whenever another device saves a game.
+// ═══════════════════════════════════════════════
+
+function _onRemoteUpdate(row) {
+    if (!row || !row.data) return;
+
+    const remoteGame = {...row.data, last_modified: row.updated_at};
+    const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"games":[]}');
+
+    const localGame = local.games.find(g => g.id === remoteGame.id);
+
+    // Skip if remote isn't strictly newer than what we already have locally.
+    if (localGame) {
+        const localTime = localGame.last_modified ? new Date(localGame.last_modified) : null;
+        const remoteTime = remoteGame.last_modified ? new Date(remoteGame.last_modified) : null;
+        if (localTime && remoteTime && remoteTime <= localTime) return;
+    }
+
+    // Apply remote data to localStorage.
+    const idx = local.games.findIndex(g => g.id === remoteGame.id);
+    if (idx !== -1) {
+        local.games[idx] = remoteGame;
+    } else {
+        // Game added on another device — add it and rebuild the selector.
+        local.games.push(remoteGame);
+        localSave(local);
+        _rebuildSelector(local);
+        return;
+    }
+    localSave(local);
+
+    // Re-render if the updated game is the one currently on screen.
+    if (remoteGame.id === selectedGameId) {
+        doRenderMain(local);
+    }
+}
+
+// Rebuild just the selector dropdown from already-loaded data, preserving selection.
+function _rebuildSelector(data) {
+    const sel = document.getElementById('gameSelect');
+    sel.innerHTML = '<option value="">— select a game —</option>';
+    data.games.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.id;
+        opt.textContent = g.name;
+        sel.appendChild(opt);
+    });
+    if (selectedGameId && data.games.find(g => g.id === selectedGameId)) {
+        sel.value = selectedGameId;
+    }
+    const hasGame = !!selectedGameId && !!data.games.find(g => g.id === selectedGameId);
+    updateGameActionButtons(hasGame);
+}
 
 // ═══════════════════════════════════════════════
 // Game selector
@@ -220,7 +282,7 @@ async function counterStep(nodeId, direction) {
 
     const step = node.step || 1;
     node.value = clampValue(node, node.value + direction * step);
-    await saveData(data);
+    await saveData(data, selectedGameId);
 
     refreshCounterCard(nodeId, node, nodeEditActive, callbacks);
     await syncFocusIfOpen(nodeId);
@@ -233,7 +295,7 @@ async function resetNodeValue(nodeId) {
     const node = findNode(game.nodes, nodeId);
     if (!node) return;
     node.value = initialValue(node);
-    await saveData(data);
+    await saveData(data, selectedGameId);
     refreshCounterCard(nodeId, node, nodeEditActive, callbacks);
     await syncFocusIfOpen(nodeId);
 }
@@ -245,7 +307,7 @@ async function resetNodeStep(nodeId) {
     const node = findNode(game.nodes, nodeId);
     if (!node) return;
     node.step = 1;
-    await saveData(data);
+    await saveData(data, selectedGameId);
     refreshCounterCard(nodeId, node, nodeEditActive, callbacks);
     await syncFocusIfOpen(nodeId);
 }
@@ -261,7 +323,7 @@ async function cycleSortOrder() {
     if (!game) return;
     const next = {null: 'asc', asc: 'desc', desc: null};
     game.sortOrder = next[game.sortOrder || 'null'] || null;
-    await saveData(data);
+    await saveData(data, selectedGameId);
     updateSortBtn(game);
     doRenderMain(data);
 }
@@ -361,9 +423,23 @@ window.qcResetValue = qcResetValue;
 
 (async function init() {
     await initAuth();
+
+    // Wire Realtime subscribe/unsubscribe to auth state changes.
+    supabase.auth.onAuthStateChange((event, session) => {
+        if (session && session.user) {
+            subscribeToGameChanges(session.user.id, _onRemoteUpdate);
+        } else {
+            unsubscribeFromGameChanges();
+        }
+    });
+
     const data = await loadData();
     selectedGameId = restoreSelectedGame(data);
     setFocusGameId(selectedGameId);
     await renderSelector();
     doRenderMain(data);
+
+    // Subscribe immediately if already signed in.
+    const user = getUser();
+    if (user) subscribeToGameChanges(user.id, _onRemoteUpdate);
 })();

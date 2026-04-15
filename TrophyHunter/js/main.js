@@ -38,13 +38,15 @@ let _syncTimer = null;
 // Debounced sync
 // UI writes to localStorage immediately and re-renders.
 // Supabase sync fires 2s after the last change — batches rapid toggles.
+// Only the currently-selected game is ever modified during play, so we
+// always pass selectedGameId as changedGameId.
 // ═══════════════════════════════════════════════
 
 function _scheduleSync() {
     clearTimeout(_syncTimer);
     _syncTimer = setTimeout(() => {
         _syncTimer = null;
-        if (getUser()) saveData(_personalData);  // fire-and-forget
+        if (getUser()) saveData(_personalData, selectedGameId);  // fire-and-forget
     }, 2000);
 }
 
@@ -140,7 +142,7 @@ async function selectGame(id) {
     // Flush any pending sync before switching games
     clearTimeout(_syncTimer);
     _syncTimer = null;
-    if (getUser()) await saveData(_personalData);
+    if (getUser()) await saveData(_personalData, selectedGameId);
 
     // Collision detection
     const {game, collision} = await loadGame(selectedGameId);
@@ -288,7 +290,7 @@ function _toggleGroup(groupId) {
 function _openAddGame() {
     clearTimeout(_syncTimer);
     _syncTimer = null;
-    if (getUser()) saveData(_personalData);
+    if (getUser()) saveData(_personalData, selectedGameId);
 
     openAddGameModal(
         _personalData.games,
@@ -299,7 +301,7 @@ function _openAddGame() {
 
 async function _afterGameAdded(game, catalogEntry) {
     _personalData.games.push(game);
-    await saveData(_personalData);
+    await saveData(_personalData, game.id);
 
     selectedGameId = game.id;
     persistSelectedGame(game.id);
@@ -338,7 +340,7 @@ async function _renameGame(newName) {
     if (!game) return;
 
     game.name = newName;
-    await saveData(_personalData);
+    await saveData(_personalData, selectedGameId);
     await renderSelector();
     document.getElementById('gameSelect').value = selectedGameId;
     _doRenderMain();
@@ -352,7 +354,7 @@ async function _resetGame() {
         game.trophyState[key] = {earned: false, pinned: false};
     }
 
-    await saveData(_personalData);
+    await saveData(_personalData, selectedGameId);
     _doRenderMain();
 }
 
@@ -384,7 +386,7 @@ function _refreshGame(newCatalogEntry) {
 
     _catalogEntry = newCatalogEntry;
 
-    saveData(_personalData);
+    saveData(_personalData, selectedGameId);
     _doRenderMain();
 
     return {addedCount, orphanedCount};
