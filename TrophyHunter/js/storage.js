@@ -1,46 +1,53 @@
 // TrophyHunter/js/storage.js
 // Hybrid storage — localStorage for immediate reads, Supabase for persistence.
-// Catalog data (PSN trophy lists) uses a separate shared table and a local LRU cache.
-// Personal game state uses the same per-user pattern as LevelGoalTracker and ThingCounter.
 //
-// Shared table writes (bgt_trophy_hunter_catalog, bgt_trophy_hunter_lookup) are
-// handled exclusively by the Cloudflare Worker using its secret key. The browser
-// client has read-only access to those tables. saveCatalogEntry() writes to the
-// local LRU cache only. saveLookupEntries() has been removed.
+// LOCAL STORAGE SHAPE (v2)
+// ─────────────────────────────────────────────────────────────────────────────
+// Personal game state stored under STORAGE_KEY ('bgt:trophy-hunter:v2'):
+// {
+//   version:  2,
+//   index:    [ { id, name, last_modified, platform } ],  // always complete — drives selector
+//   blobs:    { [id]: fullGameObject },                   // LRU cache, max 5 entries
+//   lruOrder: [ id, ... ],                                // most-recently-accessed first
+// }
+//
+// loadData() returns { index, blobs }. Callers use index for the selector;
+// blobs[id] gives the full game object for the selected game.
+//
+// Catalog data (PSN trophy lists) uses a separate shared table and a local LRU
+// cache — this is unchanged from v1.
+//
+// The legacy key ('bgt:trophy-hunter:data') is deleted by the v1→v2 migration
+// in common/migrations.js, which runs automatically on first load.
 
 import {supabase} from '../../common/supabase.js';
 import {getUser} from '../../common/auth.js';
+import {
+    runMigrations, cacheGet, cacheSet, cacheDelete, updateIndex,
+    TOOL_CONFIG, CURRENT_VERSION,
+} from '../../common/migrations.js';
 import {workerResolve, workerContribute, ORBIS_SEARCH_URL, PROSPERO_SEARCH_URL} from './psn.js';
 
-// ── Storage key constants ──
-export const STORAGE_KEY = 'bgt:trophy-hunter:data';
+// ── Storage key constants ─────────────────────────────────────────────────────
+
+export const STORAGE_KEY = TOOL_CONFIG.trophyHunter.storageKey;
 export const STORAGE_SELECTED = 'bgt:trophy-hunter:selected-game';
 export const STORAGE_CATALOG_CACHE = 'bgt:trophy-hunter:catalog-cache';
 
 const CATALOG_CACHE_SIZE = 3;
 
+const CFG = TOOL_CONFIG.trophyHunter;
 const TABLE_GAMES = 'bgt_trophy_hunter_games';
 const TABLE_CATALOG = 'bgt_trophy_hunter_catalog';
 const TABLE_LOOKUP = 'bgt_trophy_hunter_lookup';
 
-// PSN worker calls have moved to psn.js.
-export {
-    WORKER_URL,
-    workerFetchTrophies,
-} from './psn.js';
+export {WORKER_URL, workerFetchTrophies} from './psn.js';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Realtime sync flag
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── Realtime ──────────────────────────────────────────────────────────────────
 
 export const REALTIME_ENABLED = true;
 
-// ── Realtime channel handle ──
 let _realtimeChannel = null;
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Realtime subscription
-// ═══════════════════════════════════════════════════════════════════════════════
 
 export function subscribeToGameChanges(userId, onRemoteUpdate) {
     if (!REALTIME_ENABLED) return;
@@ -52,12 +59,7 @@ export function subscribeToGameChanges(userId, onRemoteUpdate) {
         .channel('trophy-hunter-games')
         .on(
             'postgres_changes',
-            {
-                event: 'UPDATE',
-                schema: 'public',
-                table: TABLE_GAMES,
-                filter: `user_id=eq.${userId}`,
-            },
+            {event: 'UPDATE', schema: 'public', table: TABLE_GAMES, filter: `user_id=eq.${userId}`},
             payload => {
                 const remoteGame = payload.new?.data;
                 const remoteUpdatedAt = payload.new?.updated_at;
@@ -75,9 +77,7 @@ export function unsubscribeFromGameChanges() {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Title normalisation
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── Title normalisation ───────────────────────────────────────────────────────
 
 const LOWERCASE_WORDS = new Set([
     'a', 'an', 'the', 'and', 'but', 'or', 'nor', 'for', 'so', 'yet',
@@ -106,36 +106,32 @@ export function normaliseTitle(str) {
             break;
         }
     }
-    return tokens
-        .map((token, i) => {
-            if (/^\s+$/.test(token)) return token;
-            if (i === 0 || i === lastWordIdx || !LOWERCASE_WORDS.has(token)) {
-                return token.charAt(0).toUpperCase() + token.slice(1);
-            }
-            return token;
-        })
-        .join('');
+    return tokens.map((token, i) => {
+        if (/^\s+$/.test(token)) return token;
+        if (i === 0 || i === lastWordIdx || !LOWERCASE_WORDS.has(token)) {
+            return token.charAt(0).toUpperCase() + token.slice(1);
+        }
+        return token;
+    }).join('');
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Local helpers — personal state
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── Local helpers — personal state ────────────────────────────────────────────
 
-function localLoad() {
+function _localLoad() {
     try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {games: []};
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) ||
+            {version: CURRENT_VERSION, index: [], blobs: {}, lruOrder: []};
     } catch {
-        return {games: []};
+        return {version: CURRENT_VERSION, index: [], blobs: {}, lruOrder: []};
     }
 }
 
-export function localSave(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+export function localSave(stored) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Local helpers — catalog cache (LRU, max 3 entries)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── Local helpers — catalog cache (LRU, max 3 entries) ───────────────────────
+// Unchanged from v1.
 
 function catalogCacheLoad() {
     try {
@@ -150,32 +146,34 @@ function catalogCacheSave(cache) {
 }
 
 function catalogCacheGet(npCommId) {
-    const cache = catalogCacheLoad();
-    return cache.find(c => c.npCommId === npCommId) || null;
+    return catalogCacheLoad().find(c => c.npCommId === npCommId) || null;
 }
 
 function catalogCacheSet(npCommId, entry) {
-    let cache = catalogCacheLoad();
-    cache = cache.filter(c => c.npCommId !== npCommId);
+    let cache = catalogCacheLoad().filter(c => c.npCommId !== npCommId);
     cache.unshift({npCommId, cachedAt: new Date().toISOString(), entry});
     if (cache.length > CATALOG_CACHE_SIZE) cache = cache.slice(0, CATALOG_CACHE_SIZE);
     catalogCacheSave(cache);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Personal data — loadData / saveData
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// loadData — reads localStorage first (immediate), then fetches from Supabase and:
-//   - Adds any games that exist remotely but not locally.
-//   - Updates any local games where the remote version is strictly newer
-//     (remote updated_at > local last_modified).
-// This ensures all devices converge to the freshest data on every load.
+// ── loadData ──────────────────────────────────────────────────────────────────
+// Returns { index, blobs }.
+//
+// index — always the complete list of the user's games (id, name, platform,
+//         last_modified). Drives the selector dropdown.
+//
+// blobs — the LRU blob cache (up to 5 full game objects).
+//
+// Remote sync: same pattern as LGT/ThingCounter — lightweight list first,
+// then batched blob fetch for missing/stale games.
 
 export async function loadData() {
-    const local = localLoad();
+    runMigrations(CFG);
+
+    const stored = _localLoad();
     const user = getUser();
-    if (!user) return local;
+
+    if (!user) return {index: stored.index, blobs: stored.blobs};
 
     try {
         const {data: rows, error} = await supabase
@@ -183,18 +181,17 @@ export async function loadData() {
             .select('id, name, updated_at')
             .eq('user_id', user.id);
 
-        if (error || !rows) return local;
+        if (error || !rows) return {index: stored.index, blobs: stored.blobs};
 
         const missingIds = [];
         const staleIds = [];
 
         for (const row of rows) {
-            const localGame = local.games.find(g => g.id === row.id);
-            if (!localGame) {
+            const local = stored.index.find(e => e.id === row.id);
+            if (!local) {
                 missingIds.push(row.id);
             } else {
-                // No local timestamp → treat as stale so last_modified gets stamped.
-                const localTime = localGame.last_modified ? new Date(localGame.last_modified) : null;
+                const localTime = local.last_modified ? new Date(local.last_modified) : null;
                 const remoteTime = row.updated_at ? new Date(row.updated_at) : null;
                 if (!localTime || (remoteTime && remoteTime > localTime)) {
                     staleIds.push(row.id);
@@ -214,59 +211,75 @@ export async function loadData() {
             if (fullRows) {
                 for (const row of fullRows) {
                     if (!row.data) continue;
-                    const remoteGame = {...row.data, last_modified: row.updated_at};
-                    const idx = local.games.findIndex(g => g.id === row.id);
-                    if (idx !== -1) {
-                        local.games[idx] = remoteGame;
+                    const game = {...row.data, last_modified: row.updated_at};
+                    if (missingIds.includes(row.id) || stored.blobs[row.id]) {
+                        cacheSet(stored, game, CFG);
                     } else {
-                        local.games.push(remoteGame);
+                        updateIndex(stored, game, CFG);
                     }
                 }
-                localSave(local);
+                localSave(stored);
             }
         }
     } catch {
-        // Network unavailable — return local silently
+        // Network unavailable — return local silently.
     }
 
-    return local;
+    return {index: stored.index, blobs: stored.blobs};
 }
 
-// saveData — writes to localStorage immediately, then upserts only the changed game.
-// Pass changedGameId to upsert only that one game to Supabase (fast path).
-// _removeGame does not call saveData — it calls deleteGame() directly, so there
-// is no case where we need to omit changedGameId in normal usage.
-
-export async function saveData(data, changedGameId) {
-    localSave(data);
-    const user = getUser();
-    if (!user) return;
-
-    try {
-        if (changedGameId) {
-            const game = data.games.find(g => g.id === changedGameId);
-            if (game) await saveGame(game);
-        } else {
-            // Fallback: upsert all (should not be reached in normal usage).
-            for (const game of data.games) {
-                await saveGame(game);
-            }
-        }
-    } catch {
-        // Network unavailable — localStorage write already succeeded
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Personal data — loadGame / saveGame
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── loadGame ──────────────────────────────────────────────────────────────────
 
 export async function loadGame(gameId) {
-    const local = localLoad();
-    const localGame = local.games.find(g => g.id === gameId) || null;
+    runMigrations(CFG);
+
+    const stored = _localLoad();
     const user = getUser();
 
-    if (!user || !localGame) return {game: localGame, collision: null};
+    // ── Cache hit ──
+    const cached = cacheGet(stored, gameId);
+    if (cached) {
+        localSave(stored);
+
+        if (!user) return {game: cached, collision: null};
+
+        try {
+            const {data: row, error} = await supabase
+                .from(TABLE_GAMES)
+                .select('data, updated_at')
+                .eq('id', gameId)
+                .eq('user_id', user.id)
+                .single();
+
+            if (error || !row) return {game: cached, collision: null};
+
+            const localTime = cached.last_modified ? new Date(cached.last_modified) : null;
+            const remoteTime = row.updated_at ? new Date(row.updated_at) : null;
+
+            if (!localTime) {
+                await saveGame(cached);
+                return {game: cached, collision: null};
+            }
+
+            if (Math.abs(localTime - remoteTime) <= 5000) {
+                return {game: cached, collision: null};
+            }
+
+            return {
+                game: cached,
+                collision: {
+                    localTime: localTime.toISOString(),
+                    remoteTime: remoteTime.toISOString(),
+                    remoteData: row.data,
+                },
+            };
+        } catch {
+            return {game: cached, collision: null};
+        }
+    }
+
+    // ── Cache miss — fetch full blob from Supabase ──
+    if (!user) return {game: null, collision: null};
 
     try {
         const {data: row, error} = await supabase
@@ -276,31 +289,40 @@ export async function loadGame(gameId) {
             .eq('user_id', user.id)
             .single();
 
-        if (error || !row) return {game: localGame, collision: null};
+        if (error || !row || !row.data) return {game: null, collision: null};
 
-        const localTime = localGame.last_modified ? new Date(localGame.last_modified) : null;
-        const remoteTime = row.updated_at ? new Date(row.updated_at) : null;
+        const game = {...row.data, last_modified: row.updated_at};
+        cacheSet(stored, game, CFG);
+        localSave(stored);
 
-        if (!localTime) {
-            await saveGame(localGame);
-            return {game: localGame, collision: null};
-        }
-
-        const diffMs = Math.abs(localTime - remoteTime);
-        if (diffMs <= 5000) return {game: localGame, collision: null};
-
-        return {
-            game: localGame,
-            collision: {
-                localTime: localTime.toISOString(),
-                remoteTime: remoteTime.toISOString(),
-                remoteData: row.data,
-            },
-        };
+        return {game, collision: null};
     } catch {
-        return {game: localGame, collision: null};
+        return {game: null, collision: null};
     }
 }
+
+// ── saveData ──────────────────────────────────────────────────────────────────
+
+export async function saveData(stored, changedGameId) {
+    localSave(stored);
+    const user = getUser();
+    if (!user) return;
+
+    try {
+        if (changedGameId) {
+            const game = stored.blobs[changedGameId];
+            if (game) await saveGame(game);
+        } else {
+            for (const game of Object.values(stored.blobs)) {
+                await saveGame(game);
+            }
+        }
+    } catch {
+        // Network unavailable — localStorage write already succeeded.
+    }
+}
+
+// ── saveGame ──────────────────────────────────────────────────────────────────
 
 export async function saveGame(game) {
     const user = getUser();
@@ -319,57 +341,51 @@ export async function saveGame(game) {
             updated_at: now,
         }, {onConflict: 'id'});
     } catch {
-        // Network unavailable — swallow silently
+        // Network unavailable — swallow silently.
     }
 
-    const local = localLoad();
-    const idx = local.games.findIndex(g => g.id === game.id);
-    if (idx !== -1) {
-        local.games[idx] = game;
-        localSave(local);
+    const stored = _localLoad();
+    if (stored.blobs[game.id]) {
+        cacheSet(stored, game, CFG);
+    } else {
+        updateIndex(stored, game, CFG);
     }
+    localSave(stored);
 }
+
+// ── resolveCollision ──────────────────────────────────────────────────────────
 
 export async function resolveCollision(gameId, winner, remoteData) {
-    const local = localLoad();
-    const idx = local.games.findIndex(g => g.id === gameId);
+    const stored = _localLoad();
 
     if (winner === 'remote' && remoteData) {
-        if (idx !== -1) local.games[idx] = remoteData;
-        else local.games.push(remoteData);
-        localSave(local);
-    } else if (winner === 'local' && idx !== -1) {
-        await saveGame(local.games[idx]);
+        cacheSet(stored, remoteData, CFG);
+        localSave(stored);
+    } else if (winner === 'local') {
+        const game = stored.blobs[gameId];
+        if (game) await saveGame(game);
     }
 }
 
+// ── deleteGame ────────────────────────────────────────────────────────────────
+
 export async function deleteGame(gameId) {
-    const local = localLoad();
-    local.games = local.games.filter(g => g.id !== gameId);
-    localSave(local);
+    const stored = _localLoad();
+    cacheDelete(stored, gameId);
+    localSave(stored);
 
     const user = getUser();
     if (!user) return;
 
     try {
-        await supabase
-            .from(TABLE_GAMES)
-            .delete()
-            .eq('id', gameId)
-            .eq('user_id', user.id);
+        await supabase.from(TABLE_GAMES).delete().eq('id', gameId).eq('user_id', user.id);
     } catch {
-        // Network unavailable — local delete already succeeded
+        // Network unavailable — local delete already succeeded.
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Catalog — loadCatalogEntry / saveCatalogEntry
-//
-// saveCatalogEntry() no longer writes to Supabase. The Worker now owns all
-// writes to bgt_trophy_hunter_catalog using its service role key. This function
-// retains the local LRU cache write so cache hits still work offline and between
-// sessions. The Supabase read path (loadCatalogEntry) is unchanged.
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── Catalog — loadCatalogEntry / saveCatalogEntry ─────────────────────────────
+// Unchanged from v1.
 
 function _rowToEntry(row) {
     return {
@@ -383,11 +399,7 @@ function _rowToEntry(row) {
 }
 
 function _refreshCatalogCacheInBackground(npCommId) {
-    supabase
-        .from(TABLE_CATALOG)
-        .select('*')
-        .eq('np_comm_id', npCommId)
-        .single()
+    supabase.from(TABLE_CATALOG).select('*').eq('np_comm_id', npCommId).single()
         .then(({data, error}) => {
             if (!error && data) catalogCacheSet(npCommId, _rowToEntry(data));
         })
@@ -401,16 +413,9 @@ export async function loadCatalogEntry(npCommId) {
         _refreshCatalogCacheInBackground(npCommId);
         return cached.entry;
     }
-
     try {
-        const {data, error} = await supabase
-            .from(TABLE_CATALOG)
-            .select('*')
-            .eq('np_comm_id', npCommId)
-            .single();
-
+        const {data, error} = await supabase.from(TABLE_CATALOG).select('*').eq('np_comm_id', npCommId).single();
         if (error || !data) return null;
-
         const entry = _rowToEntry(data);
         catalogCacheSet(npCommId, entry);
         return entry;
@@ -419,28 +424,21 @@ export async function loadCatalogEntry(npCommId) {
     }
 }
 
-// saveCatalogEntry — writes to local LRU cache only.
-// Supabase write is handled by the Worker (service role key).
 export function saveCatalogEntry(entry) {
     catalogCacheSet(entry.npCommId, entry);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Lookup table — searchLookupTable
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── Lookup table ──────────────────────────────────────────────────────────────
 
 export async function searchLookupTable(query) {
     if (!query || query.trim().length < 2) return [];
-
     try {
         const {data, error} = await supabase
             .from(TABLE_LOOKUP)
             .select('np_comm_id, title_name, platform, np_service_name')
             .ilike('title_name', `%${stripSearchNoise(normaliseTitle(query.trim()))}%`)
             .limit(10);
-
         if (error || !data) return [];
-
         return data.map(row => ({
             npCommId: row.np_comm_id,
             titleName: row.title_name,
@@ -452,22 +450,17 @@ export async function searchLookupTable(query) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Catalog search
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── Catalog search ────────────────────────────────────────────────────────────
 
 export async function searchCatalog(query) {
     if (!query || query.trim().length < 2) return [];
-
     try {
         const {data, error} = await supabase
             .from(TABLE_CATALOG)
             .select('np_comm_id, name, platform, icon_url')
             .ilike('name', `%${stripSearchNoise(normaliseTitle(query.trim()))}%`)
             .limit(10);
-
         if (error || !data) return [];
-
         return data.map(row => ({
             npCommId: row.np_comm_id,
             name: row.name,
@@ -479,17 +472,13 @@ export async function searchCatalog(query) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 4-step search flow
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── 4-step search flow ────────────────────────────────────────────────────────
 
 export async function runSearch(query, userId) {
     const trimmed = query.trim();
 
     const catalogResults = await searchCatalog(trimmed);
-    if (catalogResults.length > 0) {
-        return {results: catalogResults, needsUsername: false, source: 'catalog'};
-    }
+    if (catalogResults.length > 0) return {results: catalogResults, needsUsername: false, source: 'catalog'};
 
     const lookupResults = await searchLookupTable(trimmed);
     if (lookupResults.length > 0) {
@@ -521,8 +510,7 @@ export async function runSearch(query, userId) {
                 }
                 return {results, needsUsername: false, source: 'resolve'};
             }
-        } catch {
-            // fall through to step 4
+        } catch { /* fall through to step 4 */
         }
     }
 
@@ -531,14 +519,11 @@ export async function runSearch(query, userId) {
 
 export async function runContribute(query, username, userId) {
     const trimmed = query.trim();
-
-    let contribution;
     try {
-        contribution = await workerContribute(username, userId);
+        await workerContribute(username, userId);
     } catch (err) {
         throw new Error(`Could not fetch ${username}'s library: ${err.message}`);
     }
-
     const lookupResults = await searchLookupTable(trimmed);
     if (lookupResults.length > 0) {
         return lookupResults.map(r => ({
@@ -548,32 +533,24 @@ export async function runContribute(query, username, userId) {
             iconUrl: null,
         }));
     }
-
     return [];
 }
 
-// ── Private helpers ──
+// ── Private helpers ───────────────────────────────────────────────────────────
 
 async function _searchPatchSites(query) {
     const encoded = encodeURIComponent(query);
     const titleIds = new Set();
-
     const [ps4, ps5] = await Promise.all([
-        fetch(`${ORBIS_SEARCH_URL}?term=${encoded}`)
-            .then(r => r.ok ? r.json() : null)
-            .catch(() => null),
-        fetch(`${PROSPERO_SEARCH_URL}?term=${encoded}`)
-            .then(r => r.ok ? r.json() : null)
-            .catch(() => null),
+        fetch(`${ORBIS_SEARCH_URL}?term=${encoded}`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${PROSPERO_SEARCH_URL}?term=${encoded}`).then(r => r.ok ? r.json() : null).catch(() => null),
     ]);
-
     for (const result of (ps4?.results || [])) {
         if (result.titleid) titleIds.add(`${result.titleid}_00`);
     }
     for (const result of (ps5?.results || [])) {
         if (result.titleid) titleIds.add(`${result.titleid}_00`);
     }
-
     return [...titleIds];
 }
 
@@ -588,9 +565,7 @@ function _platformFromTitleId(npTitleId, npServiceName) {
     return _platformFromService('', npServiceName);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Initial game state factory
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── Initial game state factory ────────────────────────────────────────────────
 
 export function createGameEntry(catalogEntry) {
     const trophyState = {};
@@ -599,43 +574,31 @@ export function createGameEntry(catalogEntry) {
             trophyState[String(trophy.trophyId)] = {earned: false, pinned: false};
         }
     }
-
     return {
         id: crypto.randomUUID(),
         npCommId: catalogEntry.npCommId,
         name: catalogEntry.name,
         platform: catalogEntry.platform,
         trophyState,
-        viewState: {
-            sort: 'psn',
-            filter: 'all',
-            ungrouped: false,
-            collapsedGroups: [],
-        },
+        viewState: {sort: 'psn', filter: 'all', ungrouped: false, collapsedGroups: []},
         last_modified: null,
     };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Merge catalog update into personal state
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── Merge catalog update ──────────────────────────────────────────────────────
 
 export function mergeCatalogUpdate(game, newCatalogEntry) {
     const existingState = game.trophyState || {};
     const newTrophyState = {};
     let addedCount = 0;
-
     const newIds = new Set();
+
     for (const group of newCatalogEntry.groups) {
         for (const trophy of group.trophies) {
             const id = String(trophy.trophyId);
             newIds.add(id);
-            if (existingState[id]) {
-                newTrophyState[id] = existingState[id];
-            } else {
-                newTrophyState[id] = {earned: false, pinned: false};
-                addedCount++;
-            }
+            newTrophyState[id] = existingState[id] || {earned: false, pinned: false};
+            if (!existingState[id]) addedCount++;
         }
     }
 
@@ -647,6 +610,5 @@ export function mergeCatalogUpdate(game, newCatalogEntry) {
         }
     }
 
-    const updatedGame = {...game, trophyState: newTrophyState};
-    return {updatedGame, addedCount, orphanedCount};
+    return {updatedGame: {...game, trophyState: newTrophyState}, addedCount, orphanedCount};
 }

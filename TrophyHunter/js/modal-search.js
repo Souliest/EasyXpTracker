@@ -1,10 +1,11 @@
 // TrophyHunter/js/modal-search.js
 // Search / Add Game modal — 4-step search flow, contribute prompt, result rows.
 // No dependency on the game settings modal.
-
-// ═══════════════════════════════════════════════
-// Modal — search / add game
-// ═══════════════════════════════════════════════
+//
+// v2 change: openAddGameModal now receives personalIndex (the index array from
+// { index, blobs }) instead of a flat games array. The only call site that used
+// the games array was the "already in your list" check, which now uses the index.
+// Index entries include { id, name, platform, last_modified } — enough for the check.
 
 import {
     workerResolve,
@@ -23,14 +24,16 @@ import {
 import {getUser} from '../../common/auth.js';
 import {escHtml} from '../../common/utils.js';
 
-// ── State ──
-let _currentQuery = '';   // preserved so contribute can retry the same query
+// ── State ──────────────────────────────────────────────────────────────────
 
-// ═══════════════════════════════════════════════
-// Search / Add Game modal
-// ═══════════════════════════════════════════════
+let _currentQuery = '';
 
-export function openAddGameModal(personalGames, onGameAdded, onSelectExisting) {
+// ── Search / Add Game modal ────────────────────────────────────────────────
+
+// personalIndex: the index array from { index, blobs } — used only for the
+// "already in your list" check (npCommId lookup). Index entries have at least
+// { id, name, platform, npCommId, last_modified }.
+export function openAddGameModal(personalIndex, onGameAdded, onSelectExisting) {
     const overlay = document.getElementById('searchModal');
     if (!overlay) return;
 
@@ -39,7 +42,6 @@ export function openAddGameModal(personalGames, onGameAdded, onSelectExisting) {
     document.body.style.overflow = 'hidden';
     document.getElementById('searchInput').focus();
 
-    // Clone buttons to remove any previously attached listeners before re-wiring.
     const oldBtn = document.getElementById('searchSubmitBtn');
     const newBtn = oldBtn.cloneNode(true);
     oldBtn.replaceWith(newBtn);
@@ -49,7 +51,7 @@ export function openAddGameModal(personalGames, onGameAdded, onSelectExisting) {
     oldInput.replaceWith(newInput);
     newInput.focus();
 
-    const doSearch = () => _runSearch(personalGames, onGameAdded, onSelectExisting);
+    const doSearch = () => _runSearch(personalIndex, onGameAdded, onSelectExisting);
     newBtn.addEventListener('click', doSearch);
     newInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') doSearch();
@@ -73,11 +75,9 @@ function _resetSearchModal() {
     _currentQuery = '';
 }
 
-// ─────────────────────────────────────────────
-// Main search runner — drives steps 1–3 via runSearch()
-// ─────────────────────────────────────────────
+// ── Main search runner ─────────────────────────────────────────────────────
 
-async function _runSearch(personalGames, onGameAdded, onSelectExisting) {
+async function _runSearch(personalIndex, onGameAdded, onSelectExisting) {
     const query = document.getElementById('searchInput').value.trim();
     if (query.length < 2) {
         _setSearchStatus('Enter at least 2 characters.', false);
@@ -102,25 +102,22 @@ async function _runSearch(personalGames, onGameAdded, onSelectExisting) {
     _setSearchStatus('', false);
 
     if (searchResult.needsUsername) {
-        // Steps 1–3 all failed — switch to contribute UI
-        _showContributePrompt(personalGames, onGameAdded, onSelectExisting);
+        _showContributePrompt(personalIndex, onGameAdded, onSelectExisting);
         return;
     }
 
     _renderSearchResults(
         searchResult.results,
         searchResult.source,
-        personalGames,
+        personalIndex,
         onGameAdded,
         onSelectExisting,
     );
 }
 
-// ─────────────────────────────────────────────
-// Contribute UI — replaces results area when steps 1–3 fail
-// ─────────────────────────────────────────────
+// ── Contribute UI ──────────────────────────────────────────────────────────
 
-function _showContributePrompt(personalGames, onGameAdded, onSelectExisting) {
+function _showContributePrompt(personalIndex, onGameAdded, onSelectExisting) {
     const resultsEl = document.getElementById('searchResults');
 
     resultsEl.innerHTML = `
@@ -176,7 +173,6 @@ function _showContributePrompt(personalGames, onGameAdded, onSelectExisting) {
 
     input.focus();
 
-    // Accordion toggle
     toggle.addEventListener('click', () => {
         const expanded = toggle.getAttribute('aria-expanded') === 'true';
         toggle.setAttribute('aria-expanded', String(!expanded));
@@ -184,14 +180,14 @@ function _showContributePrompt(personalGames, onGameAdded, onSelectExisting) {
         arrow.textContent = expanded ? '▶' : '▼';
     });
 
-    const doContribute = () => _runContribute(personalGames, onGameAdded, onSelectExisting);
+    const doContribute = () => _runContribute(personalIndex, onGameAdded, onSelectExisting);
     btn.addEventListener('click', doContribute);
     input.addEventListener('keydown', e => {
         if (e.key === 'Enter') doContribute();
     });
 }
 
-async function _runContribute(personalGames, onGameAdded, onSelectExisting) {
+async function _runContribute(personalIndex, onGameAdded, onSelectExisting) {
     const username = (document.getElementById('contributeInput')?.value || '').trim();
     if (!username) return;
 
@@ -219,9 +215,8 @@ async function _runContribute(personalGames, onGameAdded, onSelectExisting) {
         return;
     }
 
-    // We have results — switch to the normal results view
     _setSearchStatus('', false);
-    _renderSearchResults(results, 'contribute', personalGames, onGameAdded, onSelectExisting);
+    _renderSearchResults(results, 'contribute', personalIndex, onGameAdded, onSelectExisting);
 }
 
 function _setContributeStatus(msg, isError) {
@@ -231,11 +226,9 @@ function _setContributeStatus(msg, isError) {
     el.className = isError ? 'contribute-status error' : 'contribute-status';
 }
 
-// ─────────────────────────────────────────────
-// Results renderer — shared by all sources
-// ─────────────────────────────────────────────
+// ── Results renderer ───────────────────────────────────────────────────────
 
-function _renderSearchResults(results, source, personalGames, onGameAdded, onSelectExisting) {
+function _renderSearchResults(results, source, personalIndex, onGameAdded, onSelectExisting) {
     const resultsEl = document.getElementById('searchResults');
 
     if (results.length === 0) {
@@ -251,33 +244,26 @@ function _renderSearchResults(results, source, personalGames, onGameAdded, onSel
     }[source] || 'Results';
 
     const fragment = document.createDocumentFragment();
-
     const heading = document.createElement('div');
     heading.className = 'search-section-heading';
     heading.textContent = sourceLabel;
     fragment.appendChild(heading);
 
     for (const result of results) {
-        const inList = personalGames.some(g => g.npCommId === result.npCommId);
-
-        // Catalog source: data is already cached → instant add
-        // All other sources: need a /trophies fetch on add
+        // Check the index (always complete) rather than the blob cache.
+        const inList = personalIndex.some(e => e.npCommId === result.npCommId);
         const status = inList
             ? 'in-list'
             : source === 'catalog' ? 'cached' : 'fetch';
-
-        fragment.appendChild(
-            _buildResultRow(result, status, onGameAdded, onSelectExisting)
-        );
+        fragment.appendChild(_buildResultRow(result, status, onGameAdded, onSelectExisting));
     }
 
-    // For catalog results, offer a PSN search override
     if (source === 'catalog') {
         const psnBtn = document.createElement('button');
         psnBtn.className = 'btn btn-ghost search-psn-anyway';
         psnBtn.textContent = 'Search PlayStation Network instead';
         psnBtn.addEventListener('click', () => {
-            _forceStepThree(personalGames, onGameAdded, onSelectExisting);
+            _forceStepThree(personalIndex, onGameAdded, onSelectExisting);
         });
         fragment.appendChild(psnBtn);
     }
@@ -286,10 +272,7 @@ function _renderSearchResults(results, source, personalGames, onGameAdded, onSel
     resultsEl.appendChild(fragment);
 }
 
-// Force-bypasses the catalog and lookup table, going straight to patch sites + /resolve.
-// Used by the "Search PlayStation Network instead" button.
-
-async function _forceStepThree(personalGames, onGameAdded, onSelectExisting) {
+async function _forceStepThree(personalIndex, onGameAdded, onSelectExisting) {
     const user = getUser();
     const userId = user ? user.id : null;
 
@@ -302,10 +285,8 @@ async function _forceStepThree(personalGames, onGameAdded, onSelectExisting) {
 
     try {
         const [ps4, ps5] = await Promise.all([
-            fetch(`${ORBIS_SEARCH_URL}?term=${encoded}`)
-                .then(r => r.ok ? r.json() : null).catch(() => null),
-            fetch(`${PROSPERO_SEARCH_URL}?term=${encoded}`)
-                .then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(`${ORBIS_SEARCH_URL}?term=${encoded}`).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(`${PROSPERO_SEARCH_URL}?term=${encoded}`).then(r => r.ok ? r.json() : null).catch(() => null),
         ]);
         for (const r of (ps4?.results || [])) {
             if (r.titleid) titleIds.add(`${r.titleid}_00`);
@@ -313,13 +294,12 @@ async function _forceStepThree(personalGames, onGameAdded, onSelectExisting) {
         for (const r of (ps5?.results || [])) {
             if (r.titleid) titleIds.add(`${r.titleid}_00`);
         }
-    } catch {
-        // fall through to empty
+    } catch { /* fall through */
     }
 
     if (titleIds.size === 0) {
         _setSearchStatus('', false);
-        _showContributePrompt(personalGames, onGameAdded, onSelectExisting);
+        _showContributePrompt(personalIndex, onGameAdded, onSelectExisting);
         return;
     }
 
@@ -339,20 +319,17 @@ async function _forceStepThree(personalGames, onGameAdded, onSelectExisting) {
                 });
             }
             _setSearchStatus('', false);
-            _renderSearchResults(results, 'resolve', personalGames, onGameAdded, onSelectExisting);
+            _renderSearchResults(results, 'resolve', personalIndex, onGameAdded, onSelectExisting);
             return;
         }
-    } catch {
-        // fall through
+    } catch { /* fall through */
     }
 
     _setSearchStatus('', false);
-    _showContributePrompt(personalGames, onGameAdded, onSelectExisting);
+    _showContributePrompt(personalIndex, onGameAdded, onSelectExisting);
 }
 
-// ─────────────────────────────────────────────
-// Result row builder
-// ─────────────────────────────────────────────
+// ── Result row builder ─────────────────────────────────────────────────────
 
 function _buildResultRow(result, status, onGameAdded, onSelectExisting) {
     const row = document.createElement('div');
@@ -408,17 +385,13 @@ function _buildResultRow(result, status, onGameAdded, onSelectExisting) {
     row.appendChild(icon);
     row.appendChild(info);
     row.appendChild(indicator);
-
     return row;
 }
 
-// ─────────────────────────────────────────────
-// Add from catalog (instant — data already cached in Supabase)
-// ─────────────────────────────────────────────
+// ── Add from catalog ───────────────────────────────────────────────────────
 
 async function _addFromCatalog(result, onGameAdded) {
     _setSearchStatus('Adding game…', false);
-
     try {
         const catalogEntry = await loadCatalogEntry(result.npCommId);
         if (!catalogEntry) {
@@ -433,16 +406,13 @@ async function _addFromCatalog(result, onGameAdded) {
     }
 }
 
-// ─────────────────────────────────────────────
-// Add from PSN (needs /trophies fetch)
-// ─────────────────────────────────────────────
+// ── Add from PSN ───────────────────────────────────────────────────────────
 
 async function _addFromPSN(result, onGameAdded) {
     const user = getUser();
     const userId = user ? user.id : null;
 
     _setSearchStatus('Downloading trophy data from PSN…', false);
-
     document.querySelectorAll('.search-result-row').forEach(r => {
         r.style.pointerEvents = 'none';
         r.style.opacity = '0.5';
@@ -476,9 +446,7 @@ async function _addFromPSN(result, onGameAdded) {
     }
 }
 
-// ─────────────────────────────────────────────
-// Status helpers
-// ─────────────────────────────────────────────
+// ── Status helpers ─────────────────────────────────────────────────────────
 
 function _setSearchStatus(msg, isError) {
     const el = document.getElementById('searchStatus');

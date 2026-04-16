@@ -2,16 +2,14 @@
 // Renders the game tree, counter cards, branch rows, and selector/action bar visibility.
 // Imports callbacks from main.js at call time via parameters to avoid circular dependencies.
 // Does NOT call loadData() — all data is passed in as parameters.
-
-// ═══════════════════════════════════════════════
-// Render — tree, cards, and UI state
-// ═══════════════════════════════════════════════
+//
+// v2 shape: the `data` parameter is now the full stored object { version, index, blobs, lruOrder }.
+// Callers pass stored directly; this module reads stored.blobs[selectedGameId] and stored.index.
 
 import {DEFAULT_COLOR} from './swatches.js';
 import {fillPercent, escHtml} from './nodes.js';
 
-// ── Sort order ──
-// Reads sortOrder from the game object passed in — no loadData call needed.
+// ── Sort order ─────────────────────────────────────────────────────────────
 
 export function currentSortOrder(game) {
     return game ? (game.sortOrder || null) : null;
@@ -43,20 +41,19 @@ export function updateGameActionButtons(hasGame) {
     if (actionBar) actionBar.style.display = hasGame ? '' : 'none';
 }
 
-// ── Main render ──
-// data: the full { games: [...] } object, already loaded by main.js
+// ── Main render ────────────────────────────────────────────────────────────
+// stored: the v2 stored object { version, index, blobs, lruOrder }
 // callbacks: { onOpenQuickCounter, onOpenAddCounter, onOpenAddBranch, onCounterStep,
 //              onResetNodeValue, onResetNodeStep, onOpenEditCounter, onOpenConfirmDeleteNode,
 //              onOpenEditBranch, onToggleBranch, onActivateNodeEdit, onOpenFocusModal,
 //              onAttachLongPress }
 
-export function renderMain(selectedGameId, editMode, nodeEditActive, collapsedBranches, callbacks, data) {
+export function renderMain(selectedGameId, editMode, nodeEditActive, collapsedBranches, callbacks, stored) {
     const content = document.getElementById('mainContent');
 
     if (!selectedGameId) {
-        const game = null;
-        updateSortBtn(game);
-        const msg = data.games.length === 0
+        updateSortBtn(null);
+        const msg = stored.index.length === 0
             ? `<div class="big">🎮</div>No games yet.<br>Hit <strong>+ Game</strong> to get started.`
             : `Select a game above.`;
         content.innerHTML = `
@@ -69,7 +66,7 @@ export function renderMain(selectedGameId, editMode, nodeEditActive, collapsedBr
         return;
     }
 
-    const game = data.games.find(g => g.id === selectedGameId);
+    const game = stored.blobs[selectedGameId];
     updateSortBtn(game);
 
     if (!game) {
@@ -149,9 +146,9 @@ export function renderBranch(node, editMode, nodeEditActive, collapsedBranches, 
         <span class="branch-toggle">${isCollapsed ? '▶' : '▼'}</span>
         <span class="branch-name">${escHtml(node.name)}</span>
         <div class="node-edit-controls">
-            <button class="node-btn blue"  data-action="add">+</button>
-            <button class="node-btn"       data-action="edit">✎</button>
-            <button class="node-btn red"   data-action="delete">🗑</button>
+            <button class="node-btn blue" data-action="add">+</button>
+            <button class="node-btn"      data-action="edit">✎</button>
+            <button class="node-btn red"  data-action="delete">🗑</button>
         </div>
     `;
 
@@ -221,7 +218,6 @@ export function renderCounter(node, editMode, nodeEditActive, callbacks) {
             callbacks.onCounterStep(node.id, parseInt(btn.dataset.step));
         });
     });
-
     card.querySelector('[data-action="edit"]').addEventListener('click', e => {
         e.stopPropagation();
         callbacks.onOpenEditCounter(node.id);
@@ -238,12 +234,10 @@ export function renderCounter(node, editMode, nodeEditActive, callbacks) {
         e.stopPropagation();
         callbacks.onOpenConfirmDeleteNode(node.id);
     });
-
     card.querySelector('.counter-name').addEventListener('click', e => {
         e.stopPropagation();
         callbacks.onOpenFocusModal(node.id);
     });
-
     card.addEventListener('dblclick', e => {
         if (e.target.closest('.node-btn') || e.target.closest('.c-btn')) return;
         e.preventDefault();
@@ -254,7 +248,7 @@ export function renderCounter(node, editMode, nodeEditActive, callbacks) {
     return card;
 }
 
-// ── Targeted card refresh (avoids full re-render on counter step) ──
+// ── Targeted card refresh ──────────────────────────────────────────────────
 
 export function refreshCounterCard(nodeId, node, nodeEditActive, callbacks) {
     const wrapper = document.querySelector(`.tree-node[data-id="${nodeId}"]`);

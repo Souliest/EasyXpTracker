@@ -2,16 +2,24 @@
 // Add/edit/settings/delete game modal and confirm-delete flow.
 // Fully independent of the branch and counter modals in modal-node.js.
 
-// ═══════════════════════════════════════════════
-// Modal — game and confirm-delete
-// ═══════════════════════════════════════════════
-
-import {loadData, saveData} from './storage.js';
+import {saveData, STORAGE_KEY} from './storage.js';
+import {cacheSet, cacheDelete, TOOL_CONFIG} from '../../common/migrations.js';
 import {findNode, removeNode, initialValue, countDescendants} from './nodes.js';
 
-// ═══════════════════════════════════════════════
-// Add / Edit / Delete Game modal
-// ═══════════════════════════════════════════════
+const CFG = TOOL_CONFIG.thingCounter;
+
+// ── Local storage read ─────────────────────────────────────────────────────
+
+function _localLoad() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) ||
+            {version: 2, index: [], blobs: {}, lruOrder: []};
+    } catch {
+        return {version: 2, index: [], blobs: {}, lruOrder: []};
+    }
+}
+
+// ── Add / Edit / Delete Game modal ────────────────────────────────────────
 
 let editingGameId = null;
 
@@ -24,14 +32,15 @@ export function openAddGameModal() {
     document.getElementById('gameModal').classList.add('open');
 }
 
-export async function openGameSettingsModal(selectedGameId) {
+export function openGameSettingsModal(selectedGameId) {
     if (!selectedGameId) return;
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
-    if (!game) return;
+    const stored = _localLoad();
+    // Name is always available in the index even if the blob is evicted.
+    const entry = stored.index.find(e => e.id === selectedGameId);
+    if (!entry) return;
     editingGameId = selectedGameId;
     document.getElementById('gameModalTitle').textContent = 'Game Settings';
-    document.getElementById('gmName').value = game.name;
+    document.getElementById('gmName').value = entry.name;
     document.getElementById('gameSettingsDanger').style.display = '';
     cancelResetCounters();
     document.getElementById('gameModal').classList.add('open');
@@ -48,18 +57,28 @@ export async function saveGame(selectedGameId, onSaved) {
         alert('Please enter a game title.');
         return;
     }
-    const data = await loadData();
+
+    const stored = _localLoad();
     let savedId;
+
     if (editingGameId) {
-        const game = data.games.find(g => g.id === editingGameId);
-        if (game) game.name = name;
+        const game = stored.blobs[editingGameId];
+        if (game) {
+            game.name = name;
+            cacheSet(stored, game, CFG);
+        } else {
+            // Blob evicted — update index name only and skip blob write.
+            const idx = stored.index.findIndex(e => e.id === editingGameId);
+            if (idx !== -1) stored.index[idx].name = name;
+        }
         savedId = editingGameId;
     } else {
         const game = {id: crypto.randomUUID(), name, nodes: []};
-        data.games.push(game);
+        cacheSet(stored, game, CFG);
         savedId = game.id;
     }
-    await saveData(data, savedId);
+
+    await saveData(stored, savedId);
     closeGameModal();
     onSaved(savedId);
 }
@@ -78,8 +97,8 @@ export function cancelResetCounters() {
 
 export async function confirmResetCounters(selectedGameId, onDone) {
     if (!selectedGameId) return;
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
+    const stored = _localLoad();
+    const game = stored.blobs[selectedGameId];
     if (!game) return;
 
     function resetNodes(nodes) {
@@ -90,21 +109,20 @@ export async function confirmResetCounters(selectedGameId, onDone) {
     }
 
     resetNodes(game.nodes || []);
-    await saveData(data, selectedGameId);
+    cacheSet(stored, game, CFG);
+    await saveData(stored, selectedGameId);
     closeGameModal();
     onDone();
 }
 
-// ═══════════════════════════════════════════════
-// Confirm Delete
-// ═══════════════════════════════════════════════
+// ── Confirm Delete ─────────────────────────────────────────────────────────
 
 let pendingDeleteId = null;
 let pendingDeleteType = null;
 
-export async function openConfirmDeleteNode(nodeId, selectedGameId) {
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
+export function openConfirmDeleteNode(nodeId, selectedGameId) {
+    const stored = _localLoad();
+    const game = stored.blobs[selectedGameId];
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
     if (!node) return;
@@ -117,15 +135,15 @@ export async function openConfirmDeleteNode(nodeId, selectedGameId) {
     document.getElementById('confirmOverlay').classList.add('open');
 }
 
-export async function openConfirmDeleteGame(selectedGameId, onClose) {
+export function openConfirmDeleteGame(selectedGameId, onClose) {
     if (!selectedGameId) return;
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
-    if (!game) return;
+    const stored = _localLoad();
+    const entry = stored.index.find(e => e.id === selectedGameId);
+    if (!entry) return;
     onClose();
     pendingDeleteId = selectedGameId;
     pendingDeleteType = 'game';
-    document.getElementById('confirmNodeName').textContent = game.name;
+    document.getElementById('confirmNodeName').textContent = entry.name;
     document.getElementById('confirmNodeExtra').textContent = 'All counters and nodes will be permanently deleted.';
     document.getElementById('confirmOverlay').classList.add('open');
 }
@@ -138,12 +156,17 @@ export function closeConfirm() {
 
 export async function confirmDelete(selectedGameId, onDeleted) {
     if (!pendingDeleteId) return;
-    const data = await loadData();
+    const stored = _localLoad();
+
     if (pendingDeleteType === 'node') {
-        const game = data.games.find(g => g.id === selectedGameId);
-        if (game) removeNode(game.nodes, pendingDeleteId);
-        await saveData(data, selectedGameId);
+        const game = stored.blobs[selectedGameId];
+        if (game) {
+            removeNode(game.nodes, pendingDeleteId);
+            cacheSet(stored, game, CFG);
+            await saveData(stored, selectedGameId);
+        }
     }
+
     const deletedId = pendingDeleteId;
     const deletedType = pendingDeleteType;
     closeConfirm();

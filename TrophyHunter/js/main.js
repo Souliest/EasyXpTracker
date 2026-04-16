@@ -1,17 +1,26 @@
 // TrophyHunter/js/main.js
 // Entry point: holds all module-level state, drives selector and main view,
 // exposes window globals for inline HTML handlers, runs init IIFE.
-
-// ═══════════════════════════════════════════════
-// Main — state, selector, interactions, globals, init
-// ═══════════════════════════════════════════════
+//
+// Storage shape change (v2):
+//   _personalData — now holds { index, blobs } instead of { games }.
+//                   index is always complete and drives the selector.
+//                   blobs is the LRU blob cache (up to 5 entries).
+//   _selectedGameBlob — holds the full game object for the currently-selected
+//                        game. Populated by loadGame() on every game select and
+//                        kept in sync on every write. All functions that
+//                        previously did _personalData.games.find(...) now read
+//                        _selectedGameBlob directly.
 
 import {
     loadData, saveData, loadGame, resolveCollision, deleteGame,
     loadCatalogEntry, mergeCatalogUpdate,
-    STORAGE_SELECTED, localSave,
+    STORAGE_KEY, STORAGE_SELECTED, localSave,
     subscribeToGameChanges, unsubscribeFromGameChanges, REALTIME_ENABLED,
 } from './storage.js';
+import {
+    runMigrations, TOOL_CONFIG, cacheSet, cacheDelete,
+} from '../../common/migrations.js';
 import {
     renderMain, updateGameHeader, updateGroupHeader,
     refreshTrophyRow, updateSelectorButtons,
@@ -25,78 +34,114 @@ import {initAuth, showCollisionModal} from '../../common/auth-ui.js';
 import {getUser} from '../../common/auth.js';
 import {supabase} from '../../common/supabase.js';
 
-// ── Module-level state ──
+const CFG = TOOL_CONFIG.trophyHunter;
+
+// ── Module-level state ────────────────────────────────────────────────────────
 
 let selectedGameId = null;
-let _personalData = {games: []};
+let _personalData = {index: [], blobs: {}};   // { index, blobs } — drives selector
+let _selectedGameBlob = null;                       // full game object for the selected game
 let _catalogEntry = null;
 
-// ── Debounce handle for Supabase sync ──
+// ── Debounce handle for Supabase sync ────────────────────────────────────────
+
 let _syncTimer = null;
 
-// ═══════════════════════════════════════════════
-// Debounced sync
+// ── Local storage read ────────────────────────────────────────────────────────
+
+function _localLoad() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) ||
+            {version: 2, index: [], blobs: {}, lruOrder: []};
+    } catch {
+        return {version: 2, index: [], blobs: {}, lruOrder: []};
+    }
+}
+
+// ── Debounced sync ────────────────────────────────────────────────────────────
 // UI writes to localStorage immediately and re-renders.
 // Supabase sync fires 2s after the last change — batches rapid toggles.
-// Only the currently-selected game is ever modified during play, so we
-// always pass selectedGameId as changedGameId.
-// ═══════════════════════════════════════════════
 
 function _scheduleSync() {
     clearTimeout(_syncTimer);
     _syncTimer = setTimeout(() => {
         _syncTimer = null;
-        if (getUser()) saveData(_personalData, selectedGameId);  // fire-and-forget
+        if (getUser()) {
+            const stored = _localLoad();
+            saveData(stored, selectedGameId);  // fire-and-forget
+        }
     }, 2000);
 }
 
-// ═══════════════════════════════════════════════
-// Realtime incoming update handler
-// Called by storage.js when a newer remote version of a game arrives.
+// ── Realtime incoming update handler ─────────────────────────────────────────
 // Skipped if a local debounce timer is running — local changes take priority.
-// ═══════════════════════════════════════════════
+// Updates for games not in the blob cache update the index only; no blob fetch.
 
 function _onRemoteUpdate(remoteGame, remoteUpdatedAt) {
     if (_syncTimer !== null) return;
 
-    const localGame = _personalData.games.find(g => g.id === remoteGame.id);
+    const stored = _localLoad();
+    const indexEntry = stored.index.find(e => e.id === remoteGame.id);
 
-    if (!localGame) {
-        _personalData.games.push({...remoteGame, last_modified: remoteUpdatedAt});
-        localSave(_personalData);
+    if (!indexEntry) {
+        // New game from another device.
+        const game = {...remoteGame, last_modified: remoteUpdatedAt};
+        cacheSet(stored, game, CFG);
+        localSave(stored);
+        _personalData = {index: stored.index, blobs: stored.blobs};
         _rebuildSelector();
         return;
     }
 
-    const localTime = localGame.last_modified ? new Date(localGame.last_modified) : new Date(0);
+    const localTime = indexEntry.last_modified ? new Date(indexEntry.last_modified) : new Date(0);
     const remoteTime = new Date(remoteUpdatedAt);
     if (remoteTime <= localTime) return;
 
-    const idx = _personalData.games.findIndex(g => g.id === remoteGame.id);
-    _personalData.games[idx] = {
-        ...remoteGame,
-        last_modified: remoteUpdatedAt,
-        viewState: localGame.viewState,
-    };
-    localSave(_personalData);
+    if (stored.blobs[remoteGame.id]) {
+        // Preserve viewState from the local session.
+        const localBlob = stored.blobs[remoteGame.id];
+        const mergedGame = {
+            ...remoteGame,
+            last_modified: remoteUpdatedAt,
+            viewState: localBlob.viewState,
+        };
+        cacheSet(stored, mergedGame, CFG);
+
+        // Keep _selectedGameBlob in sync if this is the active game.
+        if (selectedGameId === remoteGame.id) {
+            _selectedGameBlob = mergedGame;
+        }
+    } else {
+        // Not cached — update index only.
+        const idx = stored.index.findIndex(e => e.id === remoteGame.id);
+        if (idx !== -1) {
+            stored.index[idx] = {
+                id: remoteGame.id,
+                name: remoteGame.name,
+                last_modified: remoteUpdatedAt,
+                platform: remoteGame.platform,
+            };
+        }
+    }
+
+    localSave(stored);
+    _personalData = {index: stored.index, blobs: stored.blobs};
 
     if (selectedGameId === remoteGame.id) {
         _doRenderMain();
     }
 }
 
-// ═══════════════════════════════════════════════
-// Selector
-// ═══════════════════════════════════════════════
+// ── Selector ──────────────────────────────────────────────────────────────────
 
 function persistSelectedGame(id) {
     if (id) localStorage.setItem(STORAGE_SELECTED, id);
     else localStorage.removeItem(STORAGE_SELECTED);
 }
 
-function restoreSelectedGame(data) {
+function restoreSelectedGame(index) {
     const saved = localStorage.getItem(STORAGE_SELECTED);
-    if (saved && data.games.find(g => g.id === saved)) return saved;
+    if (saved && index.find(e => e.id === saved)) return saved;
     return null;
 }
 
@@ -110,28 +155,28 @@ async function renderSelector() {
 function _rebuildSelector() {
     const sel = document.getElementById('gameSelect');
     sel.innerHTML = '<option value="">— select a game —</option>';
-    _personalData.games.forEach(g => {
+    _personalData.index.forEach(e => {
         const opt = document.createElement('option');
-        opt.value = g.id;
-        opt.textContent = `${g.name} [${g.platform}]`;
+        opt.value = e.id;
+        opt.textContent = `${e.name} [${e.platform || ''}]`.trim();
         sel.appendChild(opt);
     });
 
-    if (selectedGameId && _personalData.games.find(g => g.id === selectedGameId)) {
+    if (selectedGameId && _personalData.index.find(e => e.id === selectedGameId)) {
         sel.value = selectedGameId;
     }
 
-    const hasGame = !!selectedGameId && !!_personalData.games.find(g => g.id === selectedGameId);
+    const hasGame = !!selectedGameId && !!_personalData.index.find(e => e.id === selectedGameId);
     updateSelectorButtons(hasGame);
 }
 
 async function selectGame(id) {
     selectedGameId = id || null;
-    persistSelectedGame(selectedGameId);
+    _selectedGameBlob = null;
     _catalogEntry = null;
+    persistSelectedGame(selectedGameId);
 
-    const hasGame = !!selectedGameId &&
-        !!_personalData.games.find(g => g.id === selectedGameId);
+    const hasGame = !!selectedGameId && !!_personalData.index.find(e => e.id === selectedGameId);
     updateSelectorButtons(hasGame);
 
     if (!selectedGameId) {
@@ -139,16 +184,22 @@ async function selectGame(id) {
         return;
     }
 
-    // Flush any pending sync before switching games
+    // Flush any pending sync before switching games.
     clearTimeout(_syncTimer);
     _syncTimer = null;
-    if (getUser()) await saveData(_personalData, selectedGameId);
+    if (getUser()) {
+        const stored = _localLoad();
+        await saveData(stored, selectedGameId);
+    }
 
-    // Collision detection
+    // loadGame warms the blob cache and returns the full game object.
     const {game, collision} = await loadGame(selectedGameId);
+    _selectedGameBlob = game;
+
     if (collision) {
         showCollisionModal(selectedGameId, game.name, collision, resolveCollision, async () => {
             _personalData = await loadData();
+            _selectedGameBlob = _personalData.blobs[selectedGameId] || null;
             await _loadCatalogAndRender();
         });
         return;
@@ -158,13 +209,7 @@ async function selectGame(id) {
 }
 
 async function _loadCatalogAndRender() {
-    if (!selectedGameId) {
-        _doRenderMain();
-        return;
-    }
-
-    const game = _personalData.games.find(g => g.id === selectedGameId);
-    if (!game) {
+    if (!selectedGameId || !_selectedGameBlob) {
         _doRenderMain();
         return;
     }
@@ -172,17 +217,15 @@ async function _loadCatalogAndRender() {
     document.getElementById('mainContent').innerHTML =
         `<div class="empty-state"><div class="big">⏳</div>Loading trophy data…</div>`;
 
-    _catalogEntry = await loadCatalogEntry(game.npCommId);
+    _catalogEntry = await loadCatalogEntry(_selectedGameBlob.npCommId);
     _doRenderMain();
 }
 
 function _doRenderMain() {
-    renderMain(selectedGameId, _personalData, _catalogEntry, _callbacks());
+    renderMain(selectedGameId, _personalData, _selectedGameBlob, _catalogEntry, _callbacks());
 }
 
-// ═══════════════════════════════════════════════
-// Callbacks
-// ═══════════════════════════════════════════════
+// ── Callbacks ─────────────────────────────────────────────────────────────────
 
 function _callbacks() {
     return {
@@ -193,141 +236,154 @@ function _callbacks() {
     };
 }
 
-// ═══════════════════════════════════════════════
-// Trophy interactions
-// ═══════════════════════════════════════════════
+// ── Trophy interactions ───────────────────────────────────────────────────────
 
 function _toggleEarned(trophyId) {
-    const game = _personalData.games.find(g => g.id === selectedGameId);
-    if (!game || !_catalogEntry) return;
+    if (!_selectedGameBlob || !_catalogEntry) return;
 
-    const state = game.trophyState[trophyId] || {earned: false, pinned: false};
+    const state = _selectedGameBlob.trophyState[trophyId] || {earned: false, pinned: false};
     const newEarned = !state.earned;
 
-    game.trophyState[trophyId] = {
+    _selectedGameBlob.trophyState[trophyId] = {
         ...state,
         earned: newEarned,
         pinned: newEarned ? false : state.pinned,
     };
+    _selectedGameBlob.last_modified = new Date().toISOString();
 
-    game.last_modified = new Date().toISOString();
-    localSave(_personalData);
+    const stored = _localLoad();
+    cacheSet(stored, _selectedGameBlob, CFG);
+    localSave(stored);
+    _personalData = {index: stored.index, blobs: stored.blobs};
 
-    if (game.viewState.filter !== 'all') {
+    if (_selectedGameBlob.viewState.filter !== 'all') {
         _doRenderMain();
     } else {
         const trophy = _findTrophyInCatalog(trophyId);
-        if (trophy) refreshTrophyRow(trophyId, trophy, game.trophyState, _callbacks());
+        if (trophy) refreshTrophyRow(trophyId, trophy, _selectedGameBlob.trophyState, _callbacks());
 
         const group = _findGroupForTrophy(trophyId);
         if (group) {
-            const collapsed = game.viewState.collapsedGroups || [];
-            updateGroupHeader(group.groupId, group, computeGroupStats(group, game.trophyState), collapsed, id => _toggleGroup(id));
+            const collapsed = _selectedGameBlob.viewState.collapsedGroups || [];
+            updateGroupHeader(
+                group.groupId, group,
+                computeGroupStats(group, _selectedGameBlob.trophyState),
+                collapsed, id => _toggleGroup(id),
+            );
         }
 
-        updateGameHeader(game, _catalogEntry, computeStats(_catalogEntry.groups, game.trophyState));
+        updateGameHeader(
+            _selectedGameBlob,
+            _catalogEntry,
+            computeStats(_catalogEntry.groups, _selectedGameBlob.trophyState),
+        );
     }
 
     _scheduleSync();
 }
 
 function _togglePinned(trophyId) {
-    const game = _personalData.games.find(g => g.id === selectedGameId);
-    if (!game) return;
+    if (!_selectedGameBlob) return;
 
-    const state = game.trophyState[trophyId] || {earned: false, pinned: false};
+    const state = _selectedGameBlob.trophyState[trophyId] || {earned: false, pinned: false};
     if (state.earned) return;
 
-    game.trophyState[trophyId] = {...state, pinned: !state.pinned};
+    _selectedGameBlob.trophyState[trophyId] = {...state, pinned: !state.pinned};
+    _selectedGameBlob.last_modified = new Date().toISOString();
 
-    game.last_modified = new Date().toISOString();
-    localSave(_personalData);
+    const stored = _localLoad();
+    cacheSet(stored, _selectedGameBlob, CFG);
+    localSave(stored);
+    _personalData = {index: stored.index, blobs: stored.blobs};
 
     _doRenderMain();
     _scheduleSync();
 }
 
 function _updateViewState(newViewState) {
-    const game = _personalData.games.find(g => g.id === selectedGameId);
-    if (!game) return;
+    if (!_selectedGameBlob) return;
 
-    game.viewState = newViewState;
-    game.last_modified = new Date().toISOString();
-    localSave(_personalData);
+    _selectedGameBlob.viewState = newViewState;
+    _selectedGameBlob.last_modified = new Date().toISOString();
+
+    const stored = _localLoad();
+    cacheSet(stored, _selectedGameBlob, CFG);
+    localSave(stored);
+    _personalData = {index: stored.index, blobs: stored.blobs};
 
     _doRenderMain();
     _scheduleSync();
 }
 
 function _toggleGroup(groupId) {
-    const game = _personalData.games.find(g => g.id === selectedGameId);
-    if (!game) return;
+    if (!_selectedGameBlob) return;
 
-    const collapsed = game.viewState.collapsedGroups || [];
+    const collapsed = _selectedGameBlob.viewState.collapsedGroups || [];
     const idx = collapsed.indexOf(groupId);
-    if (idx === -1) {
-        game.viewState.collapsedGroups = [...collapsed, groupId];
-    } else {
-        game.viewState.collapsedGroups = collapsed.filter(id => id !== groupId);
-    }
+    _selectedGameBlob.viewState.collapsedGroups = idx === -1
+        ? [...collapsed, groupId]
+        : collapsed.filter(id => id !== groupId);
 
-    game.last_modified = new Date().toISOString();
-    localSave(_personalData);
+    _selectedGameBlob.last_modified = new Date().toISOString();
+
+    const stored = _localLoad();
+    cacheSet(stored, _selectedGameBlob, CFG);
+    localSave(stored);
+    _personalData = {index: stored.index, blobs: stored.blobs};
+
     _scheduleSync();
 
     const body = document.getElementById(`group-body-${groupId}`);
     const header = document.querySelector(`.th-group-header[data-group-id="${groupId}"]`);
     const toggle = header && header.querySelector('.th-group-toggle');
 
-    if (body) body.classList.toggle('collapsed', game.viewState.collapsedGroups.includes(groupId));
-    if (toggle) toggle.textContent = game.viewState.collapsedGroups.includes(groupId) ? '▶' : '▼';
+    if (body) body.classList.toggle('collapsed', _selectedGameBlob.viewState.collapsedGroups.includes(groupId));
+    if (toggle) toggle.textContent = _selectedGameBlob.viewState.collapsedGroups.includes(groupId) ? '▶' : '▼';
 }
 
-// ═══════════════════════════════════════════════
-// Game management — add / rename / reset / remove / refresh
-// ═══════════════════════════════════════════════
+// ── Game management ───────────────────────────────────────────────────────────
 
 function _openAddGame() {
     clearTimeout(_syncTimer);
     _syncTimer = null;
-    if (getUser()) saveData(_personalData, selectedGameId);
-
-    openAddGameModal(
-        _personalData.games,
-        _afterGameAdded,
-        _afterSelectExisting,
-    );
+    if (getUser()) {
+        const stored = _localLoad();
+        saveData(stored, selectedGameId);
+    }
+    openAddGameModal(_personalData.index, _afterGameAdded, _afterSelectExisting);
 }
 
 async function _afterGameAdded(game, catalogEntry) {
-    _personalData.games.push(game);
-    await saveData(_personalData, game.id);
+    const stored = _localLoad();
+    cacheSet(stored, game, CFG);
+    localSave(stored);
+
+    await saveData(stored, game.id);
 
     selectedGameId = game.id;
-    persistSelectedGame(game.id);
+    _selectedGameBlob = game;
     _catalogEntry = catalogEntry;
+    _personalData = {index: stored.index, blobs: stored.blobs};
 
-    await renderSelector();
+    persistSelectedGame(game.id);
+    _rebuildSelector();
     document.getElementById('gameSelect').value = game.id;
     updateSelectorButtons(true);
     _doRenderMain();
 }
 
 function _afterSelectExisting(npCommId) {
-    const game = _personalData.games.find(g => g.npCommId === npCommId);
-    if (game) {
-        selectedGameId = game.id;
-        persistSelectedGame(game.id);
-        document.getElementById('gameSelect').value = game.id;
-        selectGame(game.id);
-    }
+    const entry = _personalData.index.find(e => e.npCommId === npCommId);
+    if (!entry) return;
+    selectedGameId = entry.id;
+    persistSelectedGame(entry.id);
+    document.getElementById('gameSelect').value = entry.id;
+    selectGame(entry.id);
 }
 
 function _openGameSettings() {
-    const game = _personalData.games.find(g => g.id === selectedGameId);
-    if (!game) return;
-
-    openGameSettingsModal(game, {
+    if (!_selectedGameBlob) return;
+    openGameSettingsModal(_selectedGameBlob, {
         onRename: name => _renameGame(name),
         onReset: () => _resetGame(),
         onRemove: () => _removeGame(),
@@ -336,25 +392,36 @@ function _openGameSettings() {
 }
 
 async function _renameGame(newName) {
-    const game = _personalData.games.find(g => g.id === selectedGameId);
-    if (!game) return;
+    if (!_selectedGameBlob) return;
 
-    game.name = newName;
-    await saveData(_personalData, selectedGameId);
-    await renderSelector();
+    _selectedGameBlob.name = newName;
+    _selectedGameBlob.last_modified = new Date().toISOString();
+
+    const stored = _localLoad();
+    cacheSet(stored, _selectedGameBlob, CFG);
+    localSave(stored);
+    _personalData = {index: stored.index, blobs: stored.blobs};
+
+    await saveData(stored, selectedGameId);
+    _rebuildSelector();
     document.getElementById('gameSelect').value = selectedGameId;
     _doRenderMain();
 }
 
 async function _resetGame() {
-    const game = _personalData.games.find(g => g.id === selectedGameId);
-    if (!game) return;
+    if (!_selectedGameBlob) return;
 
-    for (const key of Object.keys(game.trophyState)) {
-        game.trophyState[key] = {earned: false, pinned: false};
+    for (const key of Object.keys(_selectedGameBlob.trophyState)) {
+        _selectedGameBlob.trophyState[key] = {earned: false, pinned: false};
     }
+    _selectedGameBlob.last_modified = new Date().toISOString();
 
-    await saveData(_personalData, selectedGameId);
+    const stored = _localLoad();
+    cacheSet(stored, _selectedGameBlob, CFG);
+    localSave(stored);
+    _personalData = {index: stored.index, blobs: stored.blobs};
+
+    await saveData(stored, selectedGameId);
     _doRenderMain();
 }
 
@@ -363,38 +430,41 @@ async function _removeGame() {
 
     clearTimeout(_syncTimer);
     _syncTimer = null;
-    await deleteGame(selectedGameId);
-    _personalData.games = _personalData.games.filter(g => g.id !== selectedGameId);
 
+    await deleteGame(selectedGameId);
+
+    const stored = _localLoad();
+    _personalData = {index: stored.index, blobs: stored.blobs};
     selectedGameId = null;
+    _selectedGameBlob = null;
     _catalogEntry = null;
     persistSelectedGame(null);
 
-    await renderSelector();
+    _rebuildSelector();
     updateSelectorButtons(false);
     _doRenderMain();
 }
 
 function _refreshGame(newCatalogEntry) {
-    const game = _personalData.games.find(g => g.id === selectedGameId);
-    if (!game) return {addedCount: 0, orphanedCount: 0};
+    if (!_selectedGameBlob) return {addedCount: 0, orphanedCount: 0};
 
-    const {updatedGame, addedCount, orphanedCount} = mergeCatalogUpdate(game, newCatalogEntry);
+    const {updatedGame, addedCount, orphanedCount} = mergeCatalogUpdate(_selectedGameBlob, newCatalogEntry);
 
-    const idx = _personalData.games.findIndex(g => g.id === selectedGameId);
-    if (idx !== -1) _personalData.games[idx] = updatedGame;
-
+    _selectedGameBlob = updatedGame;
     _catalogEntry = newCatalogEntry;
 
-    saveData(_personalData, selectedGameId);
+    const stored = _localLoad();
+    cacheSet(stored, _selectedGameBlob, CFG);
+    localSave(stored);
+    _personalData = {index: stored.index, blobs: stored.blobs};
+
+    saveData(stored, selectedGameId);
     _doRenderMain();
 
     return {addedCount, orphanedCount};
 }
 
-// ═══════════════════════════════════════════════
-// Catalog lookup helpers
-// ═══════════════════════════════════════════════
+// ── Catalog lookup helpers ────────────────────────────────────────────────────
 
 function _findTrophyInCatalog(trophyId) {
     if (!_catalogEntry) return null;
@@ -412,9 +482,7 @@ function _findGroupForTrophy(trophyId) {
     ) || null;
 }
 
-// ═══════════════════════════════════════════════
-// Expose globals for inline HTML handlers
-// ═══════════════════════════════════════════════
+// ── Expose globals for inline HTML handlers ───────────────────────────────────
 
 window.selectGame = id => selectGame(id);
 window.openAddGameModal = () => _openAddGame();
@@ -435,19 +503,29 @@ document.getElementById('gameSettingsModal').addEventListener('click', function 
     if (e.target === this) closeGameSettingsModal();
 });
 
-// ═══════════════════════════════════════════════
-// Init
-// ═══════════════════════════════════════════════
+// ── renderMain signature note ─────────────────────────────────────────────────
+// render.js receives (selectedGameId, personalData, selectedGameBlob, catalogEntry, callbacks).
+// personalData is { index, blobs } — render.js uses it only for the selector;
+// the selected game's trophyState and viewState come from selectedGameBlob.
+// render.js callers in v1 passed the full games array; v2 passes the blob directly.
+// If render.js has not yet been updated, update its signature to accept the blob
+// as a standalone parameter rather than finding it via personalData.games.find().
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 
 (async function init() {
     await initAuth();
+
     const data = await loadData();
     _personalData = data;
 
-    selectedGameId = restoreSelectedGame(data);
-    await renderSelector();
+    selectedGameId = restoreSelectedGame(data.index);
+    _rebuildSelector();
 
     if (selectedGameId) {
+        // Warm the blob cache for the previously-selected game.
+        const {game} = await loadGame(selectedGameId);
+        _selectedGameBlob = game;
         await _loadCatalogAndRender();
     } else {
         _doRenderMain();

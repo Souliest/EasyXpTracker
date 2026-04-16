@@ -1,32 +1,43 @@
 // LevelGoalTracker/js/modal.js
 // Add/edit/delete game modal: open, close, save, tier row management, backdate toggle, and confirm-delete flow.
 
-// ═══════════════════════════════════════════════
-// Modal — add / edit game modal and tier row logic
-// ═══════════════════════════════════════════════
-
-import {loadData, saveData} from './storage.js';
+import {loadData, saveData, STORAGE_KEY} from './storage.js';
+import {cacheSet, TOOL_CONFIG} from '../../common/migrations.js';
 import {todayStr, daysBetween, localDatePlusDays} from './dates.js';
 import {calcDailyTarget} from './snapshot.js';
 
-// ── State ──
+const CFG = TOOL_CONFIG.levelGoalTracker;
+
+// ── Local storage read ─────────────────────────────────────────────────────
+
+function _localLoad() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) ||
+            {version: 2, index: [], blobs: {}, lruOrder: []};
+    } catch {
+        return {version: 2, index: [], blobs: {}, lruOrder: []};
+    }
+}
+
+// ── State ──────────────────────────────────────────────────────────────────
+
 let editingGameId = null;
 
-// ── Tier rows ──
+// ── Tier rows ──────────────────────────────────────────────────────────────
 
 export function addTierRow(level = '', reward = '') {
     const rows = document.getElementById('tierRows');
     const div = document.createElement('div');
     div.className = 'tier-row';
     div.innerHTML = `
-    <input type="number" class="tier-level"  placeholder="Level" value="${level}" min="1">
-    <input type="number" class="tier-reward" placeholder="0.0"   step="0.1" value="${reward}">
-    <button class="tier-remove" onclick="this.parentElement.remove()">✕</button>
-  `;
+        <input type="number" class="tier-level"  placeholder="Level" value="${level}" min="1">
+        <input type="number" class="tier-reward" placeholder="0.0"   step="0.1" value="${reward}">
+        <button class="tier-remove" onclick="this.parentElement.remove()">✕</button>
+    `;
     rows.appendChild(div);
 }
 
-// ── Backdate helpers ──
+// ── Backdate helpers ───────────────────────────────────────────────────────
 
 export function toggleBackdate() {
     const checked = document.getElementById('fBackdate').checked;
@@ -44,7 +55,7 @@ function resetBackdateFields() {
     document.getElementById('fStartLevel').value = '0';
 }
 
-// ── Open / close ──
+// ── Open / close ───────────────────────────────────────────────────────────
 
 export function openAddModal() {
     editingGameId = null;
@@ -58,9 +69,9 @@ export function openAddModal() {
     document.getElementById('gameModal').classList.add('open');
 }
 
-export async function openEditModal(id, onSaved) {
-    const data = await loadData();
-    const game = data.games.find(g => g.id === id);
+export function openEditModal(id, onSaved) {
+    const stored = _localLoad();
+    const game = stored.blobs[id];
     if (!game) return;
 
     editingGameId = id;
@@ -95,9 +106,8 @@ export function closeModal() {
     document.getElementById('gameModal').classList.remove('open');
 }
 
-// ── Save ──
+// ── Save ───────────────────────────────────────────────────────────────────
 
-// onSaved(selectedGameId) — callback so main.js can re-render after save
 export async function saveGame(onSaved) {
     const name = document.getElementById('fName').value.trim();
     const currentLevelRaw = document.getElementById('fCurrentLevel').value;
@@ -134,12 +144,12 @@ export async function saveGame(onSaved) {
     }
     tiers.sort((a, b) => a.level - b.level);
 
-    const data = await loadData();
+    const stored = _localLoad();
     const deadlineDate = localDatePlusDays(days);
-
     let savedId;
+
     if (editingGameId) {
-        const game = data.games.find(g => g.id === editingGameId);
+        const game = stored.blobs[editingGameId];
         if (!game) return;
         game.name = name;
         game.tiers = tiers;
@@ -149,6 +159,7 @@ export async function saveGame(onSaved) {
         game.snapshot.initialDailyLevel = currentLevel;
         game.snapshot.date = todayStr();
         game.snapshot.dailyTarget = calcDailyTarget(game);
+        cacheSet(stored, game, CFG);
         savedId = editingGameId;
     } else {
         const daysAlreadyElapsed = isBackdated ? (totalDays - days) : 0;
@@ -177,25 +188,26 @@ export async function saveGame(onSaved) {
             },
         };
         game.snapshot.dailyTarget = calcDailyTarget(game);
-        data.games.push(game);
+        cacheSet(stored, game, CFG);
         savedId = game.id;
     }
 
-    await saveData(data);
+    await saveData(stored, savedId);
     closeModal();
     onSaved(savedId);
 }
 
-// ── Confirm delete ──
+// ── Confirm delete ─────────────────────────────────────────────────────────
 
 let pendingDeleteId = null;
 
-export async function openConfirmDelete(id) {
-    const data = await loadData();
-    const game = data.games.find(g => g.id === id);
-    if (!game) return;
+export function openConfirmDelete(id) {
+    const stored = _localLoad();
+    // Name may be in index even if blob is evicted.
+    const entry = stored.index.find(e => e.id === id);
+    if (!entry) return;
     pendingDeleteId = id;
-    document.getElementById('confirmGameName').textContent = game.name;
+    document.getElementById('confirmGameName').textContent = entry.name;
     document.getElementById('confirmOverlay').classList.add('open');
 }
 
@@ -204,7 +216,7 @@ export function closeConfirm() {
     document.getElementById('confirmOverlay').classList.remove('open');
 }
 
-export async function confirmDelete(onDeleted) {
+export function confirmDelete(onDeleted) {
     if (!pendingDeleteId) return;
     const deletedId = pendingDeleteId;
     closeConfirm();

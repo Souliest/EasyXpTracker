@@ -1,9 +1,12 @@
 // LevelGoalTracker/js/main.js
-// Entry point: holds selectedGameId state, drives the selector and main view, exposes globals for inline HTML handlers, and runs init.
-
-// ═══════════════════════════════════════════════════════════════
-// Main — state, selector, renderMain, updateLevel, init
-// ═══════════════════════════════════════════════════════════════
+// Entry point: holds selectedGameId state, drives the selector and main view,
+// exposes globals for inline HTML handlers, and runs init.
+//
+// Storage shape change (v2): loadData() now returns { index, blobs } instead of
+// { games }. `index` is always complete and drives the selector. `blobs` is the
+// LRU blob cache (up to 5 full game objects). The selected game's full data is
+// always loaded via loadGame() before render, so it is guaranteed to be in the
+// cache when renderMain() runs.
 
 import {
     loadData,
@@ -15,8 +18,9 @@ import {
     STORAGE_KEY,
     STORAGE_SELECTED,
     subscribeToGameChanges,
-    unsubscribeFromGameChanges
+    unsubscribeFromGameChanges,
 } from './storage.js';
+import {runMigrations, TOOL_CONFIG, cacheSet, cacheDelete} from '../../common/migrations.js';
 import {maybeRollSnapshot} from './snapshot.js';
 import {computeStats} from './stats.js';
 import {
@@ -43,42 +47,49 @@ import {initAuth, showCollisionModal} from '../../common/auth-ui.js';
 import {supabase} from '../../common/supabase.js';
 import {getUser} from '../../common/auth.js';
 
-// ── Module-level state ──
+const CFG = TOOL_CONFIG.levelGoalTracker;
+
+// ── Module-level state ────────────────────────────────────────────────────────
+
 let selectedGameId = null;
 
-// ── Selector persistence ──
+// ── Selector persistence ──────────────────────────────────────────────────────
 
 function persistSelectedGame(id) {
     if (id) localStorage.setItem(STORAGE_SELECTED, id);
     else localStorage.removeItem(STORAGE_SELECTED);
 }
 
-function restoreSelectedGame(data) {
+function restoreSelectedGame(index) {
     const saved = localStorage.getItem(STORAGE_SELECTED);
-    if (saved && data.games.find(g => g.id === saved)) return saved;
+    if (saved && index.find(e => e.id === saved)) return saved;
     return null;
 }
 
-// ── Selector render ──
+// ── Selector render ───────────────────────────────────────────────────────────
+// Returns { index, blobs } so callers can reuse it without a second loadData().
 
-// Returns the loaded data so callers can reuse it without a second loadData() call.
 async function renderSelector() {
     const data = await loadData();
-    const sel = document.getElementById('gameSelect');
-    sel.innerHTML = '<option value="">— select a game —</option>';
-    data.games.forEach(g => {
-        const opt = document.createElement('option');
-        opt.value = g.id;
-        opt.textContent = g.name;
-        sel.appendChild(opt);
-    });
-    if (selectedGameId && data.games.find(g => g.id === selectedGameId)) {
-        sel.value = selectedGameId;
-    }
+    _rebuildSelector(data.index);
     return data;
 }
 
-// ── Select game ──
+function _rebuildSelector(index) {
+    const sel = document.getElementById('gameSelect');
+    sel.innerHTML = '<option value="">— select a game —</option>';
+    index.forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e.id;
+        opt.textContent = e.name;
+        sel.appendChild(opt);
+    });
+    if (selectedGameId && index.find(e => e.id === selectedGameId)) {
+        sel.value = selectedGameId;
+    }
+}
+
+// ── Select game ───────────────────────────────────────────────────────────────
 
 async function selectGame(id) {
     selectedGameId = id;
@@ -89,7 +100,6 @@ async function selectGame(id) {
         return;
     }
 
-    // Check for collision before rendering — only on select, never on interval
     const {game, collision} = await loadGame(id);
     if (collision) {
         showCollisionModal(id, game.name, collision, resolveCollision, () => renderMain());
@@ -98,15 +108,15 @@ async function selectGame(id) {
     }
 }
 
-// ── Update level ──
+// ── Update level ──────────────────────────────────────────────────────────────
 
 async function updateLevel() {
     const input = document.getElementById('levelInput');
     const newLevel = parseInt(input.value);
     if (isNaN(newLevel)) return;
 
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
+    const stored = _localLoad();
+    const game = stored.blobs[selectedGameId];
     if (!game) return;
 
     const finalLevel = game.tiers[game.tiers.length - 1].level;
@@ -115,32 +125,47 @@ async function updateLevel() {
     if (clamped !== newLevel) input.value = clamped;
 
     game.snapshot.currentLevel = clamped;
-    await saveData(data, selectedGameId);
+    cacheSet(stored, game, CFG);
+    await saveData(stored, selectedGameId);
     renderMain();
 }
 
-// ── Main render ──
-// Accepts optional pre-loaded data to avoid a redundant loadData() call.
+// ── Main render ───────────────────────────────────────────────────────────────
+// Reads the selected game's blob directly from localStorage (always cache-warm
+// after loadGame/selectGame). Accepts an optional pre-loaded stored object to
+// avoid a redundant _localLoad() call.
 
-async function renderMain(preloaded) {
+function _localLoad() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) ||
+            {version: 2, index: [], blobs: {}, lruOrder: []};
+    } catch {
+        return {version: 2, index: [], blobs: {}, lruOrder: []};
+    }
+}
+
+async function renderMain(preloadedStored) {
     const content = document.getElementById('mainContent');
+    const stored = preloadedStored || _localLoad();
+
     if (!selectedGameId) {
-        const data = preloaded || await loadData();
-        content.innerHTML = data.games.length === 0
+        content.innerHTML = stored.index.length === 0
             ? `<div class="empty-state"><div class="big">🎮</div>No games yet.<br>Hit <strong>+ Add</strong> to track your first goal.</div>`
             : `<div class="empty-state">Select a game above.</div>`;
         return;
     }
 
-    const data = preloaded || await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
+    const game = stored.blobs[selectedGameId];
     if (!game) {
         content.innerHTML = '';
         return;
     }
 
     const snapshotRolled = maybeRollSnapshot(game);
-    if (snapshotRolled) await saveData(data, selectedGameId);
+    if (snapshotRolled) {
+        cacheSet(stored, game, CFG);
+        await saveData(stored, selectedGameId);
+    }
 
     const s = computeStats(game);
 
@@ -163,85 +188,82 @@ async function renderMain(preloaded) {
     );
 }
 
-// ── Interval tick: update display from local data only, push if snapshot rolled ──
+// ── Interval tick ─────────────────────────────────────────────────────────────
+// Reads from localStorage only; pushes if snapshot rolled.
 
 async function tickRenderMain() {
     if (!selectedGameId) {
         renderMain();
         return;
     }
-    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"games":[]}');
-    const game = data.games.find(g => g.id === selectedGameId);
+    const stored = _localLoad();
+    const game = stored.blobs[selectedGameId];
     if (!game) return;
 
     const snapshotRolled = maybeRollSnapshot(game);
     if (snapshotRolled) {
-        await saveData(data, selectedGameId);
+        cacheSet(stored, game, CFG);
+        await saveData(stored, selectedGameId);
     }
 
-    renderMain(data);
+    renderMain(stored);
 }
 
-// ── Realtime: handle an incoming remote update ──
-// Called by the Supabase Realtime subscription whenever another device saves a game.
+// ── Realtime: handle an incoming remote update ────────────────────────────────
+// Remote updates for games not in the blob cache are dropped — the index is
+// updated so the selector stays correct, but no blob fetch is triggered.
+// The game will be fetched fresh from Supabase when the user selects it.
 
 function _onRemoteUpdate(row) {
     if (!row || !row.data) return;
 
     const remoteGame = {...row.data, last_modified: row.updated_at};
-    const local = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"games":[]}');
+    const stored = _localLoad();
 
-    const localGame = local.games.find(g => g.id === remoteGame.id);
+    const indexEntry = stored.index.find(e => e.id === remoteGame.id);
 
-    // Skip if remote isn't strictly newer than what we already have locally.
-    if (localGame) {
-        const localTime = localGame.last_modified ? new Date(localGame.last_modified) : null;
+    // Skip if remote isn't strictly newer.
+    if (indexEntry) {
+        const localTime = indexEntry.last_modified ? new Date(indexEntry.last_modified) : null;
         const remoteTime = remoteGame.last_modified ? new Date(remoteGame.last_modified) : null;
         if (localTime && remoteTime && remoteTime <= localTime) return;
     }
 
-    // Apply remote data to localStorage.
-    const idx = local.games.findIndex(g => g.id === remoteGame.id);
-    if (idx !== -1) {
-        local.games[idx] = remoteGame;
-    } else {
-        // Game added on another device — add it and rebuild the selector.
-        local.games.push(remoteGame);
-        localSave(local);
-        _rebuildSelector(local);
+    if (!indexEntry) {
+        // New game from another device — add to index and rebuild selector.
+        cacheSet(stored, remoteGame, CFG);
+        localSave(stored);
+        _rebuildSelector(stored.index);
         return;
     }
-    localSave(local);
 
-    // Re-render if the updated game is the one currently on screen.
+    // Update blob cache if the game is currently cached.
+    if (stored.blobs[remoteGame.id]) {
+        cacheSet(stored, remoteGame, CFG);
+    } else {
+        // Not cached — update index only.
+        const idx = stored.index.findIndex(e => e.id === remoteGame.id);
+        if (idx !== -1) stored.index[idx] = {
+            id: remoteGame.id,
+            name: remoteGame.name,
+            last_modified: remoteGame.last_modified
+        };
+    }
+    localSave(stored);
+
     if (remoteGame.id === selectedGameId) {
-        renderMain(local);
+        renderMain(stored);
     }
 }
 
-// Rebuild just the selector dropdown from already-loaded data, preserving selection.
-function _rebuildSelector(data) {
-    const sel = document.getElementById('gameSelect');
-    sel.innerHTML = '<option value="">— select a game —</option>';
-    data.games.forEach(g => {
-        const opt = document.createElement('option');
-        opt.value = g.id;
-        opt.textContent = g.name;
-        sel.appendChild(opt);
-    });
-    if (selectedGameId && data.games.find(g => g.id === selectedGameId)) {
-        sel.value = selectedGameId;
-    }
-}
-
-// ── Callbacks for modal save / delete ──
+// ── Callbacks for modal save / delete ────────────────────────────────────────
 
 async function afterSave(savedId) {
     selectedGameId = savedId;
     persistSelectedGame(savedId);
     const data = await renderSelector();
     document.getElementById('gameSelect').value = savedId;
-    renderMain(data);
+    renderMain();
 }
 
 async function afterDelete(deletedId) {
@@ -251,10 +273,10 @@ async function afterDelete(deletedId) {
         persistSelectedGame(null);
     }
     const data = await renderSelector();
-    renderMain(data);
+    renderMain();
 }
 
-// ── Expose globals called by index.html inline handlers ──
+// ── Expose globals called by index.html inline handlers ──────────────────────
 
 window.selectGame = selectGame;
 window.openAddModal = openAddModal;
@@ -265,29 +287,23 @@ window.closeModal = closeModal;
 window.closeConfirm = closeConfirm;
 window.confirmDelete = () => confirmDelete(afterDelete);
 
-// ── Init ──
+// ── Init ──────────────────────────────────────────────────────────────────────
 
 (async function init() {
     await initAuth();
 
-    // Wire Realtime subscribe/unsubscribe to auth state changes.
     supabase.auth.onAuthStateChange((event, session) => {
-        if (session?.user) {
-            subscribeToGameChanges(session.user.id, _onRemoteUpdate);
-        } else {
-            unsubscribeFromGameChanges();
-        }
+        if (session?.user) subscribeToGameChanges(session.user.id, _onRemoteUpdate);
+        else unsubscribeFromGameChanges();
     });
 
     const data = await loadData();
-    selectedGameId = restoreSelectedGame(data);
-    await renderSelector();
-    renderMain(data);
+    selectedGameId = restoreSelectedGame(data.index);
+    _rebuildSelector(data.index);
+    renderMain();
 
-    // Subscribe immediately if already signed in.
     const user = getUser();
     if (user) subscribeToGameChanges(user.id, _onRemoteUpdate);
 
-    // Tick every minute to keep daily targets current past midnight.
     setInterval(tickRenderMain, 60000);
 })();

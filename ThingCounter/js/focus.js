@@ -3,13 +3,12 @@
 // Quick Counter has moved to quick-counter.js but is re-exported here so existing
 // imports in main.js continue to work without change.
 
-// ═══════════════════════════════════════════════
-// Focus — per-counter large-target modal
-// ═══════════════════════════════════════════════
-
-import {loadData, saveData} from './storage.js';
+import {saveData, STORAGE_KEY} from './storage.js';
+import {cacheSet, TOOL_CONFIG} from '../../common/migrations.js';
 import {DEFAULT_COLOR} from './swatches.js';
 import {findNode, clampValue, initialValue, fillPercent} from './nodes.js';
+
+const CFG = TOOL_CONFIG.thingCounter;
 
 // Re-export Quick Counter so main.js imports remain unchanged.
 export {
@@ -29,10 +28,21 @@ export {
     closeQuickCounter,
 } from './quick-counter.js';
 
-// ── Focus modal state ──
+// ── Local storage read ─────────────────────────────────────────────────────
+
+function _localLoad() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) ||
+            {version: 2, index: [], blobs: {}, lruOrder: []};
+    } catch {
+        return {version: 2, index: [], blobs: {}, lruOrder: []};
+    }
+}
+
+// ── Focus modal state ──────────────────────────────────────────────────────
 
 let focusNodeId = null;
-let _selectedGameId = null;  // set via setFocusGameId() from main.js
+let _selectedGameId = null;
 
 export function setFocusGameId(id) {
     _selectedGameId = id;
@@ -42,11 +52,11 @@ export function getFocusNodeId() {
     return focusNodeId;
 }
 
-// ── Focus modal ──
+// ── Focus modal ────────────────────────────────────────────────────────────
 
-export async function openFocusModal(nodeId, selectedGameId) {
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
+export function openFocusModal(nodeId, selectedGameId) {
+    const stored = _localLoad();
+    const game = stored.blobs[selectedGameId];
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
     if (!node) return;
@@ -54,13 +64,17 @@ export async function openFocusModal(nodeId, selectedGameId) {
     focusNodeId = nodeId;
     _selectedGameId = selectedGameId;
     document.getElementById('focusName').textContent = node.name;
-    await updateFocusDisplay();
+    _updateFocusDisplay(stored);
     document.getElementById('focusModal').classList.add('open');
 }
 
-export async function updateFocusDisplay() {
-    const data = await loadData();
-    const game = data.games.find(g => g.id === _selectedGameId);
+// Public — called after external value changes that don't go through this module.
+export function updateFocusDisplay() {
+    _updateFocusDisplay(_localLoad());
+}
+
+function _updateFocusDisplay(stored) {
+    const game = stored.blobs[_selectedGameId];
     if (!game) return;
     const node = findNode(game.nodes, focusNodeId);
     if (!node) return;
@@ -129,14 +143,17 @@ export function activateFocusValueInput() {
 export async function onFocusValueInput(onRefreshCard) {
     const val = parseInt(document.getElementById('focusValueInput').value);
     if (isNaN(val)) return;
-    const data = await loadData();
-    const game = data.games.find(g => g.id === _selectedGameId);
+
+    const stored = _localLoad();
+    const game = stored.blobs[_selectedGameId];
     if (!game) return;
     const node = findNode(game.nodes, focusNodeId);
     if (!node) return;
+
     node.value = clampValue(node, val);
-    await saveData(data);
-    await updateFocusDisplay();
+    cacheSet(stored, game, CFG);
+    await saveData(stored, _selectedGameId);
+    _updateFocusDisplay(stored);
     onRefreshCard(focusNodeId, node);
 }
 
@@ -154,14 +171,17 @@ export function activateFocusStepInput() {
 export async function onFocusStepInput() {
     const val = parseFloat(document.getElementById('focusStepInput').value);
     if (isNaN(val) || val < 1) return;
-    const data = await loadData();
-    const game = data.games.find(g => g.id === _selectedGameId);
+
+    const stored = _localLoad();
+    const game = stored.blobs[_selectedGameId];
     if (!game) return;
     const node = findNode(game.nodes, focusNodeId);
     if (!node) return;
+
     node.step = val;
-    await saveData(data);
-    await updateFocusDisplay();
+    cacheSet(stored, game, CFG);
+    await saveData(stored, _selectedGameId);
+    _updateFocusDisplay(stored);
 }
 
 export function onFocusStepBlur() {
@@ -169,31 +189,35 @@ export function onFocusStepBlur() {
 }
 
 export async function focusStep(direction, useOne, onRefreshCard) {
-    const data = await loadData();
-    const game = data.games.find(g => g.id === _selectedGameId);
+    const stored = _localLoad();
+    const game = stored.blobs[_selectedGameId];
     if (!game) return;
     const node = findNode(game.nodes, focusNodeId);
     if (!node) return;
+
     const stepAmt = useOne ? 1 : (node.step || 1);
     node.value = clampValue(node, node.value + direction * stepAmt);
-    await saveData(data);
-    await updateFocusDisplay();
+    cacheSet(stored, game, CFG);
+    await saveData(stored, _selectedGameId);
+    _updateFocusDisplay(stored);
     onRefreshCard(focusNodeId, node);
 }
 
 export async function focusResetValue(onRefreshCard) {
-    const data = await loadData();
-    const game = data.games.find(g => g.id === _selectedGameId);
+    const stored = _localLoad();
+    const game = stored.blobs[_selectedGameId];
     if (!game) return;
     const node = findNode(game.nodes, focusNodeId);
     if (!node) return;
+
     node.value = initialValue(node);
-    await saveData(data);
-    await updateFocusDisplay();
+    cacheSet(stored, game, CFG);
+    await saveData(stored, _selectedGameId);
+    _updateFocusDisplay(stored);
     onRefreshCard(focusNodeId, node);
 }
 
 // Sync focus display if the given node is currently open — called after external value changes.
-export async function syncFocusIfOpen(nodeId) {
-    if (focusNodeId === nodeId) await updateFocusDisplay();
+export function syncFocusIfOpen(nodeId) {
+    if (focusNodeId === nodeId) _updateFocusDisplay(_localLoad());
 }

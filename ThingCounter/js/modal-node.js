@@ -2,20 +2,28 @@
 // Add/edit branch modal, add/edit counter modal, swatch popover, and parent selector helper.
 // No dependency on the game modal or confirm-delete flow (those live in modal-game.js).
 
-// ═══════════════════════════════════════════════
-// Modal — branch, counter, swatch, parent selector
-// ═══════════════════════════════════════════════
-
-import {loadData, saveData} from './storage.js';
+import {saveData, STORAGE_KEY} from './storage.js';
+import {cacheSet, TOOL_CONFIG} from '../../common/migrations.js';
 import {SWATCHES, DEFAULT_COLOR, swatchByColor} from './swatches.js';
 import {
     findNode, findParent, getAllBranches, isAncestor,
     insertNode, removeNode, newId,
 } from './nodes.js';
 
-// ═══════════════════════════════════════════════
-// Swatch popover
-// ═══════════════════════════════════════════════
+const CFG = TOOL_CONFIG.thingCounter;
+
+// ── Local storage read ─────────────────────────────────────────────────────
+
+function _localLoad() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) ||
+            {version: 2, index: [], blobs: {}, lruOrder: []};
+    } catch {
+        return {version: 2, index: [], blobs: {}, lruOrder: []};
+    }
+}
+
+// ── Swatch popover ─────────────────────────────────────────────────────────
 
 let currentSwatchColor = DEFAULT_COLOR;
 
@@ -57,19 +65,16 @@ export function updateColorField(color) {
     currentSwatchColor = color;
 }
 
-// Close swatch popover on outside click
 document.addEventListener('click', () => {
     const popover = document.getElementById('acSwatchPopover');
     if (popover) popover.classList.remove('open');
 });
 
-// ═══════════════════════════════════════════════
-// Parent selector helper
-// ═══════════════════════════════════════════════
+// ── Parent selector helper ─────────────────────────────────────────────────
 
-export async function populateParentSelect(selectId, selectedGameId, excludeId, selectedParentId) {
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
+export function populateParentSelect(selectId, selectedGameId, excludeId, selectedParentId) {
+    const stored = _localLoad();
+    const game = stored.blobs[selectedGameId];
     const sel = document.getElementById(selectId);
     sel.innerHTML = '<option value="">(Root level)</option>';
     if (!game) return;
@@ -83,24 +88,22 @@ export async function populateParentSelect(selectId, selectedGameId, excludeId, 
     });
 }
 
-// ═══════════════════════════════════════════════
-// Add / Edit Branch modal
-// ═══════════════════════════════════════════════
+// ── Add / Edit Branch modal ────────────────────────────────────────────────
 
 let editingBranchId = null;
 
-export async function openAddBranchModal(parentId, selectedGameId) {
+export function openAddBranchModal(parentId, selectedGameId) {
     editingBranchId = null;
     document.getElementById('addBranchTitle').textContent = 'Add Branch';
     document.getElementById('addBranchSaveBtn').textContent = 'Add';
     document.getElementById('abName').value = '';
-    await populateParentSelect('abParent', selectedGameId, null, parentId);
+    populateParentSelect('abParent', selectedGameId, null, parentId);
     document.getElementById('addBranchModal').classList.add('open');
 }
 
-export async function openEditBranchModal(nodeId, selectedGameId) {
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
+export function openEditBranchModal(nodeId, selectedGameId) {
+    const stored = _localLoad();
+    const game = stored.blobs[selectedGameId];
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
     if (!node) return;
@@ -110,7 +113,7 @@ export async function openEditBranchModal(nodeId, selectedGameId) {
     document.getElementById('addBranchSaveBtn').textContent = 'Save';
     document.getElementById('abName').value = node.name;
     const parentNode = findParent(game.nodes, nodeId);
-    await populateParentSelect('abParent', selectedGameId, nodeId, parentNode ? parentNode.id : null);
+    populateParentSelect('abParent', selectedGameId, nodeId, parentNode ? parentNode.id : null);
     document.getElementById('addBranchModal').classList.add('open');
 }
 
@@ -122,8 +125,8 @@ export function closeAddBranchModal() {
 export async function saveAddBranch(selectedGameId, onSaved) {
     const name = document.getElementById('abName').value.trim() || 'New Branch';
     const newParentId = document.getElementById('abParent').value || null;
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
+    const stored = _localLoad();
+    const game = stored.blobs[selectedGameId];
     if (!game) return;
 
     if (editingBranchId) {
@@ -141,18 +144,17 @@ export async function saveAddBranch(selectedGameId, onSaved) {
         insertNode(game, node, newParentId);
     }
 
-    await saveData(data, selectedGameId);
+    cacheSet(stored, game, CFG);
+    await saveData(stored, selectedGameId);
     closeAddBranchModal();
     onSaved();
 }
 
-// ═══════════════════════════════════════════════
-// Add / Edit Counter modal
-// ═══════════════════════════════════════════════
+// ── Add / Edit Counter modal ───────────────────────────────────────────────
 
 let editingCounterId = null;
 
-export async function openAddCounterModal(parentId, selectedGameId) {
+export function openAddCounterModal(parentId, selectedGameId) {
     editingCounterId = null;
     document.getElementById('addCounterTitle').textContent = 'Add Counter';
     document.getElementById('addCounterSaveBtn').textContent = 'Add';
@@ -167,13 +169,13 @@ export async function openAddCounterModal(parentId, selectedGameId) {
     document.getElementById('acDecrement').checked = false;
     onDecrementChange();
     updateColorField(DEFAULT_COLOR);
-    await populateParentSelect('acParent', selectedGameId, null, parentId);
+    populateParentSelect('acParent', selectedGameId, null, parentId);
     document.getElementById('addCounterModal').classList.add('open');
 }
 
-export async function openEditCounterModal(nodeId, selectedGameId) {
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
+export function openEditCounterModal(nodeId, selectedGameId) {
+    const stored = _localLoad();
+    const game = stored.blobs[selectedGameId];
     if (!game) return;
     const node = findNode(game.nodes, nodeId);
     if (!node) return;
@@ -196,7 +198,7 @@ export async function openEditCounterModal(nodeId, selectedGameId) {
     updateColorField(node.color || DEFAULT_COLOR);
 
     const parentNode = findParent(game.nodes, nodeId);
-    await populateParentSelect('acParent', selectedGameId, null, parentNode ? parentNode.id : null);
+    populateParentSelect('acParent', selectedGameId, null, parentNode ? parentNode.id : null);
     document.getElementById('addCounterModal').classList.add('open');
 }
 
@@ -225,8 +227,8 @@ export async function saveAddCounter(selectedGameId, onSaved) {
     const step = Math.max(1, parseFloat(document.getElementById('acStep').value) || 1);
     const color = currentSwatchColor;
 
-    const data = await loadData();
-    const game = data.games.find(g => g.id === selectedGameId);
+    const stored = _localLoad();
+    const game = stored.blobs[selectedGameId];
     if (!game) return;
 
     let rawValue = parseInt(document.getElementById('acValue').value) || 0;
@@ -255,7 +257,6 @@ export async function saveAddCounter(selectedGameId, onSaved) {
             delete node.max;
             delete node.initial;
         }
-
         const currentParent = findParent(game.nodes, editingCounterId);
         const currentParentId = currentParent ? currentParent.id : null;
         if (newParentId !== currentParentId) {
@@ -264,13 +265,9 @@ export async function saveAddCounter(selectedGameId, onSaved) {
         }
     } else {
         const node = {
-            id: newId(),
-            name,
-            type: 'counter',
+            id: newId(), name, type: 'counter',
             counterType: isBounded ? 'bounded' : 'open',
-            value: rawValue,
-            step,
-            color,
+            value: rawValue, step, color,
             decrement: isDecrement,
         };
         if (isBounded) {
@@ -281,7 +278,8 @@ export async function saveAddCounter(selectedGameId, onSaved) {
         insertNode(game, node, newParentId);
     }
 
-    await saveData(data, selectedGameId);
+    cacheSet(stored, game, CFG);
+    await saveData(stored, selectedGameId);
     closeAddCounterModal();
     onSaved();
 }

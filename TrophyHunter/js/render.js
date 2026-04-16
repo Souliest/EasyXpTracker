@@ -1,10 +1,12 @@
 // TrophyHunter/js/render.js
 // All HTML section builders and DOM update functions for the main view.
 // Receives data and callbacks as parameters — no loadData calls, no module-level state.
-
-// ═══════════════════════════════════════════════
-// Render — section builders and DOM orchestration
-// ═══════════════════════════════════════════════
+//
+// v2 signature change: renderMain now receives selectedGameBlob as a standalone
+// parameter (the full game object for the selected game) rather than finding it
+// via personalData.games.find(). personalData is { index, blobs } and is used
+// only for the empty-state message (index.length). All game data comes from
+// selectedGameBlob.
 
 import {escHtml, attachLongPress} from '../../common/utils.js';
 import {computeStats, computeGroupStats} from './stats.js';
@@ -18,7 +20,6 @@ const TIERS = {
     bronze: {label: 'Bronze', color: '#c4713a', order: 3},
 };
 
-// ── Trophy SVG paths ──
 const TROPHY_SVG_PATH = 'M3 1H13V8C13 11.5 10.8 14.2 8 15.1L7.5 17H6V19H10V17H8.5L8 15.1C5.2 14.2 3 11.5 3 8ZM3 2H1V5C1 6.4 1.9 7.5 3 7.9ZM13 2H15V5C15 6.4 14.1 7.5 13 7.9Z';
 const PLATINUM_CUP_PATH = 'M3 1H13V8C13 11.5 10.8 14.2 8 15.1L7.5 17H6V19H10V17H8.5L8 15.1C5.2 14.2 3 11.5 3 8ZM3 2H1V5C1 6.4 1.9 7.5 3 7.9ZM13 2H15V5C15 6.4 14.1 7.5 13 7.9Z';
 const PLATINUM_STAR_PATH = 'M8 2.5L8.7 4.7H11L9.2 5.9L9.8 8.1L8 6.9L6.2 8.1L6.8 5.9L5 4.7H7.3Z';
@@ -42,8 +43,6 @@ function trophyIcon(tier, earned, size = 16) {
     </svg>`;
 }
 
-// ── Tier chips row ──
-
 function renderTierChips(tierEarned, tierTotal, size, hasPlatinum, platinumEarned, leadingIndicator = '') {
     const platSize = size + 3;
     const platChip = hasPlatinum
@@ -61,32 +60,29 @@ function renderTierChips(tierEarned, tierTotal, size, hasPlatinum, platinumEarne
     return `<span class="th-chips-group">${leadingIndicator}${platChip}${rest}</span>`;
 }
 
-// ── Progress bar ──
-
 function renderProgressBar(pct) {
     return `<div class="th-progress-track">
         <div class="th-progress-fill" style="width:${pct}%"></div>
     </div>`;
 }
 
-// ─────────────────────────────────────────────
-// updateSelectorButtons
-// ─────────────────────────────────────────────
+// ── updateSelectorButtons ──────────────────────────────────────────────────
 
 export function updateSelectorButtons(hasGame) {
     const settingsBtn = document.getElementById('gameSettingsBtn');
     if (settingsBtn) settingsBtn.style.display = hasGame ? '' : 'none';
 }
 
-// ─────────────────────────────────────────────
-// renderMain
-// ─────────────────────────────────────────────
+// ── renderMain ────────────────────────────────────────────────────────────
+// personalData:     { index, blobs } — used only for empty-state message (index.length)
+// selectedGameBlob: full game object for the selected game, or null
+// catalogEntry:     PSN trophy list for the selected game, or null
 
-export function renderMain(selectedGameId, personalData, catalogEntry, callbacks) {
+export function renderMain(selectedGameId, personalData, selectedGameBlob, catalogEntry, callbacks) {
     const content = document.getElementById('mainContent');
 
     if (!selectedGameId) {
-        content.innerHTML = personalData.games.length === 0
+        content.innerHTML = personalData.index.length === 0
             ? `<div class="empty-state">
                 <div class="big">🏆</div>
                 No games yet.<br>Hit <strong>+ Add Game</strong> to start tracking.
@@ -95,7 +91,8 @@ export function renderMain(selectedGameId, personalData, catalogEntry, callbacks
         return;
     }
 
-    const game = personalData.games.find(g => g.id === selectedGameId);
+    const game = selectedGameBlob;
+
     if (!game) {
         content.innerHTML = '';
         return;
@@ -129,13 +126,11 @@ export function renderMain(selectedGameId, personalData, catalogEntry, callbacks
     });
 
     _wireToolbar(game, callbacks, isSingleGroup);
-    _wireTrophyRows(game, catalogEntry, callbacks);
-    _wireLongPress(game, catalogEntry, callbacks);
+    _wireTrophyRows(callbacks);
+    _wireLongPress(callbacks);
 }
 
-// ─────────────────────────────────────────────
-// renderGameHeader
-// ─────────────────────────────────────────────
+// ── renderGameHeader ───────────────────────────────────────────────────────
 
 export function renderGameHeader(game, catalogEntry, stats) {
     return `<div class="th-game-header panel" id="gameHeader">
@@ -160,9 +155,7 @@ export function renderGameHeader(game, catalogEntry, stats) {
     </div>`;
 }
 
-// ─────────────────────────────────────────────
-// renderToolbar
-// ─────────────────────────────────────────────
+// ── renderToolbar ──────────────────────────────────────────────────────────
 
 export function renderToolbar(viewState, callbacks, isSingleGroup = false) {
     const filters = ['all', 'earned', 'unearned'];
@@ -185,7 +178,6 @@ export function renderToolbar(viewState, callbacks, isSingleGroup = false) {
     ).join('');
 
     const ungroupActive = viewState.ungrouped ? ' active' : '';
-
     const ungroupBtn = isSingleGroup ? '' : `
         <button class="btn btn-ghost th-ungroup-btn${ungroupActive}"
             id="ungroupBtn" title="Ungroup DLC">
@@ -197,19 +189,13 @@ export function renderToolbar(viewState, callbacks, isSingleGroup = false) {
         </button>`;
 
     return `<div class="th-toolbar">
-        <select id="filterSelect" aria-label="Filter trophies">
-            ${filterOptions}
-        </select>
-        <select id="sortSelect" aria-label="Sort trophies">
-            ${sortOptions}
-        </select>
+        <select id="filterSelect" aria-label="Filter trophies">${filterOptions}</select>
+        <select id="sortSelect"   aria-label="Sort trophies">${sortOptions}</select>
         ${ungroupBtn}
     </div>`;
 }
 
-// ─────────────────────────────────────────────
-// renderTrophyList
-// ─────────────────────────────────────────────
+// ── renderTrophyList ───────────────────────────────────────────────────────
 
 function renderTrophyList(game, catalogEntry, stats, callbacks, effectiveViewState) {
     if (effectiveViewState.ungrouped) {
@@ -243,9 +229,7 @@ function renderFlatList(game, catalogEntry, callbacks, viewState) {
     </div>`;
 }
 
-// ─────────────────────────────────────────────
-// renderGroup
-// ─────────────────────────────────────────────
+// ── renderGroup ────────────────────────────────────────────────────────────
 
 export function renderGroup(group, game, groupStats, callbacks, viewState) {
     const vs = viewState || game.viewState;
@@ -283,7 +267,6 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
 
     const nonDividers = ordered.filter(t => !t._divider);
     const isEmpty = nonDividers.length === 0 && vs.filter !== 'all';
-
     const collapsedGroups = vs.collapsedGroups || [];
     const isCollapsed = collapsedGroups.includes(group.groupId);
     const toggleChar = isCollapsed ? '▶' : '▼';
@@ -302,9 +285,7 @@ export function renderGroup(group, game, groupStats, callbacks, viewState) {
     </div>`;
 }
 
-// ─────────────────────────────────────────────
-// renderGroupHeader
-// ─────────────────────────────────────────────
+// ── renderGroupHeader ──────────────────────────────────────────────────────
 
 export function renderGroupHeader(group, groupStats, toggleChar = '▼') {
     const completionIndicator = groupStats.hasPlatinum
@@ -332,9 +313,7 @@ export function renderGroupHeader(group, groupStats, toggleChar = '▼') {
     </div>`;
 }
 
-// ─────────────────────────────────────────────
-// renderTrophyRow
-// ─────────────────────────────────────────────
+// ── renderTrophyRow ────────────────────────────────────────────────────────
 
 export function renderTrophyRow(trophy, trophyState) {
     const id = String(trophy.trophyId);
@@ -376,17 +355,14 @@ export function renderTrophyRow(trophy, trophyState) {
     </div>`;
 }
 
-// ─────────────────────────────────────────────
-// Targeted updates
-// ─────────────────────────────────────────────
+// ── Targeted updates ───────────────────────────────────────────────────────
 
 export function refreshTrophyRow(trophyId, trophy, trophyState, callbacks) {
     const el = document.querySelector(`.th-trophy-row[data-trophy-id="${trophyId}"]`);
     if (!el) return;
 
-    const newHtml = renderTrophyRow(trophy, trophyState);
     const tmp = document.createElement('div');
-    tmp.innerHTML = newHtml;
+    tmp.innerHTML = renderTrophyRow(trophy, trophyState);
     const newEl = tmp.firstElementChild;
 
     const earnBtn = newEl.querySelector('[data-action="earn"]');
@@ -419,15 +395,12 @@ export function updateGroupHeader(groupId, group, groupStats, collapsedGroups, o
 export function updateGameHeader(game, catalogEntry, stats) {
     const header = document.getElementById('gameHeader');
     if (!header) return;
-
     const tmp = document.createElement('div');
     tmp.innerHTML = renderGameHeader(game, catalogEntry, stats);
     header.replaceWith(tmp.firstElementChild);
 }
 
-// ─────────────────────────────────────────────
-// Sort / filter helpers
-// ─────────────────────────────────────────────
+// ── Sort / filter helpers ──────────────────────────────────────────────────
 
 export function sortTrophies(trophies, sort) {
     const arr = [...trophies];
@@ -449,7 +422,6 @@ export function filterTrophies(trophies, trophyState, filter) {
     if (filter === 'all') return trophies;
 
     const wantEarned = filter === 'earned';
-
     const wanted = trophies.filter(t => {
         const s = trophyState[String(t.trophyId)] || {};
         return wantEarned ? !!s.earned : !s.earned;
@@ -458,30 +430,23 @@ export function filterTrophies(trophies, trophyState, filter) {
         const s = trophyState[String(t.trophyId)] || {};
         return wantEarned ? !s.earned : !!s.earned;
     });
-
     const dimmed = unwanted.map(t => ({...t, _dimmed: true}));
 
     const primaryLabel = wantEarned ? 'Earned' : 'Unearned';
     const secondaryLabel = wantEarned ? 'Unearned' : 'Earned';
-
     const result = [];
-
     if (wanted.length > 0) {
         result.push({_divider: true, _label: primaryLabel});
         result.push(...wanted);
     }
-
     if (dimmed.length > 0) {
         result.push({_divider: true, _label: secondaryLabel});
         result.push(...dimmed);
     }
-
     return result;
 }
 
-// ─────────────────────────────────────────────
-// Event wiring
-// ─────────────────────────────────────────────
+// ── Event wiring ───────────────────────────────────────────────────────────
 
 function _wireToolbar(game, callbacks, isSingleGroup) {
     const filterSel = document.getElementById('filterSelect');
@@ -500,22 +465,16 @@ function _wireToolbar(game, callbacks, isSingleGroup) {
     }
     if (ungroupBtn && !isSingleGroup) {
         ungroupBtn.addEventListener('click', () => {
-            callbacks.onViewStateChange({
-                ...game.viewState,
-                ungrouped: !game.viewState.ungrouped,
-            });
+            callbacks.onViewStateChange({...game.viewState, ungrouped: !game.viewState.ungrouped});
         });
     }
 
     document.querySelectorAll('.th-group-header').forEach(header => {
-        header.addEventListener('click', () => {
-            const groupId = header.dataset.groupId;
-            callbacks.onToggleGroup(groupId);
-        });
+        header.addEventListener('click', () => callbacks.onToggleGroup(header.dataset.groupId));
     });
 }
 
-function _wireTrophyRows(game, catalogEntry, callbacks) {
+function _wireTrophyRows(callbacks) {
     document.querySelectorAll('[data-action="earn"]').forEach(btn => {
         btn.addEventListener('click', e => {
             e.stopPropagation();
@@ -524,16 +483,13 @@ function _wireTrophyRows(game, catalogEntry, callbacks) {
     });
 }
 
-function _wireLongPress(game, catalogEntry, callbacks) {
+function _wireLongPress(callbacks) {
     document.querySelectorAll('.th-trophy-row').forEach(row => {
-        const trophyId = row.dataset.trophyId;
-        attachLongPress(row, () => callbacks.onTogglePinned(trophyId));
+        attachLongPress(row, () => callbacks.onTogglePinned(row.dataset.trophyId));
     });
 }
 
-// ─────────────────────────────────────────────
-// Section divider
-// ─────────────────────────────────────────────
+// ── Section divider ────────────────────────────────────────────────────────
 
 function renderSectionDivider(label) {
     const color = label === 'Earned' ? 'var(--accent3)' : '#ff4444';
