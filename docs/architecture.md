@@ -22,7 +22,7 @@ BasicGamingTools/
 │   ├── theme.css
 │   ├── header.js           # initHeader(title)
 │   ├── header.css
-│   ├── supabase.js         # Supabase client
+│   ├── supabase.js         # Supabase client (URL + publishable key injected at deploy time)
 │   ├── auth.js             # Session management, getUser()
 │   ├── auth-ui.js          # 👤 popover, login/register/reset overlay, CSS injection
 │   ├── auth.css
@@ -138,6 +138,12 @@ showCollisionModal(gameId, gameName, collision, resolveCollision, onResolved)
 
 `resolveCollision` is passed in (not imported by `auth-ui.js`) so the dependency graph stays clean.
 
+`validateRemoteData(data)` is also exported from `common/collision.js`. It validates the shape of a
+remote payload before it is passed to `resolveCollision` — rejects non-objects, prototype pollution
+keys (`__proto__`, `constructor`), and payloads missing required `id`/`name` fields. Returns `null`
+on failure, which callers treat as "keep local". Used internally by `showCollisionModal` and available
+for direct use by tools if needed.
+
 ---
 
 ## common/tools.js
@@ -146,9 +152,11 @@ Exports a `TOOLS` array. Each entry:
 
 ```js
 {
-    name: 'Display Name', path
+    name: 'Display Name',
+        path
 :
-    './ToolFolder/', description
+    './ToolFolder/',
+        description
 :
     'One line.'
 }
@@ -215,6 +223,9 @@ Key variables from `common/theme.css`:
 - Game IDs: `crypto.randomUUID()`.
 - Node IDs: `'node_' + Date.now() + '_' + Math.floor(Math.random() * 99999)`.
 - `escHtml` and `attachLongPress` from `common/utils.js` — never redefine locally.
+- Numeric form fields must be parsed with `_parseInt`/`_parseFloat` helpers (see LevelGoalTracker
+  `modal.js`) rather than raw `parseInt`/`parseFloat` — raw parsers return `NaN` for blank strings,
+  which `JSON.stringify` silently converts to `null` and corrupts calculated fields.
 
 ---
 
@@ -280,6 +291,58 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 
 ---
 
+## Security
+
+### Supabase publishable key
+
+`common/supabase.js` contains placeholder strings (`__SUPABASE_URL__`, `__SUPABASE_KEY__`) rather than
+hardcoded credentials. The real values are injected at deploy time by the GitHub Actions workflow
+(`.github/workflows/deploy.yml`) via repository secrets.
+
+The key is a Supabase publishable key (format `sb_publishable_...`) — these are intentionally
+browser-visible and designed to be public-facing. RLS policies on all Supabase tables are the
+authoritative access control boundary; the key alone grants nothing beyond what RLS permits.
+
+To rotate the key: create a new publishable key in the Supabase dashboard (Project Settings → API
+Keys), update the `SUPABASE_KEY` repository secret (repo Settings → Secrets and variables → Actions),
+then trigger a redeploy. Rotation does not invalidate user sessions when using the new `sb_publishable_`
+key format.
+
+### CI / deploy pipeline
+
+`.github/workflows/deploy.yml` runs on every push to `main` and on manual `workflow_dispatch`. It:
+
+1. Checks out `main`.
+2. Substitutes `__SUPABASE_URL__` and `__SUPABASE_KEY__` in `common/supabase.js` using `sed`.
+3. Fails loudly (`exit 1`) if either secret is missing or if placeholders remain after substitution.
+4. Pushes the substituted files to the `gh-pages` branch via `peaceiris/actions-gh-pages`.
+
+GitHub Pages is configured to deploy from the `gh-pages` branch. The `main` branch never contains
+live credentials. The `gh-pages` branch is managed entirely by the Action — do not push to it directly.
+
+### URL sanitisation
+
+External URLs (e.g. game icon URLs from the PSN catalog) must be validated before assignment to DOM
+properties. `TrophyHunter/js/modal-search.js` exports `_safeIconUrl(url)` which allows only `http:`
+and `https:` protocols, blocking `javascript:` and `data:` vectors before `img.src` assignment.
+Apply the same pattern wherever external URLs are used as DOM property values.
+
+### Realtime channel names
+
+Supabase Realtime channel names in `LevelGoalTracker/js/storage.js` and `ThingCounter/js/storage.js`
+follow the pattern `tool-games-{userId}`. These names are scoped to this Supabase project and are not
+visible to other projects or users. The userId suffix is a convenience to avoid cross-user event
+delivery within the same project; RLS on each table is the authoritative access control boundary.
+Predictable channel names are not a security concern under this model.
+
+### Cloudflare Worker — X-User-Id header
+
+The `X-User-Id` header sent by `TrophyHunter/js/psn.js` to the Cloudflare Worker is used for
+attribution and logging only. It is never used for authorization or access control decisions on the
+worker side. Spoofing it has no security consequence.
+
+---
+
 ## Per-Tool Notes
 
 ### XpTracker
@@ -295,19 +358,22 @@ window.saveGame = () => saveGame(selectedGameId, afterGameSaved);
 - `dates.js` is a pure-function leaf imported by `snapshot.js`, `stats.js`, `render.js`, `modal.js`.
 - `maybeRollSnapshot(game)` checks `snapshot.date` vs today; rolls at midnight.
 - `setInterval(tickRenderMain, 60000)` keeps daily targets current past midnight.
-- `modal.js` reads game data from the blob cache (`stored.blobs[id]`) for edit and the index for confirm-delete (name
-  available even if blob is evicted).
+- `modal.js` reads game data from the blob cache (`stored.blobs[id]`) for edit and the index for
+  confirm-delete (name available even if blob is evicted).
+- `modal.js` uses `_parseInt`/`_parseFloat` helpers for all numeric form fields to prevent `NaN`
+  from entering the data store via blank inputs.
 
 ### ThingCounter
 
 - Hybrid storage — see `docs/storage.md`.
 - Counter types: `open` (unbounded) and `bounded` (min/max/initial, fill bar shown).
 - Edit mode (global toggle): reveals node controls and ghost add buttons.
-- Focus modal (`focus.js`): large value display, ±1, editable step. Reads/writes directly from the blob cache — no
+- Focus modal (`focus.js`): large value display, ±1, editable step. Reads/writes directly from the
+  blob cache — no `loadData()` call.
+- Quick Counter (`quick-counter.js`): game-agnostic scratchpad. State persists across refresh/blur;
+  wiped on ✕ or game select. Re-exported from `focus.js` for backward-compatible imports.
+- `modal-node.js` and `modal-game.js` both read from `stored.blobs[selectedGameId]` directly — no
   `loadData()` call.
-- Quick Counter (`quick-counter.js`): game-agnostic scratchpad. State persists across refresh/blur; wiped on ✕ or game
-  select. Re-exported from `focus.js` for backward-compatible imports.
-- `modal-node.js` and `modal-game.js` both read from `stored.blobs[selectedGameId]` directly — no `loadData()` call.
 - `modal.js` is a barrel re-exporting from both node and game modals.
 - `nodes.js` and `swatches.js` are pure-function leaves.
 - The `callbacks` object pattern avoids circular imports between `render.js` and interaction handlers.
@@ -363,23 +429,39 @@ See `docs/trophy-hunter.md` for Worker, PSN search flow, catalog cache, and rend
 - **`crypto.randomUUID()` for game IDs** — collision-safe across devices; `Date.now()` is not.
 - **`auth-ui.js` loaded as a module import** — clean HTML; ES module caching means one fetch.
 - **`import.meta.url` for CSS path in `auth-ui.js`** — resolves correctly from any tool subdirectory.
-- **`showCollisionModal` in `common/collision.js`** — shared across all three hybrid tools; styles in `auth.css`.
-  Re-exported from `auth-ui.js` for backward compatibility.
-- **`escHtml` and `attachLongPress` in `common/utils.js`** — previously duplicated across tools; one source is easier to
-  audit and ensures fixes propagate everywhere.
+- **`showCollisionModal` in `common/collision.js`** — shared across all three hybrid tools; styles in
+  `auth.css`. Re-exported from `auth-ui.js` for backward compatibility.
+- **`validateRemoteData` in `common/collision.js`** — remote Realtime payloads are untrusted network
+  data. Validating shape before `cacheSet` prevents a crafted payload from corrupting the local blob
+  store. Exported so tools can call it independently if needed.
+- **`_safeIconUrl` in `modal-search.js`** — `img.src` assignment is safe from HTML injection but a
+  `javascript:` URL still executes in some browsers. Protocol allowlisting (`http:`/`https:` only)
+  closes the vector without affecting legitimate PSN icon URLs, which are always HTTPS.
+- **`_parseInt`/`_parseFloat` in `modal.js` (LevelGoalTracker)** — `parseInt("")` returns `NaN`;
+  `JSON.stringify(NaN)` produces `null`; `null` silently breaks pace calculations. Centralised helpers
+  make the guard impossible to forget and easy to audit.
+- **Supabase key injected at deploy time** — the publishable key is browser-visible by design, but
+  keeping it out of source history means forks don't get working credentials, rotation requires no
+  code change, and secret scanning tools won't flag the repo.
+- **`peaceiris/actions-gh-pages` pushes to `gh-pages` branch** — the workflow does not use the
+  official `actions/deploy-pages` action, so GitHub Pages must be configured to deploy from the
+  `gh-pages` branch (not "GitHub Actions" source mode). The `gh-pages` branch is managed entirely
+  by the Action; do not push to it directly.
+- **`escHtml` and `attachLongPress` in `common/utils.js`** — previously duplicated across tools;
+  one source is easier to audit and ensures fixes propagate everywhere.
 - **`renderSelector()` returns data** — avoids calling `loadData()` twice after every save or delete.
-- **`tickRenderMain` reads localStorage only** — the interval exists solely to roll the midnight snapshot; no Supabase
-  call needed.
-- **Fullscreen via `document.documentElement.requestFullscreen()`** — fullscreens the entire page so header, toolbar,
-  and content scale together.
-- **Fullscreen button hidden when `!document.fullscreenEnabled`** — iOS Safari/Firefox iOS don't support the API; hiding
-  is cleaner than a broken control.
-- **`fullscreenchange` listener in `header.js`** — keeps icon in sync when the user exits via browser gesture; wired
-  once at `initHeader` time.
-- **Fullscreen SVG icons with `<polyline>` strokes** — Unicode fullscreen glyphs render inconsistently across Android
-  fonts; inline SVG guarantees identical appearance everywhere.
-- **`docs/` folder for architecture docs** — keeps root clean; READMEs stay adjacent to their tools (user-facing),
-  architecture docs live together (developer-facing).
-- **Split into `architecture.md`, `storage.md`, `trophy-hunter.md`** — storage is a large self-contained topic shared
-  across three tools; TrophyHunter has substantial infrastructure (Worker, PSN, render quirks) that would crowd the
-  shared conventions doc. LGT and ThingCounter don't have enough unique architecture beyond what's in their READMEs.
+- **`tickRenderMain` reads localStorage only** — the interval exists solely to roll the midnight
+  snapshot; no Supabase call needed.
+- **Fullscreen via `document.documentElement.requestFullscreen()`** — fullscreens the entire page so
+  header, toolbar, and content scale together.
+- **Fullscreen button hidden when `!document.fullscreenEnabled`** — iOS Safari/Firefox iOS don't
+  support the API; hiding is cleaner than a broken control.
+- **`fullscreenchange` listener in `header.js`** — keeps icon in sync when the user exits via browser
+  gesture; wired once at `initHeader` time.
+- **Fullscreen SVG icons with `<polyline>` strokes** — Unicode fullscreen glyphs render
+  inconsistently across Android fonts; inline SVG guarantees identical appearance everywhere.
+- **`docs/` folder for architecture docs** — keeps root clean; READMEs stay adjacent to their tools
+  (user-facing), architecture docs live together (developer-facing).
+- **Split into `architecture.md`, `storage.md`, `trophy-hunter.md`** — storage is a large
+  self-contained topic shared across three tools; TrophyHunter has substantial infrastructure
+  (Worker, PSN, render quirks) that would crowd the shared conventions doc.

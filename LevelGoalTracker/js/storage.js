@@ -42,6 +42,11 @@ export function subscribeToGameChanges(userId, onRemoteUpdate) {
     if (!REALTIME_ENABLED) return;
     unsubscribeFromGameChanges();
 
+    // Channel names are scoped to this Supabase project — they are not visible
+    // to other projects or other users. The userId suffix prevents a user from
+    // accidentally receiving another user's events within the same project, but
+    // RLS on the table is the authoritative access control. Predictable channel
+    // names are not a security concern under this model.
     _realtimeChannel = supabase
         .channel('lgt-games-' + userId)
         .on(

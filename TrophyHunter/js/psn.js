@@ -29,6 +29,10 @@ export async function workerResolve(titleIds, userId) {
     const url = new URL(`${WORKER_URL}/resolve`);
     url.searchParams.set('ids', titleIds.join(','));
     const headers = {};
+    // X-User-Id is used by the worker for attribution and logging only — it is
+    // never used for authorization or access control decisions. Spoofing it has
+    // no security consequence; the worker trusts RLS on the Supabase tables for
+    // actual access control.
     if (userId) headers['X-User-Id'] = userId;
     const res = await fetch(url.toString(), {headers});
     if (!res.ok) {
@@ -42,6 +46,10 @@ export async function workerContribute(username, userId) {
     const url = new URL(`${WORKER_URL}/contribute`);
     url.searchParams.set('username', username);
     const headers = {};
+    // X-User-Id is used by the worker for attribution and logging only — it is
+    // never used for authorization or access control decisions. Spoofing it has
+    // no security consequence; the worker trusts RLS on the Supabase tables for
+    // actual access control.
     if (userId) headers['X-User-Id'] = userId;
     const res = await fetch(url.toString(), {method: 'POST', headers});
     if (!res.ok) {
@@ -56,6 +64,10 @@ export async function workerFetchTrophies(npCommId, platform, userId) {
     url.searchParams.set('id', npCommId);
     url.searchParams.set('platform', platform);
     const headers = {};
+    // X-User-Id is used by the worker for attribution and logging only — it is
+    // never used for authorization or access control decisions. Spoofing it has
+    // no security consequence; the worker trusts RLS on the Supabase tables for
+    // actual access control.
     if (userId) headers['X-User-Id'] = userId;
     const res = await fetch(url.toString(), {headers});
     if (!res.ok) {
