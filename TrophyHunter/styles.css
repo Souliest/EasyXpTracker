@@ -1,0 +1,1198 @@
+/* TrophyHunter/styles.css */
+/* Consistent with existing tools — uses same CSS variables from common/theme.css */
+
+/* ── Layout ── */
+.container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 12px 40px;
+}
+
+/* ── Selector bar ── */
+.selector-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+select#gameSelect {
+  flex: 1;
+  min-width: 0;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+select#gameSelect:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Selector bar height normalisation ──
+   The dropdown, ✎ edit button, and + Add Game button each have
+   different content heights (glyphs and text render at different
+   sizes), so padding alone cannot guarantee equal button heights.
+   Setting an explicit height on all flex children of .selector-bar
+   locks them to match the dropdown's natural 35px height.
+   box-sizing: border-box ensures padding is included within that height. */
+.selector-bar select,
+.selector-bar .btn {
+  height: 35px;
+  box-sizing: border-box;
+}
+
+/* ── Buttons ── */
+.btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: bold;
+}
+
+.btn-primary:hover {
+  opacity: 0.85;
+  box-shadow: var(--glow);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+}
+
+.btn-ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-ghost.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--glow);
+}
+
+.btn-danger {
+  background: transparent;
+  color: #ff4444;
+  border-color: #ff4444;
+}
+
+.btn-danger:hover {
+  background: rgba(255, 68, 68, 0.1);
+}
+
+.btn-warn {
+  background: transparent;
+  color: var(--accent2);
+  border-color: var(--accent2);
+}
+
+.btn-warn:hover {
+  background: rgba(255, 107, 53, 0.1);
+}
+
+.game-action-btn {
+  padding: 8px 11px;
+}
+
+/* ── Empty states ── */
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 60px 20px;
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+
+.empty-state .big {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+}
+
+/* ── Panel ── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+/* ══════════════════════════════════════
+   Game header
+══════════════════════════════════════ */
+
+.th-game-header {
+  margin-bottom: 10px;
+}
+
+.th-game-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.th-game-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+}
+
+.th-game-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(0.8rem, 3vw, 1rem);
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  flex: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.3;
+}
+
+.th-platform-badge {
+  font-size: 0.65rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 0.06em;
+}
+
+.th-header-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.th-stats-chips-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.th-stats-bar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.th-chips-group {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+@media (min-width: 480px) {
+  .th-header-stats {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0;
+  }
+
+  .th-stats-chips-row {
+    justify-content: flex-end;
+    flex-shrink: 0;
+  }
+
+  .th-stats-bar-row {
+    flex-shrink: 0;
+  }
+
+  .th-stats-chips-row .th-stat-fraction {
+    margin-left: 24px;
+  }
+
+  .th-stats-bar-row {
+    margin-left: 24px;
+  }
+}
+
+/* ── Platinum indicator ── */
+.th-plat-indicator {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.th-plat-check {
+  font-size: 1rem;
+  color: var(--muted);
+  font-weight: bold;
+}
+
+.th-plat-check.earned {
+  color: #d4c5f9;
+  text-shadow: 0 0 8px rgba(212, 197, 249, 0.5);
+}
+
+/* ── Tier chips ── */
+.tier-chip {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.tier-chip-plat {
+  /* Inherits flex-end from .tier-chip */
+}
+
+.tier-chip-count {
+  text-align: left;
+  line-height: 1;
+}
+
+.tier-chip-total {
+  font-size: 0.6rem;
+  font-weight: 400;
+  opacity: 0.65;
+  line-height: 1;
+}
+
+.trophy-icon {
+  flex-shrink: 0;
+  display: block;
+}
+
+/* ── Stat fraction and percentage ── */
+.th-stat-fraction {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.th-stat-pct {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ── Progress bar ── */
+.th-progress-track {
+  flex: 1;
+  min-width: 40px;
+  max-width: 160px;
+  height: 8px;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.th-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.35s ease;
+}
+
+/* ══════════════════════════════════════
+   Toolbar
+══════════════════════════════════════ */
+
+.th-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.th-toolbar select {
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  flex: 1;
+  min-width: 90px;
+}
+
+.th-toolbar select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.th-ungroup-btn {
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.th-ungroup-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--glow);
+}
+
+/* ══════════════════════════════════════
+   Group header (branch node)
+══════════════════════════════════════ */
+
+.th-group {
+  margin-bottom: 10px;
+}
+
+/* ── Sticky group header ──
+   top: 6px gives breathing room from the viewport edge.
+   Background must be fully opaque — semi-transparent backgrounds
+   cause trophy rows to bleed through the stuck header. */
+.th-group-header {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.2s, background 0.2s;
+  position: sticky;
+  top: 6px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.th-group-header:hover {
+  border-color: var(--muted);
+}
+
+body.light .th-group-header {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Completed group tint ──
+   Fully opaque colours — rgba tint composited over --panel base:
+   Dark  (#111520 + green@0.06): #182324
+   Light (#ffffff + green@0.06): #f2f8f0 */
+.th-group-header.th-group-complete {
+  background: #182324;
+  border-color: rgba(127, 255, 107, 0.3);
+}
+
+body.light .th-group-header.th-group-complete {
+  background: #f2f8f0;
+  border-color: rgba(42, 138, 0, 0.3);
+}
+
+.th-group-header.th-group-complete:hover {
+  border-color: rgba(127, 255, 107, 0.5);
+}
+
+body.light .th-group-header.th-group-complete:hover {
+  border-color: rgba(42, 138, 0, 0.5);
+}
+
+.th-group-header-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.th-group-header-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+@media (min-width: 480px) {
+  .th-group-header-stats {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    margin-top: 4px;
+    gap: 0;
+  }
+
+  .th-group-header-stats .th-stats-chips-row {
+    justify-content: flex-end;
+  }
+
+  .th-group-header-stats .th-stats-chips-row .th-stat-fraction {
+    margin-left: 24px;
+  }
+
+  .th-group-header-stats .th-stats-bar-row {
+    margin-left: 24px;
+  }
+}
+
+.th-group-toggle {
+  font-size: 0.65rem;
+  color: var(--muted);
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+}
+
+.th-group-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex: 1;
+}
+
+.th-group-completion {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.th-group-check {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.th-group-check.complete {
+  color: var(--accent3);
+  text-shadow: 0 0 6px rgba(127, 255, 107, 0.4);
+}
+
+.th-group-children {
+  margin-left: 18px;
+  margin-top: 5px;
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.th-group-children.collapsed {
+  display: none;
+}
+
+.th-flat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* ══════════════════════════════════════
+   Trophy row (leaf node)
+══════════════════════════════════════ */
+
+.th-trophy-row {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+  position: relative;
+}
+
+.th-trophy-row:hover {
+  border-color: var(--muted);
+}
+
+.th-trophy-row.th-trophy-earned {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+body.light .th-trophy-row.th-trophy-earned {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.th-trophy-row.th-trophy-pinned {
+  border-color: var(--accent2);
+  border-left-width: 3px;
+}
+
+.th-trophy-row.th-trophy-orphaned {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.th-trophy-row.th-trophy-dimmed {
+  opacity: 0.45;
+}
+
+.th-trophy-row.th-trophy-dimmed:hover {
+  opacity: 0.7;
+  border-color: var(--border);
+}
+
+/* ── Bug fix: earn button on dimmed rows must remain clickable. ── */
+
+.th-earn-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 2px solid var(--border);
+  background: var(--input-bg);
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: transparent;
+  transition: all 0.15s;
+  margin-top: 1px;
+  outline: none;
+}
+
+.th-earn-btn:hover {
+  border-color: var(--accent3);
+}
+
+.th-earn-btn:focus {
+  outline: none;
+}
+
+.th-earn-btn.earned {
+  background: var(--accent3);
+  border-color: var(--accent3);
+  color: #000;
+  font-weight: bold;
+}
+
+.th-trophy-row.th-trophy-earned:hover {
+  border-color: var(--border);
+}
+
+.th-trophy-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.th-trophy-name-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.th-trophy-name {
+  flex: 1;
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.th-trophy-earned .th-trophy-name {
+  color: var(--muted);
+}
+
+.th-trophy-detail {
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.th-trophy-earned .th-trophy-detail {
+  opacity: 0.7;
+}
+
+.th-tier-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+}
+
+.th-orphaned-label {
+  font-size: 0.68rem;
+  color: var(--accent2);
+  margin-top: 4px;
+}
+
+.th-pin-indicator {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.th-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 6px;
+  margin-top: 4px;
+  border-left: 3px solid var(--accent2);
+  padding-left: 10px;
+}
+
+.th-section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.th-section-divider-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--accent2);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  flex-shrink: 0;
+}
+
+.th-empty-filter {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 16px;
+}
+
+/* ══════════════════════════════════════
+   Modal — shared base
+══════════════════════════════════════ */
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.modal-overlay.open {
+  display: flex;
+}
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.modal-close:hover {
+  color: var(--text);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  flex-wrap: wrap;
+  padding: 0 20px 16px;
+}
+
+.form-group {
+  margin: 16px 20px 0;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.73rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 5px;
+}
+
+.form-group input {
+  width: 100%;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ══════════════════════════════════════
+   Search modal
+══════════════════════════════════════ */
+
+.modal-search {
+  max-width: 520px;
+  padding-bottom: 16px;
+}
+
+.search-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 14px 20px 0;
+  align-items: center;
+}
+
+.search-input-row input {
+  flex: 1;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+.search-input-row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.search-status {
+  font-size: 0.78rem;
+  color: var(--muted);
+  padding: 8px 20px 0;
+  min-height: 24px;
+}
+
+.search-status.error {
+  color: #ff4444;
+}
+
+.search-results {
+  padding: 8px 20px 0;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.search-section-heading {
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 8px 0 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.search-result-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.search-result-row:hover {
+  background: var(--stat-bg);
+}
+
+.result-in-list {
+  opacity: 0.7;
+}
+
+.search-result-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.search-result-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.search-result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.search-result-name {
+  font-size: 0.88rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-result-platform {
+  font-size: 0.65rem;
+  font-family: 'Share Tech Mono', monospace;
+  border-radius: 3px;
+  padding: 1px 5px;
+  letter-spacing: 0.06em;
+  border: 1px solid;
+}
+
+.platform-ps5 {
+  color: #4d9fff;
+  border-color: #4d9fff;
+}
+
+.platform-ps4 {
+  color: #6b8cff;
+  border-color: #6b8cff;
+}
+
+.platform-ps3 {
+  color: var(--muted);
+  border-color: var(--muted);
+}
+
+body.light .platform-ps5 {
+  color: #00439c;
+  border-color: #00439c;
+}
+
+body.light .platform-ps4 {
+  color: #003087;
+  border-color: #003087;
+}
+
+body.light .platform-ps3 {
+  color: var(--muted);
+  border-color: var(--muted);
+}
+
+.search-result-indicator {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.ind-cached {
+  color: var(--accent3);
+}
+
+.ind-fetch {
+  color: var(--accent);
+}
+
+.ind-in-list {
+  color: var(--accent2);
+}
+
+.search-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.search-psn-anyway {
+  width: 100%;
+  margin: 8px 0;
+  font-size: 0.78rem;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.search-psn-anyway:hover {
+  opacity: 1;
+}
+
+/* ══════════════════════════════════════
+   Game Settings modal
+══════════════════════════════════════ */
+
+.modal-settings {
+  max-width: 420px;
+}
+
+.settings-section {
+  margin: 16px 20px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.settings-section-label {
+  font-size: 0.68rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+
+.settings-section-label.danger {
+  color: #ff4444;
+  opacity: 0.7;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.settings-desc {
+  flex: 1;
+}
+
+.settings-desc-title {
+  font-size: 0.88rem;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.settings-desc-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.settings-refresh-msg {
+  font-size: 0.78rem;
+  margin-top: 8px;
+  min-height: 18px;
+  color: var(--muted);
+}
+
+.settings-refresh-msg.success {
+  color: var(--accent3);
+}
+
+.settings-refresh-msg.error {
+  color: #ff4444;
+}
+
+.danger-confirm {
+  margin-top: 10px;
+  padding: 9px 12px;
+  background: rgba(255, 68, 68, 0.07);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.danger-confirm-text {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.danger-confirm-btns {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-section.danger-zone {
+  padding-bottom: 20px;
+}
+
+/* ══════════════════════════════════════
+   Contribute prompt (step 4 fallback)
+══════════════════════════════════════ */
+
+.contribute-prompt {
+  padding: 12px 0 4px;
+}
+
+.contribute-message {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.contribute-message strong {
+  color: var(--text);
+}
+
+.contribute-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.contribute-input-row input {
+  flex: 1;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+
+.contribute-input-row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.contribute-status {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 8px;
+  min-height: 18px;
+}
+
+.contribute-status.error {
+  color: #ff4444;
+}
+
+.contribute-info {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.contribute-info-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s;
+  letter-spacing: 0.04em;
+}
+
+.contribute-info-toggle:hover {
+  color: var(--accent);
+}
+
+.contribute-info-arrow {
+  font-size: 0.6rem;
+  display: inline-block;
+  width: 10px;
+  text-align: center;
+}
+
+.contribute-info-body {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.contribute-info-body[hidden] {
+  display: none;
+}
+
+.contribute-info-section p {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.contribute-info-section a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.contribute-info-section a:hover {
+  text-decoration: underline;
+}
+
+.contribute-info-heading {
+  font-size: 0.72rem;
+  font-family: 'Share Tech Mono', monospace;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}

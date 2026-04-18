@@ -1,0 +1,158 @@
+<!-- XpTracker/index.html -->
+<!-- Shell: loads shared theme/header globals, then boots the tool via js/main.js (module). -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>XP Tracker</title>
+  <link rel="stylesheet" href="../common/theme.css">
+  <link rel="stylesheet" href="../common/header.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Shared header injected by header.js -->
+
+<!-- Input Panel -->
+<div class="panel">
+  <div class="panel-title">Log XP Gain</div>
+  <div class="input-row">
+    <input type="tel" id="xpInput" placeholder="0" inputmode="numeric" pattern="[0-9]*">
+    <div class="btn-row">
+      <button class="btn btn-enter" onclick="addXP()" style="flex:1">Enter</button>
+      <!-- FIX #31: Reset button starts disabled; script enables it when entries exist -->
+      <button class="btn btn-reset" id="resetBtn" onclick="resetAll()" style="flex:1" disabled>Reset</button>
+    </div>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="stat-label">Total XP</div>
+      <div class="stat-value" id="statTotal">—</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Entries</div>
+      <div class="stat-value" id="statCount">0</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Avg/gain</div>
+      <div class="stat-value" id="statAvg">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- XP Gains Chart -->
+<div class="panel">
+  <div class="panel-title">XP Per Gain + Averages</div>
+  <div class="chart-wrap">
+    <canvas id="gainChart"></canvas>
+  </div>
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#ff6b35"></div>
+      Total avg
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#7fff6b"></div>
+      Smooth 5
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#ffcc00"></div>
+      Smooth 10
+    </div>
+  </div>
+  <div id="chipArea" class="entries-list"></div>
+  <div class="avg-stats-grid">
+    <div class="avg-stat-box">
+      <div class="avg-stat-label">Total Avg</div>
+      <div class="avg-stat-value" id="avgTotal" style="color:#ff6b35">—</div>
+    </div>
+    <div class="avg-stat-box">
+      <div class="avg-stat-label">Smooth 5</div>
+      <div class="avg-stat-value" id="avgSmooth5" style="color:#7fff6b">—</div>
+    </div>
+    <div class="avg-stat-box">
+      <div class="avg-stat-label">Smooth 10</div>
+      <div class="avg-stat-value" id="avgSmooth10" style="color:#ffcc00">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Estimates -->
+<div class="panel">
+  <div class="panel-title">Estimates &nbsp;<span style="font-size:0.5rem;color:var(--muted)">~ = extrapolated</span>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="stat-label">/ Min</div>
+      <div class="stat-value" id="tMin">—</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">/ 15 Min</div>
+      <div class="stat-value" id="t15">—</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">/ Hour</div>
+      <div class="stat-value" id="tHour">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Accumulator Chart -->
+<div class="panel">
+  <div class="panel-title">XP Accumulator</div>
+  <div class="chart-wrap">
+    <canvas id="timeChart"></canvas>
+  </div>
+</div>
+
+<!-- Entry Log -->
+<div class="panel">
+  <div class="panel-title">Entry Log &nbsp;<span style="font-size:0.5rem;color:var(--muted)">
+    <span style="display:inline-flex;align-items:center;gap:3px"><span
+        style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#7fff6b;flex-shrink:0"></span> smooth 5</span>
+    &nbsp;
+    <span style="display:inline-flex;align-items:center;gap:3px"><span
+        style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ffcc00;flex-shrink:0"></span> smooth 10</span>
+  </span></div>
+  <div class="log-scroll" id="entryLog">
+    <div style="padding:20px;text-align:center;color:var(--muted);font-size:0.65rem;">No entries yet.</div>
+  </div>
+</div>
+
+<!-- Custom Reset Confirm Dialog -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <p>RESET ALL DATA?</p>
+    <small>This will erase all entries and cannot be undone.</small>
+    <div class="confirm-btns">
+      <button class="btn btn-reset" onclick="confirmReset()">Yes, reset</button>
+      <button class="btn btn-enter" onclick="cancelReset()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="../common/theme.js"></script>
+<script src="../common/header.js"></script>
+<script>
+    initHeader('XP Tracker');
+    // redrawCharts is assigned by main.js before initTheme fires its callback —
+    // but main.js is a module (deferred), so we pass a wrapper that calls the
+    // window-level function set by main.js at runtime.
+    initTheme(() => {
+        if (window.redrawCharts) window.redrawCharts();
+    });
+
+    // ── Escape key dismissal ──
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') cancelReset();
+    });
+
+    // ── Backdrop tap dismissal ──
+    document.getElementById('confirmOverlay').addEventListener('click', function (e) {
+        if (e.target === this) cancelReset();
+    });
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

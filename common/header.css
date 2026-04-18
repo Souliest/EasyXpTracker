@@ -1,0 +1,139 @@
+/* common/header.css */
+/* Tool header styles — shared across all tool pages. */
+
+.tool-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 640px;
+  margin: 0 auto 1.5rem;
+  gap: 8px;
+}
+
+.tool-header .back-link {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.tool-header .back-link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* " Tools" label hides on narrow screens; arrow always visible */
+.tool-header .back-label {
+  display: none;
+}
+
+@media (min-width: 400px) {
+  .tool-header .back-label {
+    display: inline;
+  }
+}
+
+.tool-header .tool-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(0.8rem, 3.5vw, 1.1rem);
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: var(--glow);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  flex: 1;
+}
+
+/* ── Right-side button group ── */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.tool-header .theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 1rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.2s;
+}
+
+.tool-header .theme-toggle:hover {
+  border-color: var(--accent);
+}
+
+/* ── Fullscreen toggle ──
+   The emoji buttons (👤 and 🌙) get their height from the emoji glyph itself.
+   An SVG-only button doesn't have that natural height, so we match it explicitly:
+   - Same padding as the other buttons: 4px 10px
+   - Same font-size reference: 1rem
+   - align-self: stretch forces the button to fill the full flex row height,
+     matching whatever the emoji buttons compute to — no magic pixel values needed.
+   The SVG itself is sized via the .fullscreen-icon class to sit comfortably
+   within that height without dictating it.
+   Hidden by default — shown only when document.fullscreenEnabled is true. */
+
+.tool-header .fullscreen-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 1rem;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+  align-self: stretch;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, color 0.2s;
+  line-height: 0;
+  box-sizing: border-box;
+}
+
+/* Override display:none only when the button is actively shown by header.js.
+   header.js sets style="display:none" initially and clears it to reveal —
+   we use flex here so the SVG centres correctly inside. */
+.tool-header .fullscreen-toggle[style=""],
+.tool-header .fullscreen-toggle:not([style="display: none;"]) {
+  display: flex;
+}
+
+.tool-header .fullscreen-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Active state — accent glow while in fullscreen */
+.tool-header .fullscreen-toggle.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--glow);
+}
+
+/* SVG icon — sized to sit naturally within the button's line height.
+   1em at font-size:1rem = 16px, which matches the emoji optical size. */
+.tool-header .fullscreen-toggle .fullscreen-icon {
+  width: 1em;
+  height: 1em;
+  display: block;
+}

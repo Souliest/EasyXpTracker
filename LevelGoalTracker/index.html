@@ -1,0 +1,115 @@
+<!-- LevelGoalTracker/index.html -->
+<!-- Shell: loads shared theme/header globals, then boots the tool via js/main.js (module). -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Level Goal Tracker</title>
+  <link rel="stylesheet" href="../common/theme.css">
+  <link rel="stylesheet" href="../common/header.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="container">
+
+  <!-- Shared header injected by header.js -->
+
+  <div class="selector-bar">
+    <select id="gameSelect" onchange="selectGame(this.value)">
+      <option value="">— select a game —</option>
+    </select>
+    <button class="btn btn-primary" onclick="openAddModal()">+ Add</button>
+  </div>
+
+  <div id="mainContent"></div>
+
+</div>
+
+<!-- ── Add / Edit Modal ── -->
+<div class="modal-overlay" id="gameModal">
+  <div class="modal">
+    <h2 id="modalTitle">Add Game</h2>
+
+    <div class="form-group">
+      <label for="fName">Game Title</label>
+      <input type="text" id="fName" placeholder="Title">
+    </div>
+    <div class="form-group">
+      <label for="fCurrentLevel">Current Level</label>
+      <input type="number" id="fCurrentLevel" placeholder="0" min="0" value="0">
+    </div>
+    <div class="form-group">
+      <label for="fDays">Days Remaining</label>
+      <input type="number" id="fDays" placeholder="Days remaining" min="1">
+    </div>
+
+    <div class="form-group backdate-toggle-group">
+      <label class="backdate-label">
+        <input type="checkbox" id="fBackdate" onchange="toggleBackdate()">
+        Game already started — backdate the start
+      </label>
+    </div>
+    <div id="backdateFields" class="backdate-fields">
+      <div class="form-group">
+        <label for="fTotalDays">Total Days (at start)</label>
+        <input type="number" id="fTotalDays" placeholder="e.g. 90" min="1">
+      </div>
+      <div class="form-group">
+        <label for="fStartLevel">Starting Level (on day one)</label>
+        <input type="number" id="fStartLevel" placeholder="0" min="0" value="0">
+      </div>
+    </div>
+
+    <div class="tier-editor">
+      <div class="tier-editor-header">
+        <span>Checkpoint Level</span>
+        <span>Reward (optional)</span>
+        <span></span>
+      </div>
+      <div id="tierRows"></div>
+      <button class="btn btn-ghost" style="width:100%;margin-top:4px" onclick="addTierRow()">+ Add Checkpoint</button>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveGame()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Confirm Delete ── -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-box">
+    <p>Delete <strong id="confirmGameName"></strong>?<br>This cannot be undone.</p>
+    <div class="confirm-actions">
+      <button class="btn btn-ghost" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="../common/theme.js"></script>
+<script src="../common/header.js"></script>
+<script>
+    initHeader('Level Goal Tracker');
+    initTheme();
+
+    // ── Escape key dismissal ──
+    document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        closeModal();
+        closeConfirm();
+    });
+
+    // ── Backdrop tap dismissal ──
+    document.getElementById('gameModal').addEventListener('click', function (e) {
+        if (e.target === this) closeModal();
+    });
+    document.getElementById('confirmOverlay').addEventListener('click', function (e) {
+        if (e.target === this) closeConfirm();
+    });
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
