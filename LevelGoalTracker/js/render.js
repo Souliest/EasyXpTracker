@@ -71,6 +71,9 @@ export function renderDailyProgressPanel(s) {
     if (s.isCompleted) {
         targetSubText = 'All done!';
         targetSubClass = 'reached';
+    } else if (s.trackStatus === 'deadline') {
+        targetSubText = 'Deadline reached — keep going!';
+        targetSubClass = 'behind';
     } else if (s.delta >= 0) {
         targetSubText = `Daily target reached! (+${s.delta.toLocaleString()})`;
         targetSubClass = 'reached';

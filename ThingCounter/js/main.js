@@ -319,8 +319,8 @@ async function cycleSortOrder() {
     const stored = _localLoad();
     const game = stored.blobs[selectedGameId];
     if (!game) return;
-    const next = {null: 'asc', asc: 'desc', desc: null};
-    game.sortOrder = next[game.sortOrder || 'null'] || null;
+    const order = game.sortOrder ?? null;
+    game.sortOrder = order === null ? 'asc' : order === 'asc' ? 'desc' : null;
     cacheSet(stored, game, CFG);
     await saveData(stored, selectedGameId);
     updateSortBtn(game);

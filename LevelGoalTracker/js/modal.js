@@ -175,7 +175,13 @@ export async function saveGame(onSaved) {
         game.deadlineDate = deadlineDate;
         game.backdated = isBackdated;
         game.snapshot.currentLevel = currentLevel;
-        game.snapshot.initialDailyLevel = currentLevel;
+        // Preserve initialDailyLevel so intra-day progress isn't erased on edit.
+        // Only reset it if the snapshot date differs from today (i.e. a fresh day
+        // hasn't been rolled yet) or if the user lowered their level below the
+        // recorded start-of-day value (data correction).
+        if (game.snapshot.date !== todayStr() || currentLevel < game.snapshot.initialDailyLevel) {
+            game.snapshot.initialDailyLevel = currentLevel;
+        }
         game.snapshot.date = todayStr();
         game.snapshot.dailyTarget = calcDailyTarget(game);
         cacheSet(stored, game, CFG);

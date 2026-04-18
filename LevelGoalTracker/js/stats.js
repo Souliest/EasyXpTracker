@@ -25,6 +25,9 @@ export function computeStats(game) {
     if (currentLevel >= finalLevel) {
         trackStatus = 'done';
         trackIcon = '✅';
+    } else if (daysLeft === 0) {
+        trackStatus = 'deadline';
+        trackIcon = '⏰';
     } else if (delta >= 0) {
         trackStatus = 'ahead';
         trackIcon = '🟢';

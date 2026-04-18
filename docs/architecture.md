@@ -362,6 +362,12 @@ worker side. Spoofing it has no security consequence.
   confirm-delete (name available even if blob is evicted).
 - `modal.js` uses `_parseInt`/`_parseFloat` helpers for all numeric form fields to prevent `NaN`
   from entering the data store via blank inputs.
+- On edit, `snapshot.initialDailyLevel` is preserved unless the snapshot date has not yet rolled to
+  today (stale day) or the user lowered their level below the recorded start-of-day value. This
+  prevents an edit mid-day from wiping intra-day progress in the Daily Progress panel.
+- `stats.js` emits `trackStatus === 'deadline'` (icon ⏰) when `daysLeft === 0` and the goal is not
+  yet reached. This avoids the misleading 🔴 "behind" state that arose because `requiredPace` is
+  `Infinity` on deadline day, making the pace-threshold comparison always fail.
 
 ### ThingCounter
 
@@ -377,6 +383,9 @@ worker side. Spoofing it has no security consequence.
 - `modal.js` is a barrel re-exporting from both node and game modals.
 - `nodes.js` and `swatches.js` are pure-function leaves.
 - The `callbacks` object pattern avoids circular imports between `render.js` and interaction handlers.
+- `game.sortOrder` stores `'asc'`, `'desc'`, or `null` (no sort). `cycleSortOrder` uses an explicit
+  ternary on `game.sortOrder ?? null` — never a string-keyed lookup object — to avoid silent failure
+  if a stale stored value were ever the literal string `'null'`.
 
 ### TrophyHunter
 
@@ -440,6 +449,18 @@ See `docs/trophy-hunter.md` for Worker, PSN search flow, catalog cache, and rend
 - **`_parseInt`/`_parseFloat` in `modal.js` (LevelGoalTracker)** — `parseInt("")` returns `NaN`;
   `JSON.stringify(NaN)` produces `null`; `null` silently breaks pace calculations. Centralised helpers
   make the guard impossible to forget and easy to audit.
+- **`snapshot.initialDailyLevel` preserved on edit (LevelGoalTracker)** — the edit path previously
+  reset `initialDailyLevel` to the current level unconditionally, erasing any progress made earlier
+  that day. It is now only reset when the snapshot date hasn't rolled to today yet, or when the user
+  explicitly lowers their level below the recorded day-start value.
+- **`trackStatus === 'deadline'` for `daysLeft === 0` (LevelGoalTracker)** — when the deadline day
+  arrives, `requiredPace` is `Infinity`, which made `delta >= -requiredPace * 0.2` always false,
+  so every unfinished game showed 🔴 "behind". A dedicated status (⏰) is emitted before the
+  pace comparison and renders a distinct "Deadline reached" message.
+- **`cycleSortOrder` uses explicit ternary, not a string-keyed object (ThingCounter)** — the previous
+  `{null: 'asc', asc: 'desc', desc: null}[game.sortOrder || 'null']` lookup worked in practice but
+  would silently misbehave if `sortOrder` were ever stored as the string `'null'`. An explicit
+  `game.sortOrder ?? null` ternary is unambiguous and easier to follow.
 - **Supabase key injected at deploy time** — the publishable key is browser-visible by design, but
   keeping it out of source history means forks don't get working credentials, rotation requires no
   code change, and secret scanning tools won't flag the repo.
