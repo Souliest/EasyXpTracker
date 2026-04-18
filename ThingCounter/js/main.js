@@ -13,7 +13,7 @@ import {
     subscribeToGameChanges, unsubscribeFromGameChanges,
 } from './storage.js';
 import {
-    runMigrations, TOOL_CONFIG, cacheSet,
+    TOOL_CONFIG, cacheSet,
 } from '../../common/migrations.js';
 import {findNode, clampValue, initialValue} from './nodes.js';
 import {
@@ -26,7 +26,6 @@ import {
     openFocusModal,
     closeFocusModal,
     syncFocusIfOpen,
-    updateFocusDisplay,
     activateFocusValueInput,
     onFocusValueInput,
     onFocusValueBlur,
@@ -341,7 +340,6 @@ async function afterGameSaved(savedId) {
     selectedGameId = savedId;
     setFocusGameId(savedId);
     localStorage.setItem(STORAGE_SELECTED, savedId);
-    const data = await renderSelector();
     document.getElementById('gameSelect').value = savedId;
     doRenderMain(_localLoad());
 }

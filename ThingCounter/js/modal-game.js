@@ -3,7 +3,7 @@
 // Fully independent of the branch and counter modals in modal-node.js.
 
 import {saveData, STORAGE_KEY} from './storage.js';
-import {cacheSet, cacheDelete, TOOL_CONFIG} from '../../common/migrations.js';
+import {cacheSet, TOOL_CONFIG} from '../../common/migrations.js';
 import {findNode, removeNode, initialValue, countDescendants} from './nodes.js';
 
 const CFG = TOOL_CONFIG.thingCounter;

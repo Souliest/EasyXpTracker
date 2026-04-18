@@ -20,7 +20,7 @@ import {
     subscribeToGameChanges,
     unsubscribeFromGameChanges,
 } from './storage.js';
-import {runMigrations, TOOL_CONFIG, cacheSet, cacheDelete} from '../../common/migrations.js';
+import {TOOL_CONFIG, cacheSet} from '../../common/migrations.js';
 import {maybeRollSnapshot} from './snapshot.js';
 import {computeStats} from './stats.js';
 import {
@@ -183,7 +183,7 @@ async function renderMain(preloadedStored) {
 
     wireActions(
         game.id,
-        id => openEditModal(id, afterSave),
+        id => openEditModal(id),
         id => openConfirmDelete(id),
     );
 }
@@ -261,7 +261,6 @@ function _onRemoteUpdate(row) {
 async function afterSave(savedId) {
     selectedGameId = savedId;
     persistSelectedGame(savedId);
-    const data = await renderSelector();
     document.getElementById('gameSelect').value = savedId;
     renderMain();
 }
@@ -272,7 +271,6 @@ async function afterDelete(deletedId) {
         selectedGameId = null;
         persistSelectedGame(null);
     }
-    const data = await renderSelector();
     renderMain();
 }
 

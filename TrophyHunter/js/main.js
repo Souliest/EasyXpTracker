@@ -19,7 +19,7 @@ import {
     subscribeToGameChanges, unsubscribeFromGameChanges, REALTIME_ENABLED,
 } from './storage.js';
 import {
-    runMigrations, TOOL_CONFIG, cacheSet, cacheDelete,
+    TOOL_CONFIG, cacheSet,
 } from '../../common/migrations.js';
 import {
     renderMain, updateGameHeader, updateGroupHeader,
@@ -143,13 +143,6 @@ function restoreSelectedGame(index) {
     const saved = localStorage.getItem(STORAGE_SELECTED);
     if (saved && index.find(e => e.id === saved)) return saved;
     return null;
-}
-
-async function renderSelector() {
-    const data = await loadData();
-    _personalData = data;
-    _rebuildSelector();
-    return data;
 }
 
 function _rebuildSelector() {

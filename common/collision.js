@@ -5,6 +5,34 @@
 
 import {escHtml} from './utils.js';
 
+// ── remoteData shape validation ────────────────────────────────────────────
+// SEC: Supabase Realtime delivers remoteData straight from the network.
+// A crafted payload could supply malformed fields that corrupt the local
+// blob cache when passed to cacheSet. Validate the minimum required shape
+// before the caller hands it to resolveCollision.
+//
+// Rules:
+//   - Must be a plain object (not null, array, or primitive).
+//   - Must have a string id and a string name (required by every tool).
+//   - Must not carry __proto__ or constructor keys (prototype pollution guard).
+//
+// Tools can rely on this function returning null for anything that fails,
+// which resolveCollision treats as "keep local" automatically.
+
+export function validateRemoteData(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+
+    // Prototype pollution guard.
+    if (Object.prototype.hasOwnProperty.call(data, '__proto__')) return null;
+    if (Object.prototype.hasOwnProperty.call(data, 'constructor')) return null;
+
+    // Minimum required fields present on every tool's game blob.
+    if (typeof data.id !== 'string' || !data.id) return null;
+    if (typeof data.name !== 'string' || !data.name) return null;
+
+    return data;
+}
+
 // ── showCollisionModal ──
 // Signature: showCollisionModal(gameId, gameName, collision, resolveCollision, onResolved)
 //
@@ -61,7 +89,18 @@ export function showCollisionModal(gameId, gameName, collision, resolveCollision
 
     document.getElementById('collisionUseRemote').addEventListener('click', async () => {
         overlay.classList.remove('open');
-        await resolveCollision(gameId, 'remote', collision.remoteData);
+
+        // SEC: Validate the remote payload before handing it to resolveCollision.
+        // If validation fails (malformed Realtime payload), fall back to keeping
+        // local data silently — never corrupt the local store with invalid data.
+        const safeRemoteData = validateRemoteData(collision.remoteData);
+        if (!safeRemoteData) {
+            console.warn('[collision] Remote data failed validation — keeping local copy.');
+            await resolveCollision(gameId, 'local', null);
+        } else {
+            await resolveCollision(gameId, 'remote', safeRemoteData);
+        }
+
         onResolved();
     });
 }

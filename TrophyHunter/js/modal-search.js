@@ -28,6 +28,23 @@ import {escHtml} from '../../common/utils.js';
 
 let _currentQuery = '';
 
+// ── Icon URL sanitisation ──────────────────────────────────────────────────
+// Allows only http: and https: URLs. Blocks javascript:, data:, and anything
+// else that could execute in a browser's img.src handler.
+
+function _safeIconUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+            return url;
+        }
+    } catch {
+        // Malformed URL — treat as absent.
+    }
+    return null;
+}
+
 // ── Search / Add Game modal ────────────────────────────────────────────────
 
 // personalIndex: the index array from { index, blobs } — used only for the
@@ -337,9 +354,13 @@ function _buildResultRow(result, status, onGameAdded, onSelectExisting) {
 
     const icon = document.createElement('div');
     icon.className = 'search-result-icon';
-    if (result.iconUrl) {
+
+    // SEC: Sanitise iconUrl — only allow http/https to prevent javascript: URLs
+    // from executing via img.src in legacy browsers or future spec changes.
+    const safeIconUrl = _safeIconUrl(result.iconUrl);
+    if (safeIconUrl) {
         const img = document.createElement('img');
-        img.src = result.iconUrl;
+        img.src = safeIconUrl;
         img.alt = '';
         img.className = 'search-result-img';
         img.addEventListener('error', () => {
@@ -355,11 +376,11 @@ function _buildResultRow(result, status, onGameAdded, onSelectExisting) {
 
     const name = document.createElement('div');
     name.className = 'search-result-name';
-    name.textContent = result.name;
+    name.textContent = result.name;  // textContent — safe
 
     const platform = document.createElement('span');
     platform.className = `search-result-platform platform-${(result.platform || 'ps4').toLowerCase()}`;
-    platform.textContent = result.platform || 'PS4';
+    platform.textContent = result.platform || 'PS4';  // textContent — safe
 
     info.appendChild(name);
     info.appendChild(platform);

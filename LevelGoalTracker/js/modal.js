@@ -19,6 +19,21 @@ function _localLoad() {
     }
 }
 
+// ── Numeric helpers ────────────────────────────────────────────────────────
+// SEC: parseInt / parseFloat return NaN for blank strings and non-numeric
+// input. These helpers centralise the guard so callers can't accidentally
+// store NaN in the data model, which would silently corrupt pace calculations.
+
+function _parseInt(value, fallback = 0) {
+    const n = parseInt(value, 10);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function _parseFloat(value, fallback = 0) {
+    const n = parseFloat(value);
+    return Number.isFinite(n) ? n : fallback;
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 
 let editingGameId = null;
@@ -110,23 +125,27 @@ export function closeModal() {
 
 export async function saveGame(onSaved) {
     const name = document.getElementById('fName').value.trim();
-    const currentLevelRaw = document.getElementById('fCurrentLevel').value;
-    const currentLevel = currentLevelRaw === '' ? 0 : parseInt(currentLevelRaw);
-    const days = parseInt(document.getElementById('fDays').value);
+
+    // SEC: Use _parseInt/_parseFloat throughout to prevent NaN propagating into
+    // the data store. parseInt("") === NaN, which JSON.stringify silently turns
+    // into null and breaks all downstream pace calculations.
+    const currentLevel = _parseInt(document.getElementById('fCurrentLevel').value, 0);
+    const days = _parseInt(document.getElementById('fDays').value, 0);
     const isBackdated = document.getElementById('fBackdate').checked;
-    const totalDays = isBackdated ? parseInt(document.getElementById('fTotalDays').value) : null;
-    const startLevelRaw = document.getElementById('fStartLevel').value;
-    const startLevel = isBackdated ? (startLevelRaw === '' ? 0 : parseInt(startLevelRaw)) : currentLevel;
+    const totalDays = isBackdated ? _parseInt(document.getElementById('fTotalDays').value, 0) : null;
+    const startLevel = isBackdated
+        ? _parseInt(document.getElementById('fStartLevel').value, 0)
+        : currentLevel;
 
     if (!name) {
         alert('Please enter a game title.');
         return;
     }
-    if (!days || days < 1) {
+    if (days < 1) {
         alert('Please enter a valid number of days remaining.');
         return;
     }
-    if (isBackdated && (!totalDays || totalDays <= days)) {
+    if (isBackdated && (totalDays === null || totalDays <= days)) {
         alert('Total days must be greater than days remaining.');
         return;
     }
@@ -134,9 +153,9 @@ export async function saveGame(onSaved) {
     const tierRows = document.querySelectorAll('.tier-row');
     const tiers = [];
     for (const row of tierRows) {
-        const lvl = parseInt(row.querySelector('.tier-level').value);
-        const rew = parseFloat(row.querySelector('.tier-reward').value) || 0;
-        if (!isNaN(lvl) && lvl > 0) tiers.push({level: lvl, reward: rew});
+        const lvl = _parseInt(row.querySelector('.tier-level').value, NaN);
+        const rew = _parseFloat(row.querySelector('.tier-reward').value, 0);
+        if (Number.isFinite(lvl) && lvl > 0) tiers.push({level: lvl, reward: rew});
     }
     if (tiers.length === 0) {
         alert('Please add at least one checkpoint.');
