@@ -13,7 +13,7 @@ For general conventions see `docs/architecture.md`.
 | `storage.js`        | Hybrid personal state storage; catalog cache; lookup and catalog search; 4-step search flow; `createGameEntry`; `mergeCatalogUpdate` |
 | `psn.js`            | Cloudflare Worker calls (`workerResolve`, `workerContribute`, `workerFetchTrophies`) and URL constants. Pure leaf — no imports.      |
 | `stats.js`          | `computeStats`, `computeGroupStats` — pure functions, no DOM dependency                                                              |
-| `render.js`         | All HTML builders and targeted DOM update functions. Re-exports `computeStats` and `computeGroupStats` for backward compatibility.   |
+| `render.js`         | All HTML builders and targeted DOM update functions.                                                                                 |
 | `modal-search.js`   | Search / Add Game modal — 4-step search UI, contribute prompt, result rows                                                           |
 | `modal-settings.js` | Game Settings modal — rename, reset, refresh from PSN, remove                                                                        |
 | `modal.js`          | Barrel — re-exports from both modal files                                                                                            |

@@ -34,6 +34,10 @@ import {
     onFocusStepBlur,
     focusStep,
     focusResetValue,
+    setFocusGameId,
+} from './focus.js';
+import {
+    qcReset,
     openQuickCounter,
     closeQuickCounter,
     qcStep,
@@ -44,9 +48,7 @@ import {
     onQcStepInput,
     onQcStepBlur,
     qcResetValue,
-    qcReset,
-    setFocusGameId,
-} from './focus.js';
+} from './quick-counter.js';
 import {
     toggleSwatchPopover,
     onCounterTypeChange,

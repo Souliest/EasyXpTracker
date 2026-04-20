@@ -496,14 +496,6 @@ document.getElementById('gameSettingsModal').addEventListener('click', function 
     if (e.target === this) closeGameSettingsModal();
 });
 
-// ── renderMain signature note ─────────────────────────────────────────────────
-// render.js receives (selectedGameId, personalData, selectedGameBlob, catalogEntry, callbacks).
-// personalData is { index, blobs } — render.js uses it only for the selector;
-// the selected game's trophyState and viewState come from selectedGameBlob.
-// render.js callers in v1 passed the full games array; v2 passes the blob directly.
-// If render.js has not yet been updated, update its signature to accept the blob
-// as a standalone parameter rather than finding it via personalData.games.find().
-
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 (async function init() {

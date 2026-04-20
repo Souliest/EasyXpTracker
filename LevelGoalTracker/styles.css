@@ -157,7 +157,6 @@ select#gameSelect:focus {
   color: var(--accent);
 }
 
-/* FIX #15: removed dead .stat-value.good — class was defined but never assigned */
 .stat-value.warn {
   color: var(--accent2);
 }

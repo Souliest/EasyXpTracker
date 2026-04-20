@@ -1,7 +1,5 @@
 // ThingCounter/js/focus.js
 // Focus modal (per-counter large-target view) — open, close, display, input handlers.
-// Quick Counter has moved to quick-counter.js but is re-exported here so existing
-// imports in main.js continue to work without change.
 
 import {saveData, STORAGE_KEY} from './storage.js';
 import {cacheSet, TOOL_CONFIG} from '../../common/migrations.js';
@@ -9,24 +7,6 @@ import {DEFAULT_COLOR} from './swatches.js';
 import {findNode, clampValue, initialValue, fillPercent} from './nodes.js';
 
 const CFG = TOOL_CONFIG.thingCounter;
-
-// Re-export Quick Counter so main.js imports remain unchanged.
-export {
-    qcLoad,
-    qcSave,
-    qcReset,
-    openQuickCounter,
-    updateQcDisplay,
-    qcStep,
-    activateQcValueInput,
-    onQcValueInput,
-    onQcValueBlur,
-    activateQcStepInput,
-    onQcStepInput,
-    onQcStepBlur,
-    qcResetValue,
-    closeQuickCounter,
-} from './quick-counter.js';
 
 // ── Local storage read ─────────────────────────────────────────────────────
 

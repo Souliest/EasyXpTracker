@@ -1,12 +1,8 @@
 // TrophyHunter/js/render.js
-// All HTML section builders and DOM update functions for the main view.
+// All HTML section builders and targeted DOM update functions for the main view.
 // Receives data and callbacks as parameters — no loadData calls, no module-level state.
-//
-// v2 signature change: renderMain now receives selectedGameBlob as a standalone
-// parameter (the full game object for the selected game) rather than finding it
-// via personalData.games.find(). personalData is { index, blobs } and is used
-// only for the empty-state message (index.length). All game data comes from
-// selectedGameBlob.
+// selectedGameBlob carries all game data for the active game; personalData ({ index, blobs })
+// is used only for the empty-state message (index.length).
 
 import {escHtml, attachLongPress} from '../../common/utils.js';
 import {computeStats, computeGroupStats} from './stats.js';
