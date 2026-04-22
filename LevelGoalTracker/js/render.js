@@ -60,7 +60,7 @@ export function renderOverviewPanel(game, s) {
       <div class="update-row">
         <input type="number" id="levelInput" value="${s.currentLevel}"
                min="${game.startLevel}" max="${s.finalLevel}"
-               placeholder="Current level">
+               placeholder="Current level" aria-label="Current level">
         <button class="btn btn-primary" id="updateLevelBtn">Update</button>
       </div>
     </div>`;

@@ -41,8 +41,6 @@ const TABLE_GAMES = 'bgt_trophy_hunter_games';
 const TABLE_CATALOG = 'bgt_trophy_hunter_catalog';
 const TABLE_LOOKUP = 'bgt_trophy_hunter_lookup';
 
-export {WORKER_URL, workerFetchTrophies} from './psn.js';
-
 // ── Realtime ──────────────────────────────────────────────────────────────────
 
 export const REALTIME_ENABLED = true;

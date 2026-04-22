@@ -5,6 +5,7 @@ import {loadData, saveData, STORAGE_KEY} from './storage.js';
 import {cacheSet, TOOL_CONFIG} from '../../common/migrations.js';
 import {todayStr, daysBetween, localDatePlusDays} from './dates.js';
 import {calcDailyTarget} from './snapshot.js';
+import {openModal as trapOpen, closeModal as trapClose} from '../../common/utils.js';
 
 const CFG = TOOL_CONFIG.levelGoalTracker;
 
@@ -32,6 +33,23 @@ function _parseInt(value, fallback = 0) {
 function _parseFloat(value, fallback = 0) {
     const n = parseFloat(value);
     return Number.isFinite(n) ? n : fallback;
+}
+
+// ── Inline error helpers ───────────────────────────────────────────────────
+
+function _showError(msg) {
+    const el = document.getElementById('gameModalError');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+function _clearError() {
+    const el = document.getElementById('gameModalError');
+    if (el) {
+        el.textContent = '';
+        el.style.display = 'none';
+    }
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
@@ -74,6 +92,7 @@ function resetBackdateFields() {
 
 export function openAddModal() {
     editingGameId = null;
+    _clearError();
     document.getElementById('modalTitle').textContent = 'Add Game';
     document.getElementById('fName').value = '';
     document.getElementById('fCurrentLevel').value = '0';
@@ -81,7 +100,9 @@ export function openAddModal() {
     resetBackdateFields();
     document.getElementById('tierRows').innerHTML = '';
     addTierRow();
-    document.getElementById('gameModal').classList.add('open');
+    const overlay = document.getElementById('gameModal');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function openEditModal(id, onSaved) {
@@ -90,6 +111,7 @@ export function openEditModal(id, onSaved) {
     if (!game) return;
 
     editingGameId = id;
+    _clearError();
     document.getElementById('modalTitle').textContent = 'Edit Game';
     document.getElementById('fName').value = game.name;
     document.getElementById('fCurrentLevel').value = game.snapshot.currentLevel;
@@ -114,11 +136,15 @@ export function openEditModal(id, onSaved) {
     rows.innerHTML = '';
     game.tiers.forEach(t => addTierRow(t.level, t.reward));
 
-    document.getElementById('gameModal').classList.add('open');
+    const overlay = document.getElementById('gameModal');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function closeModal() {
-    document.getElementById('gameModal').classList.remove('open');
+    const overlay = document.getElementById('gameModal');
+    overlay.classList.remove('open');
+    trapClose(overlay);
 }
 
 // ── Save ───────────────────────────────────────────────────────────────────
@@ -138,15 +164,15 @@ export async function saveGame(onSaved) {
         : currentLevel;
 
     if (!name) {
-        alert('Please enter a game title.');
+        _showError('Please enter a game title.');
         return;
     }
     if (days < 1) {
-        alert('Please enter a valid number of days remaining.');
+        _showError('Please enter a valid number of days remaining.');
         return;
     }
     if (isBackdated && (totalDays === null || totalDays <= days)) {
-        alert('Total days must be greater than days remaining.');
+        _showError('Total days must be greater than days remaining.');
         return;
     }
 
@@ -158,7 +184,7 @@ export async function saveGame(onSaved) {
         if (Number.isFinite(lvl) && lvl > 0) tiers.push({level: lvl, reward: rew});
     }
     if (tiers.length === 0) {
-        alert('Please add at least one checkpoint.');
+        _showError('Please add at least one checkpoint.');
         return;
     }
     tiers.sort((a, b) => a.level - b.level);
@@ -233,12 +259,16 @@ export function openConfirmDelete(id) {
     if (!entry) return;
     pendingDeleteId = id;
     document.getElementById('confirmGameName').textContent = entry.name;
-    document.getElementById('confirmOverlay').classList.add('open');
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function closeConfirm() {
     pendingDeleteId = null;
-    document.getElementById('confirmOverlay').classList.remove('open');
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.classList.remove('open');
+    trapClose(overlay);
 }
 
 export function confirmDelete(onDeleted) {

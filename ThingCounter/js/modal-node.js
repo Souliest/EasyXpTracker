@@ -9,6 +9,7 @@ import {
     findNode, findParent, getAllBranches, isAncestor,
     insertNode, removeNode, newId,
 } from './nodes.js';
+import {openModal as trapOpen, closeModal as trapClose} from '../../common/utils.js';
 
 const CFG = TOOL_CONFIG.thingCounter;
 
@@ -98,7 +99,9 @@ export function openAddBranchModal(parentId, selectedGameId) {
     document.getElementById('addBranchSaveBtn').textContent = 'Add';
     document.getElementById('abName').value = '';
     populateParentSelect('abParent', selectedGameId, null, parentId);
-    document.getElementById('addBranchModal').classList.add('open');
+    const overlay = document.getElementById('addBranchModal');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function openEditBranchModal(nodeId, selectedGameId) {
@@ -114,12 +117,16 @@ export function openEditBranchModal(nodeId, selectedGameId) {
     document.getElementById('abName').value = node.name;
     const parentNode = findParent(game.nodes, nodeId);
     populateParentSelect('abParent', selectedGameId, nodeId, parentNode ? parentNode.id : null);
-    document.getElementById('addBranchModal').classList.add('open');
+    const overlay = document.getElementById('addBranchModal');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function closeAddBranchModal() {
     editingBranchId = null;
-    document.getElementById('addBranchModal').classList.remove('open');
+    const overlay = document.getElementById('addBranchModal');
+    overlay.classList.remove('open');
+    trapClose(overlay);
 }
 
 export async function saveAddBranch(selectedGameId, onSaved) {
@@ -170,7 +177,9 @@ export function openAddCounterModal(parentId, selectedGameId) {
     onDecrementChange();
     updateColorField(DEFAULT_COLOR);
     populateParentSelect('acParent', selectedGameId, null, parentId);
-    document.getElementById('addCounterModal').classList.add('open');
+    const overlay = document.getElementById('addCounterModal');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function openEditCounterModal(nodeId, selectedGameId) {
@@ -199,13 +208,17 @@ export function openEditCounterModal(nodeId, selectedGameId) {
 
     const parentNode = findParent(game.nodes, nodeId);
     populateParentSelect('acParent', selectedGameId, null, parentNode ? parentNode.id : null);
-    document.getElementById('addCounterModal').classList.add('open');
+    const overlay = document.getElementById('addCounterModal');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function closeAddCounterModal() {
     editingCounterId = null;
     document.getElementById('acSwatchPopover').classList.remove('open');
-    document.getElementById('addCounterModal').classList.remove('open');
+    const overlay = document.getElementById('addCounterModal');
+    overlay.classList.remove('open');
+    trapClose(overlay);
 }
 
 export function onCounterTypeChange() {

@@ -37,12 +37,9 @@ const TABLE = 'bgt_thing_counter_games';
 
 // ── Realtime ──────────────────────────────────────────────────────────────────
 
-export const REALTIME_ENABLED = true;
-
 let _realtimeChannel = null;
 
 export function subscribeToGameChanges(userId, onRemoteUpdate) {
-    if (!REALTIME_ENABLED) return;
     unsubscribeFromGameChanges();
 
     // Channel names are scoped to this Supabase project — they are not visible

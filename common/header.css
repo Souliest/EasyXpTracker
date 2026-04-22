@@ -55,6 +55,19 @@
   flex: 1;
 }
 
+/* ── Selector bar height normalisation ──
+   Tools that include a glyph-only button (✎) alongside a <select> and a text
+   button in .selector-bar can get mismatched heights because glyphs and text
+   render at different natural sizes. Locking all flex children to an explicit
+   height keeps the row visually consistent across browsers.
+   box-sizing: border-box ensures padding is counted within that height. */
+
+.selector-bar select,
+.selector-bar .btn {
+  height: 35px;
+  box-sizing: border-box;
+}
+
 /* ── Right-side button group ── */
 
 .header-actions {

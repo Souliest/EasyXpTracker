@@ -5,6 +5,7 @@
 import {saveData, STORAGE_KEY} from './storage.js';
 import {cacheSet, TOOL_CONFIG} from '../../common/migrations.js';
 import {findNode, removeNode, initialValue, countDescendants} from './nodes.js';
+import {openModal as trapOpen, closeModal as trapClose} from '../../common/utils.js';
 
 const CFG = TOOL_CONFIG.thingCounter;
 
@@ -29,7 +30,9 @@ export function openAddGameModal() {
     document.getElementById('gmName').value = '';
     document.getElementById('gameSettingsDanger').style.display = 'none';
     cancelResetCounters();
-    document.getElementById('gameModal').classList.add('open');
+    const overlay = document.getElementById('gameModal');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function openGameSettingsModal(selectedGameId) {
@@ -43,12 +46,16 @@ export function openGameSettingsModal(selectedGameId) {
     document.getElementById('gmName').value = entry.name;
     document.getElementById('gameSettingsDanger').style.display = '';
     cancelResetCounters();
-    document.getElementById('gameModal').classList.add('open');
+    const overlay = document.getElementById('gameModal');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function closeGameModal() {
     cancelResetCounters();
-    document.getElementById('gameModal').classList.remove('open');
+    const overlay = document.getElementById('gameModal');
+    overlay.classList.remove('open');
+    trapClose(overlay);
 }
 
 export async function saveGame(selectedGameId, onSaved) {
@@ -132,7 +139,9 @@ export function openConfirmDeleteNode(nodeId, selectedGameId) {
     document.getElementById('confirmNodeExtra').textContent = node.type === 'branch'
         ? `This will also delete ${countDescendants(node)} child node(s).`
         : 'This cannot be undone.';
-    document.getElementById('confirmOverlay').classList.add('open');
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function openConfirmDeleteGame(selectedGameId, onClose) {
@@ -145,13 +154,17 @@ export function openConfirmDeleteGame(selectedGameId, onClose) {
     pendingDeleteType = 'game';
     document.getElementById('confirmNodeName').textContent = entry.name;
     document.getElementById('confirmNodeExtra').textContent = 'All counters and nodes will be permanently deleted.';
-    document.getElementById('confirmOverlay').classList.add('open');
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function closeConfirm() {
     pendingDeleteId = null;
     pendingDeleteType = null;
-    document.getElementById('confirmOverlay').classList.remove('open');
+    const overlay = document.getElementById('confirmOverlay');
+    overlay.classList.remove('open');
+    trapClose(overlay);
 }
 
 export async function confirmDelete(selectedGameId, onDeleted) {

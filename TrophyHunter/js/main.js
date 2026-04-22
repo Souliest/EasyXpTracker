@@ -23,7 +23,7 @@ import {
 } from '../../common/migrations.js';
 import {
     renderMain, updateGameHeader, updateGroupHeader,
-    refreshTrophyRow, updateSelectorButtons,
+    refreshTrophyRow, refreshTrophyList, updateSelectorButtons,
 } from './render.js';
 import {computeStats, computeGroupStats} from './stats.js';
 import {
@@ -250,7 +250,25 @@ function _toggleEarned(trophyId) {
     _personalData = {index: stored.index, blobs: stored.blobs};
 
     if (_selectedGameBlob.viewState.filter !== 'all') {
-        _doRenderMain();
+        // Update only the list — leave the game header and toolbar untouched
+        // to avoid the flash caused by destroying and recreating the <select> elements.
+        refreshTrophyList(_selectedGameBlob, _catalogEntry, _callbacks());
+
+        const group = _findGroupForTrophy(trophyId);
+        if (group) {
+            const collapsed = _selectedGameBlob.viewState.collapsedGroups || [];
+            updateGroupHeader(
+                group.groupId, group,
+                computeGroupStats(group, _selectedGameBlob.trophyState),
+                collapsed, id => _toggleGroup(id),
+            );
+        }
+
+        updateGameHeader(
+            _selectedGameBlob,
+            _catalogEntry,
+            computeStats(_catalogEntry.groups, _selectedGameBlob.trophyState),
+        );
     } else {
         const trophy = _findTrophyInCatalog(trophyId);
         if (trophy) refreshTrophyRow(trophyId, trophy, _selectedGameBlob.trophyState, _callbacks());
@@ -495,14 +513,6 @@ document.getElementById('searchModal').addEventListener('click', function (e) {
 document.getElementById('gameSettingsModal').addEventListener('click', function (e) {
     if (e.target === this) closeGameSettingsModal();
 });
-
-// ── renderMain signature note ─────────────────────────────────────────────────
-// render.js receives (selectedGameId, personalData, selectedGameBlob, catalogEntry, callbacks).
-// personalData is { index, blobs } — render.js uses it only for the selector;
-// the selected game's trophyState and viewState come from selectedGameBlob.
-// render.js callers in v1 passed the full games array; v2 passes the blob directly.
-// If render.js has not yet been updated, update its signature to accept the blob
-// as a standalone parameter rather than finding it via personalData.games.find().
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 

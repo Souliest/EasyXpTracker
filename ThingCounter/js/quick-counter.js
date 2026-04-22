@@ -8,6 +8,7 @@
 
 import {STORAGE_QC_VAL, STORAGE_QC_STEP, STORAGE_QC_COLOR} from './storage.js';
 import {SWATCHES} from './swatches.js';
+import {openModal as trapOpen, closeModal as trapClose} from '../../common/utils.js';
 
 function qcRandomColor() {
     return SWATCHES[Math.floor(Math.random() * SWATCHES.length)].color;
@@ -43,7 +44,9 @@ export function openQuickCounter() {
     document.getElementById('qcTitle').style.color = color;
     document.getElementById('qcTitle').style.textShadow = `0 0 16px ${color}80`;
     updateQcDisplay(val, step, color);
-    document.getElementById('quickCounterModal').classList.add('open');
+    const overlay = document.getElementById('quickCounterModal');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
 }
 
 export function updateQcDisplay(val, step, color) {
@@ -130,5 +133,7 @@ export function qcResetValue() {
 
 export function closeQuickCounter() {
     qcReset();
-    document.getElementById('quickCounterModal').classList.remove('open');
+    const overlay = document.getElementById('quickCounterModal');
+    overlay.classList.remove('open');
+    trapClose(overlay);
 }

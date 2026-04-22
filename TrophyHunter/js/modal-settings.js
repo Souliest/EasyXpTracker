@@ -9,6 +9,7 @@
 import {workerFetchTrophies} from './psn.js';
 import {saveCatalogEntry} from './storage.js';
 import {getUser} from '../../common/auth.js';
+import {openModal as trapOpen, closeModal as trapClose} from '../../common/utils.js';
 
 export async function openGameSettingsModal(game, callbacks) {
     const overlay = document.getElementById('gameSettingsModal');
@@ -20,6 +21,7 @@ export async function openGameSettingsModal(game, callbacks) {
 
     overlay.classList.add('open');
     document.body.style.overflow = 'hidden';
+    trapOpen(overlay, document.activeElement);
     document.getElementById('settingsGameName').focus();
 
     // Wire rename save
@@ -85,7 +87,10 @@ export async function openGameSettingsModal(game, callbacks) {
 
 export function closeGameSettingsModal() {
     const overlay = document.getElementById('gameSettingsModal');
-    if (overlay) overlay.classList.remove('open');
+    if (overlay) {
+        overlay.classList.remove('open');
+        trapClose(overlay);
+    }
     document.body.style.overflow = '';
 }
 

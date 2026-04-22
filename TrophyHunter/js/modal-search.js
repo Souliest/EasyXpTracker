@@ -22,7 +22,7 @@ import {
     normaliseTitle,
 } from './storage.js';
 import {getUser} from '../../common/auth.js';
-import {escHtml} from '../../common/utils.js';
+import {escHtml, openModal as trapOpen, closeModal as trapClose} from '../../common/utils.js';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ export function openAddGameModal(personalIndex, onGameAdded, onSelectExisting) {
     _resetSearchModal();
     overlay.classList.add('open');
     document.body.style.overflow = 'hidden';
-    document.getElementById('searchInput').focus();
+    trapOpen(overlay, document.activeElement);
 
     const oldBtn = document.getElementById('searchSubmitBtn');
     const newBtn = oldBtn.cloneNode(true);
@@ -77,7 +77,10 @@ export function openAddGameModal(personalIndex, onGameAdded, onSelectExisting) {
 
 export function closeSearchModal() {
     const overlay = document.getElementById('searchModal');
-    if (overlay) overlay.classList.remove('open');
+    if (overlay) {
+        overlay.classList.remove('open');
+        trapClose(overlay);
+    }
     document.body.style.overflow = '';
     _currentQuery = '';
 }

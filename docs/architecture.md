@@ -126,6 +126,34 @@ See `docs/storage.md` for the full storage model and migration guide.
 **`attachLongPress(el, callback)`** — fires `callback` after a 500ms hold. Cancels on >10px pointer movement.
 Used for single-node edit in ThingCounter and trophy pinning in TrophyHunter.
 
+**`openModal(overlayEl, triggerEl?)`** — lightweight focus trap for modal dialogs. Sets `inert` on every
+direct child of `<body>` except the overlay, then moves focus to the first focusable element inside the
+modal. Stores `triggerEl` so focus returns to it on close.
+
+**`closeModal(overlayEl)`** — releases the focus trap set by `openModal`: removes `inert` from all
+previously-inerted siblings and restores focus to the stored trigger element (if still in the document).
+
+Usage pattern (same in all tools):
+
+```js
+import { openModal as trapOpen, closeModal as trapClose } from '../../common/utils.js';
+
+function openMyModal() {
+    const overlay = document.getElementById('myOverlay');
+    overlay.classList.add('open');
+    trapOpen(overlay, document.activeElement);
+}
+
+function closeMyModal() {
+    const overlay = document.getElementById('myOverlay');
+    overlay.classList.remove('open');
+    trapClose(overlay);
+}
+```
+
+The auth overlay (`#authOverlay`) and collision overlay (`#collisionOverlay`) are intentionally excluded
+from the inert sweep — they manage their own focus and stack on top of tool modals.
+
 ---
 
 ## Collision Modal
@@ -205,6 +233,11 @@ Key variables from `common/theme.css`:
 - Dark mode is default (no class). Light mode: `.light` on `<body>`.
 - Fonts: `Orbitron` (headings/values), `Share Tech Mono` (body/UI).
 - Max-width centered column layout (`640px` typical).
+
+**Selector-bar height normalisation** — `common/header.css` includes a shared rule that locks
+`.selector-bar select` and `.selector-bar .btn` to `height: 35px; box-sizing: border-box`. This
+keeps the dropdown, glyph-only buttons (✎), and text buttons visually aligned across browsers.
+Tool stylesheets must not override this height for selector-bar children.
 
 ---
 
@@ -362,12 +395,17 @@ worker side. Spoofing it has no security consequence.
   confirm-delete (name available even if blob is evicted).
 - `modal.js` uses `_parseInt`/`_parseFloat` helpers for all numeric form fields to prevent `NaN`
   from entering the data store via blank inputs.
+- `modal.js` uses `_showError(msg)` / `_clearError()` for inline validation feedback — no `alert()`
+  calls. The error `<div id="gameModalError">` sits below `.modal-actions` in the modal HTML and
+  is styled by `.modal-error` in `styles.css`.
 - On edit, `snapshot.initialDailyLevel` is preserved unless the snapshot date has not yet rolled to
   today (stale day) or the user lowered their level below the recorded start-of-day value. This
   prevents an edit mid-day from wiping intra-day progress in the Daily Progress panel.
 - `stats.js` emits `trackStatus === 'deadline'` (icon ⏰) when `daysLeft === 0` and the goal is not
   yet reached. This avoids the misleading 🔴 "behind" state that arose because `requiredPace` is
   `Infinity` on deadline day, making the pace-threshold comparison always fail.
+- `modal.js` calls `trapOpen`/`trapClose` from `common/utils.js` on every modal open/close to manage
+  focus trapping and focus restoration.
 
 ### ThingCounter
 
@@ -375,11 +413,13 @@ worker side. Spoofing it has no security consequence.
 - Counter types: `open` (unbounded) and `bounded` (min/max/initial, fill bar shown).
 - Edit mode (global toggle): reveals node controls and ghost add buttons.
 - Focus modal (`focus.js`): large value display, ±1, editable step. Reads/writes directly from the
-  blob cache — no `loadData()` call.
+  blob cache — no `loadData()` call. The `.focus-value-display` element carries `aria-live="polite"`
+  and `aria-atomic="true"` so screen readers announce value changes.
 - Quick Counter (`quick-counter.js`): game-agnostic scratchpad. State persists across refresh/blur;
-  wiped on ✕ or game select. Re-exported from `focus.js` for backward-compatible imports.
-- `modal-node.js` and `modal-game.js` both read from `stored.blobs[selectedGameId]` directly — no
-  `loadData()` call.
+  wiped on ✕ or game select. Re-exported from `focus.js` for backward-compatible imports. The
+  `.focus-value-display` in the Quick Counter modal also carries `aria-live`/`aria-atomic`.
+- `modal-node.js`, `modal-game.js`, `focus.js`, and `quick-counter.js` all call `trapOpen`/`trapClose`
+  from `common/utils.js` on every modal open/close for focus trapping and restoration.
 - `modal.js` is a barrel re-exporting from both node and game modals.
 - `nodes.js` and `swatches.js` are pure-function leaves.
 - The `callbacks` object pattern avoids circular imports between `render.js` and interaction handlers.
@@ -486,3 +526,28 @@ See `docs/trophy-hunter.md` for Worker, PSN search flow, catalog cache, and rend
 - **Split into `architecture.md`, `storage.md`, `trophy-hunter.md`** — storage is a large
   self-contained topic shared across three tools; TrophyHunter has substantial infrastructure
   (Worker, PSN, render quirks) that would crowd the shared conventions doc.
+- **`openModal`/`closeModal` focus-trap in `common/utils.js`** — `inert` on background content is
+  the correct accessible approach (prevents Tab, pointer, and assistive-technology interaction with
+  background elements simultaneously). A CSS-only approach cannot trap AT focus. The auth and
+  collision overlays are excluded from the sweep because they stack on top and manage their own
+  focus independently.
+- **Selector-bar height rule in `common/header.css`** — ThingCounter and TrophyHunter both have a
+  glyph-only ✎ button in the selector bar that renders shorter than a text button at the same
+  padding. Putting the `height: 35px; box-sizing: border-box` rule in `header.css` means all three
+  tools that load `header.css` get the fix automatically; LevelGoalTracker benefits too even though
+  it has no ✎ button.
+- **Inline modal errors in LevelGoalTracker** — `alert()` is disruptive (blocks the page, cannot
+  be styled) and moves focus away from the form. Inline errors in a `role="alert"` div inside the
+  modal keep context, are announced by screen readers, and match the design system used by the auth
+  modal. The error is cleared on every modal open so stale messages never carry over.
+- **`aria-live="polite"` + `aria-atomic="true"` on `.focus-value-display` (ThingCounter)** — the
+  display element is styled text updated by JS; without a live region, screen readers never announce
+  the new value when the ±1/±step buttons are tapped. `polite` avoids interrupting in-progress
+  announcements; `atomic` ensures the full value (e.g. "42 / 100") is read rather than just the
+  changed characters.
+- **`refreshTrophyList` + `#th-trophy-list` wrapper (TrophyHunter)** — when a filter is active and
+  a trophy is toggled, the previous code called `_doRenderMain()` which destroyed and recreated the
+  toolbar `<select>` elements, causing a visible flash. The fix wraps the trophy list in a stable
+  `<div id="th-trophy-list">` and exports `refreshTrophyList` to replace only that portion. The
+  game header and toolbar are left untouched, so no flash occurs. The group-header click listeners
+  are re-wired inside the container after each list refresh.

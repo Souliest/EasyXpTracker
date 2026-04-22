@@ -35,19 +35,6 @@ select#gameSelect:focus {
   border-color: var(--accent);
 }
 
-/* ── Selector bar height normalisation ──
-   The dropdown, ✎ edit button, and + Add Game button each have
-   different content heights (glyphs and text render at different
-   sizes), so padding alone cannot guarantee equal button heights.
-   Setting an explicit height on all flex children of .selector-bar
-   locks them to match the dropdown's natural 35px height.
-   box-sizing: border-box ensures padding is included within that height. */
-.selector-bar select,
-.selector-bar .btn {
-  height: 35px;
-  box-sizing: border-box;
-}
-
 /* ── Buttons ── */
 .btn {
   font-family: 'Share Tech Mono', monospace;

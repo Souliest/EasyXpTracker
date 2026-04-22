@@ -45,7 +45,8 @@
     </div>
     <div class="focus-body">
       <div class="focus-value-wrap" onclick="activateFocusValueInput()">
-        <div class="focus-value-display" id="focusValueDisplay"></div>
+        <div class="focus-value-display" id="focusValueDisplay"
+             aria-live="polite" aria-atomic="true"></div>
         <input type="number" class="focus-value-input" id="focusValueInput" aria-label="Counter value"
                oninput="onFocusValueInput()" onblur="onFocusValueBlur()">
       </div>
@@ -207,7 +208,8 @@
     </div>
     <div class="focus-body">
       <div class="focus-value-wrap" onclick="activateQcValueInput()">
-        <div class="focus-value-display" id="qcValueDisplay">0</div>
+        <div class="focus-value-display" id="qcValueDisplay"
+             aria-live="polite" aria-atomic="true">0</div>
         <input type="number" class="focus-value-input" id="qcValueInput" aria-label="Quick counter value"
                oninput="onQcValueInput()" onblur="onQcValueBlur()">
       </div>

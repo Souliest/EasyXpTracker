@@ -135,7 +135,7 @@ select#gameSelect:focus {
   margin-bottom: 12px;
 }
 
-/* FIX #26: empty state shown when a game exists but has no nodes yet */
+/* ── Empty state when a game exists but has no nodes yet ── */
 .empty-state-game {
   text-align: center;
   color: var(--muted);
@@ -165,6 +165,7 @@ select#gameSelect:focus {
   border: 1px solid var(--accent2);
   border-radius: 6px;
   background: rgba(255, 107, 53, 0.07);
+  user-select: none;
 }
 
 .edit-mode-banner.visible {
@@ -808,8 +809,7 @@ select#gameSelect:focus {
   border-color: var(--accent);
 }
 
-/* FIX #3: fieldset/legend for Counter Type radio group —
-   replaces the bare <label> that had no matching input id. */
+/* ── Counter Type radio group fieldset/legend ── */
 .radio-fieldset {
   border: none;
   padding: 0;
@@ -907,8 +907,7 @@ select#gameSelect:focus {
   font-size: 0.7rem;
 }
 
-/* FIX #24: swatch popover raised to z-index 210 so it renders above the
-   confirm overlay (z-index 200) if both are somehow visible simultaneously. */
+/* ── Swatch popover — raised z-index to sit above confirm overlay ── */
 .swatch-popover {
   display: none;
   position: absolute;
