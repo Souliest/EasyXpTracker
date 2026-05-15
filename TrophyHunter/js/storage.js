@@ -411,16 +411,31 @@ export function saveCatalogEntry(entry) {
 
 // ── Lookup table ──────────────────────────────────────────────────────────────
 
+function _rankResults(rows, query, nameField = 'name') {
+    const q = query.toLowerCase();
+    const score = str => {
+        const s = str.toLowerCase();
+        if (s === q)            return 0;  // exact
+        if (s.startsWith(q))   return 1;  // starts-with
+        if (s.includes(` ${q} `) || s.endsWith(` ${q}`)) return 2;  // whole word
+        return 3;                          // substring
+    };
+    return [...rows]
+        .sort((a, b) => score(a[nameField]) - score(b[nameField]))
+        .slice(0, 10);
+}
+
 export async function searchLookupTable(query) {
     if (!query || query.trim().length < 2) return [];
+    const normalised = stripSearchNoise(normaliseTitle(query.trim()));
     try {
         const {data, error} = await supabase
             .from(TABLE_LOOKUP)
             .select('np_comm_id, title_name, platform, np_service_name')
-            .ilike('title_name', `%${stripSearchNoise(normaliseTitle(query.trim()))}%`)
-            .limit(10);
+            .ilike('title_name', `%${normalised}%`)
+            .limit(30);
         if (error || !data) return [];
-        return data.map(row => ({
+        return _rankResults(data, normalised, 'title_name').map(row => ({
             npCommId: row.np_comm_id,
             titleName: row.title_name,
             platform: row.platform,
@@ -435,14 +450,15 @@ export async function searchLookupTable(query) {
 
 export async function searchCatalog(query) {
     if (!query || query.trim().length < 2) return [];
+    const normalised = stripSearchNoise(normaliseTitle(query.trim()));
     try {
         const {data, error} = await supabase
             .from(TABLE_CATALOG)
             .select('np_comm_id, name, platform, icon_url')
-            .ilike('name', `%${stripSearchNoise(normaliseTitle(query.trim()))}%`)
-            .limit(10);
+            .ilike('name', `%${normalised}%`)
+            .limit(30);
         if (error || !data) return [];
-        return data.map(row => ({
+        return _rankResults(data, normalised).map(row => ({
             npCommId: row.np_comm_id,
             name: row.name,
             platform: row.platform,
