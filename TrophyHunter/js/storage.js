@@ -429,19 +429,23 @@ export async function searchLookupTable(query) {
     if (!query || query.trim().length < 2) return [];
     const normalised = stripSearchNoise(normaliseTitle(query.trim()));
     try {
-        const [startsWith, contains] = await Promise.all([
+        const [exact, startsWith, contains] = await Promise.all([
+            supabase.from(TABLE_LOOKUP)
+                .select('np_comm_id, title_name, platform, np_service_name')
+                .ilike('title_name', normalised)
+                .limit(10),
             supabase.from(TABLE_LOOKUP)
                 .select('np_comm_id, title_name, platform, np_service_name')
                 .ilike('title_name', `${normalised}%`)
-                .limit(50),
+                .limit(20),
             supabase.from(TABLE_LOOKUP)
                 .select('np_comm_id, title_name, platform, np_service_name')
                 .ilike('title_name', `%${normalised}%`)
-                .limit(50),
+                .limit(20),
         ]);
         const seen = new Set();
         const merged = [];
-        for (const row of [...(startsWith.data || []), ...(contains.data || [])]) {
+        for (const row of [...(exact.data || []), ...(startsWith.data || []), ...(contains.data || [])]) {
             if (!seen.has(row.np_comm_id)) {
                 seen.add(row.np_comm_id);
                 merged.push(row);
@@ -464,19 +468,23 @@ export async function searchCatalog(query) {
     if (!query || query.trim().length < 2) return [];
     const normalised = stripSearchNoise(normaliseTitle(query.trim()));
     try {
-        const [startsWith, contains] = await Promise.all([
+        const [exact, startsWith, contains] = await Promise.all([
+            supabase.from(TABLE_CATALOG)
+                .select('np_comm_id, name, platform, icon_url')
+                .ilike('name', normalised)
+                .limit(10),
             supabase.from(TABLE_CATALOG)
                 .select('np_comm_id, name, platform, icon_url')
                 .ilike('name', `${normalised}%`)
-                .limit(50),
+                .limit(20),
             supabase.from(TABLE_CATALOG)
                 .select('np_comm_id, name, platform, icon_url')
                 .ilike('name', `%${normalised}%`)
-                .limit(50),
+                .limit(20),
         ]);
         const seen = new Set();
         const merged = [];
-        for (const row of [...(startsWith.data || []), ...(contains.data || [])]) {
+        for (const row of [...(exact.data || []), ...(startsWith.data || []), ...(contains.data || [])]) {
             if (!seen.has(row.np_comm_id)) {
                 seen.add(row.np_comm_id);
                 merged.push(row);
