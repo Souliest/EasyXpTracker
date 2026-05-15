@@ -433,11 +433,11 @@ export async function searchLookupTable(query) {
             supabase.from(TABLE_LOOKUP)
                 .select('np_comm_id, title_name, platform, np_service_name')
                 .ilike('title_name', `${normalised}%`)
-                .limit(20),
+                .limit(50),
             supabase.from(TABLE_LOOKUP)
                 .select('np_comm_id, title_name, platform, np_service_name')
                 .ilike('title_name', `%${normalised}%`)
-                .limit(20),
+                .limit(50),
         ]);
         const seen = new Set();
         const merged = [];
@@ -468,11 +468,11 @@ export async function searchCatalog(query) {
             supabase.from(TABLE_CATALOG)
                 .select('np_comm_id, name, platform, icon_url')
                 .ilike('name', `${normalised}%`)
-                .limit(20),
+                .limit(50),
             supabase.from(TABLE_CATALOG)
                 .select('np_comm_id, name, platform, icon_url')
                 .ilike('name', `%${normalised}%`)
-                .limit(20),
+                .limit(50),
         ]);
         const seen = new Set();
         const merged = [];
