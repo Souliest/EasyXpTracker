@@ -429,13 +429,25 @@ export async function searchLookupTable(query) {
     if (!query || query.trim().length < 2) return [];
     const normalised = stripSearchNoise(normaliseTitle(query.trim()));
     try {
-        const {data, error} = await supabase
-            .from(TABLE_LOOKUP)
-            .select('np_comm_id, title_name, platform, np_service_name')
-            .ilike('title_name', `%${normalised}%`)
-            .limit(30);
-        if (error || !data) return [];
-        return _rankResults(data, normalised, 'title_name').map(row => ({
+        const [startsWith, contains] = await Promise.all([
+            supabase.from(TABLE_LOOKUP)
+                .select('np_comm_id, title_name, platform, np_service_name')
+                .ilike('title_name', `${normalised}%`)
+                .limit(20),
+            supabase.from(TABLE_LOOKUP)
+                .select('np_comm_id, title_name, platform, np_service_name')
+                .ilike('title_name', `%${normalised}%`)
+                .limit(20),
+        ]);
+        const seen = new Set();
+        const merged = [];
+        for (const row of [...(startsWith.data || []), ...(contains.data || [])]) {
+            if (!seen.has(row.np_comm_id)) {
+                seen.add(row.np_comm_id);
+                merged.push(row);
+            }
+        }
+        return _rankResults(merged, normalised, 'title_name').map(row => ({
             npCommId: row.np_comm_id,
             titleName: row.title_name,
             platform: row.platform,
@@ -452,13 +464,25 @@ export async function searchCatalog(query) {
     if (!query || query.trim().length < 2) return [];
     const normalised = stripSearchNoise(normaliseTitle(query.trim()));
     try {
-        const {data, error} = await supabase
-            .from(TABLE_CATALOG)
-            .select('np_comm_id, name, platform, icon_url')
-            .ilike('name', `%${normalised}%`)
-            .limit(30);
-        if (error || !data) return [];
-        return _rankResults(data, normalised).map(row => ({
+        const [startsWith, contains] = await Promise.all([
+            supabase.from(TABLE_CATALOG)
+                .select('np_comm_id, name, platform, icon_url')
+                .ilike('name', `${normalised}%`)
+                .limit(20),
+            supabase.from(TABLE_CATALOG)
+                .select('np_comm_id, name, platform, icon_url')
+                .ilike('name', `%${normalised}%`)
+                .limit(20),
+        ]);
+        const seen = new Set();
+        const merged = [];
+        for (const row of [...(startsWith.data || []), ...(contains.data || [])]) {
+            if (!seen.has(row.np_comm_id)) {
+                seen.add(row.np_comm_id);
+                merged.push(row);
+            }
+        }
+        return _rankResults(merged, normalised).map(row => ({
             npCommId: row.np_comm_id,
             name: row.name,
             platform: row.platform,
