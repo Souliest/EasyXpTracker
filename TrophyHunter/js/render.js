@@ -418,8 +418,9 @@ export function updateGroupHeader(groupId, group, groupStats, collapsedGroups, o
 export function updateGameHeader(game, catalogEntry, stats) {
     const header = document.getElementById('gameHeader');
     if (!header) return;
+    const sticky = header.classList.contains('th-game-header--sticky');
     const tmp = document.createElement('div');
-    tmp.innerHTML = renderGameHeader(game, catalogEntry, stats);
+    tmp.innerHTML = renderGameHeader(game, catalogEntry, stats, sticky);
     header.replaceWith(tmp.firstElementChild);
 }
 
