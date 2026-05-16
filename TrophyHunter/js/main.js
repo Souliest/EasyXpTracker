@@ -19,7 +19,7 @@ import {
     subscribeToGameChanges, unsubscribeFromGameChanges, REALTIME_ENABLED,
 } from './storage.js';
 import {
-    TOOL_CONFIG, cacheSet, localLoad
+    TOOL_CONFIG, cacheSet, cacheDelete, localLoad
 } from '../../common/migrations.js';
 import {
     renderMain, updateGameHeader, updateGroupHeader,
@@ -70,9 +70,33 @@ function _scheduleSync() {
 // Skipped if a local debounce timer is running — local changes take priority.
 // Updates for games not in the blob cache update the index only; no blob fetch.
 
-function _onRemoteUpdate(remoteGame, remoteUpdatedAt) {
+function _onRemoteUpdate(payload) {
     if (_syncTimer !== null) return;
 
+    // ── DELETE ──
+    if (payload.type === 'delete') {
+        const stored = _localLoad();
+        if (!stored.index.find(e => e.id === payload.id)) return;
+
+        cacheDelete(stored, payload.id);
+        localSave(stored);
+        _personalData = {index: stored.index, blobs: stored.blobs};
+
+        if (selectedGameId === payload.id) {
+            selectedGameId = null;
+            _selectedGameBlob = null;
+            _catalogEntry = null;
+            persistSelectedGame(null);
+            updateSelectorButtons(false);
+        }
+
+        _rebuildSelector();
+        if (!selectedGameId) _doRenderMain();
+        return;
+    }
+
+    // ── UPDATE ──
+    const {game: remoteGame, updatedAt: remoteUpdatedAt} = payload;
     const stored = _localLoad();
     const indexEntry = stored.index.find(e => e.id === remoteGame.id);
 
@@ -91,7 +115,6 @@ function _onRemoteUpdate(remoteGame, remoteUpdatedAt) {
     if (remoteTime <= localTime) return;
 
     if (stored.blobs[remoteGame.id]) {
-        // Preserve viewState from the local session.
         const localBlob = stored.blobs[remoteGame.id];
         const mergedGame = {
             ...remoteGame,
@@ -99,13 +122,10 @@ function _onRemoteUpdate(remoteGame, remoteUpdatedAt) {
             viewState: localBlob.viewState,
         };
         cacheSet(stored, mergedGame, CFG);
-
-        // Keep _selectedGameBlob in sync if this is the active game.
         if (selectedGameId === remoteGame.id) {
             _selectedGameBlob = mergedGame;
         }
     } else {
-        // Not cached — update index only.
         const idx = stored.index.findIndex(e => e.id === remoteGame.id);
         if (idx !== -1) {
             stored.index[idx] = {
@@ -124,6 +144,7 @@ function _onRemoteUpdate(remoteGame, remoteUpdatedAt) {
         _doRenderMain();
     }
 }
+
 
 // ── Selector ──────────────────────────────────────────────────────────────────
 

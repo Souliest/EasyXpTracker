@@ -35,7 +35,12 @@ export function createRealtimeSubscription(channelPrefix, tableName) {
             .on(
                 'postgres_changes',
                 {event: 'UPDATE', schema: 'public', table: tableName, filter: `user_id=eq.${userId}`},
-                payload => onUpdate(payload.new),
+                payload => onUpdate({type: 'update', row: payload.new}),
+            )
+            .on(
+                'postgres_changes',
+                {event: 'DELETE', schema: 'public', table: tableName, filter: `user_id=eq.${userId}`},
+                payload => onUpdate({type: 'delete', row: payload.old}),
             )
             .subscribe();
     }
