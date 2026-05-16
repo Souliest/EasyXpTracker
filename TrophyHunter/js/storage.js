@@ -44,7 +44,7 @@ const TABLE_LOOKUP = 'bgt_trophy_hunter_lookup';
 
 // ── Realtime ──────────────────────────────────────────────────────────────────
 
-export const REALTIME_ENABLED = false;
+export const REALTIME_ENABLED = true;
 
 // TrophyHunter's onUpdate signature is (remoteGame, remoteUpdatedAt) rather than
 // the raw payload.new used by LGT/ThingCounter, so we wrap the factory callback
