@@ -266,7 +266,9 @@ function renderFlatList(game, catalogEntry, callbacks, viewState) {
             const unwanted = filtered.slice(secondaryDividerIdx + 1);
             const pinnedW = wanted.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
             const restW = wanted.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
-            ordered = [leadingDivider, ...pinnedW, ...restW, secondaryDivider, ...unwanted];
+            const pinnedU = unwanted.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
+            const restU = unwanted.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
+            ordered = [leadingDivider, ...pinnedW, ...restW, secondaryDivider, ...pinnedU, ...restU];
         } else if (primaryDividerIdx >= 0) {
             const leadingDivider = filtered[primaryDividerIdx];
             const trophies = filtered.filter(t => !t._divider);
