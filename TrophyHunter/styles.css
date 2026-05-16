@@ -1195,3 +1195,21 @@ body.light .platform-ps3 {
 .search-back-btn:hover {
   opacity: 1;
 }
+
+/* ── Sticky game header (single-group / no DLC) ──
+   Mirrors the group header sticky pattern: top: 6px breathing room,
+   z-index: 10, fully opaque background to prevent trophy row bleed-through.
+   Only applied when there is no DLC (isSingleGroup), so the game header
+   acts as the permanent anchor instead of group headers. */
+.th-game-header--sticky {
+  position: sticky;
+  top: 6px;
+  z-index: 10;
+  background: #111520;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+body.light .th-game-header--sticky {
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}

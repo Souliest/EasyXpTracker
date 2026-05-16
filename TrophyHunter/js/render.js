@@ -111,7 +111,7 @@ export function renderMain(selectedGameId, personalData, selectedGameBlob, catal
         : game.viewState;
 
     content.innerHTML = [
-        renderGameHeader(game, catalogEntry, stats),
+        renderGameHeader(game, catalogEntry, stats, isSingleGroup),
         renderToolbar(effectiveViewState, callbacks, isSingleGroup),
         `<div id="th-trophy-list">${renderTrophyList(game, catalogEntry, stats, callbacks, effectiveViewState)}</div>`,
     ].join('');
@@ -154,8 +154,9 @@ export function refreshTrophyList(game, catalogEntry, callbacks) {
 
 // ── renderGameHeader ───────────────────────────────────────────────────────
 
-export function renderGameHeader(game, catalogEntry, stats) {
-    return `<div class="th-game-header panel" id="gameHeader">
+export function renderGameHeader(game, catalogEntry, stats, sticky = false) {
+    const stickyClass = sticky ? ' th-game-header--sticky' : '';
+    return `<div class="th-game-header panel${stickyClass}" id="gameHeader">
         <div class="th-game-title-row">
             ${catalogEntry.iconUrl
         ? `<img class="th-game-icon" src="${escHtml(catalogEntry.iconUrl)}"
