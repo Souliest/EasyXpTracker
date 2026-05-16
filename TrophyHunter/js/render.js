@@ -244,13 +244,48 @@ function renderFlatList(game, catalogEntry, callbacks, viewState) {
         return renderEmptyFilter(viewState.filter);
     }
 
+    // Float pinned trophies to the top, same as renderGroup does.
+    // When a filter is active, pin only within the wanted (non-dimmed) section.
+    let ordered;
+    if (viewState.filter === 'all') {
+        const pinned = filtered.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
+        const unpinned = filtered.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
+        ordered = [...pinned, ...unpinned];
+    } else {
+        // filtered contains divider sentinels — preserve their positions,
+        // but float pinned trophies within the wanted section only.
+        const primaryDividerIdx = filtered.findIndex(t => t._divider);
+        const secondaryDividerIdx = primaryDividerIdx >= 0
+            ? filtered.findIndex((t, i) => t._divider && i > primaryDividerIdx)
+            : -1;
+
+        if (secondaryDividerIdx >= 0) {
+            const leadingDivider = filtered[primaryDividerIdx];
+            const wanted = filtered.slice(primaryDividerIdx + 1, secondaryDividerIdx);
+            const secondaryDivider = filtered[secondaryDividerIdx];
+            const unwanted = filtered.slice(secondaryDividerIdx + 1);
+            const pinnedW = wanted.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
+            const restW = wanted.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
+            ordered = [leadingDivider, ...pinnedW, ...restW, secondaryDivider, ...unwanted];
+        } else if (primaryDividerIdx >= 0) {
+            const leadingDivider = filtered[primaryDividerIdx];
+            const trophies = filtered.filter(t => !t._divider);
+            const pinned = trophies.filter(t => game.trophyState[String(t.trophyId)]?.pinned);
+            const unpinned = trophies.filter(t => !game.trophyState[String(t.trophyId)]?.pinned);
+            ordered = [leadingDivider, ...pinned, ...unpinned];
+        } else {
+            ordered = filtered;
+        }
+    }
+
     return `<div class="th-flat-list">
-        ${filtered.map(t => t._divider
+        ${ordered.map(t => t._divider
         ? renderSectionDivider(t._label)
         : renderTrophyRow(t, game.trophyState)
     ).join('')}
     </div>`;
 }
+
 
 // ── renderGroup ────────────────────────────────────────────────────────────
 
