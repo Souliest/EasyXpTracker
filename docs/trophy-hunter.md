@@ -14,7 +14,7 @@ For general conventions see `docs/architecture.md`.
 | `psn.js`            | Cloudflare Worker calls (`workerResolve`, `workerContribute`, `workerFetchTrophies`) and URL constants. Pure leaf — no imports.      |
 | `stats.js`          | `computeStats`, `computeGroupStats` — pure functions, no DOM dependency                                                              |
 | `render.js`         | All HTML builders and targeted DOM update functions.                                                                                 |
-| `modal-search.js`   | Search / Add Game modal — 4-step search UI, contribute prompt, result rows                                                           |
+| `modal-search.js`   | Search / Add Game modal — 3-step search flow with forward/back navigation, seen-set deduplication, contribute prompt, result rows    |
 | `modal-settings.js` | Game Settings modal — rename, reset, refresh from PSN, remove                                                                        |
 | `modal.js`          | Barrel — re-exports from both modal files                                                                                            |
 
@@ -75,26 +75,39 @@ Personal game state for all games is always stored in full in the v2 blob cache 
 
 ## 4-Step Search Flow
 
-`runSearch()` in `storage.js` runs a cascade, falling back only when the previous step yields nothing.
-Queries are normalised before matching: `™`, `®`, `©`, `:`, `-`, quotes, and punctuation are stripped.
+`_runStep1/2/3` in `modal-search.js` runs a cascade, falling back automatically
+when a step yields nothing, or offering to go deeper when it yields something.
+Queries are normalised before matching: `™`, `®`, `©`, `:`, `-`, quotes, and
+punctuation are stripped.
 
-1. **`searchCatalog()`** — queries `bgt_trophy_hunter_catalog` by name. Found → instant add.
-2. **`searchLookupTable()`** — queries `bgt_trophy_hunter_lookup` by name. Found → NPWR is known → call `/trophies`.
-3. **Patch sites + `/resolve`** — queries OrbisPatches (PS4) and ProsperoPatches (PS5) for CUSA/PPSA IDs, then calls
-   `/resolve` to get the NPWR. Worker writes new mappings to the lookup table before returning.
-4. **`/contribute`** — the modal asks for a PSN username. Calls `/contribute`; the worker writes all new title→NPWR
-   mappings to the lookup table before returning. Username is never stored.
+1. **Step 1: Catalog + Lookup** — runs `searchCatalog` and `searchLookupTable`
+   in parallel. Catalog results appear first (checkmark — instant add), lookup
+   results after (download arrow — will fetch from PlayStation). Ranked, top 10,
+   deduped. If empty → auto-proceed to step 2. If results → show + "Search
+   PlayStation" button.
 
-Every step that discovers a new NPWR mapping causes the worker to save it to `bgt_trophy_hunter_lookup`,
-growing the catalog passively from normal search activity.
+2. **Step 2: Orbis/Prospero + `/resolve`** — queries OrbisPatches (PS4) and
+   ProsperoPatches (PS5) for CUSA/PPSA IDs, then calls `/resolve` to get NPWR
+   IDs. Results deduped against step 1. If empty → auto-proceed to step 3. If
+   results → show + "Search deeper" button + "← Back to catalog results" link.
 
-Title names are normalised to Title Case (`normaliseTitle()`) before saving and before `ilike` search queries.
-`stripSearchNoise()` is applied to the query only — stored titles remain canonical.
+3. **Step 3: Contribute** — asks for a PlayStation username from someone who has
+   played the game. Calls `/contribute`; the worker writes all new title→NPWR
+   mappings to the lookup table. Re-runs `searchLookupTable`, filtered to only
+   results not already seen in steps 1 or 2. Username input stays visible for
+   retry with a different username. Back links available to steps 2 and/or 1.
 
-**Module placement:** `runSearch` and `runContribute` live in `storage.js` (where they have natural access to
-`searchCatalog`, `searchLookupTable`, and `normaliseTitle`). `psn.js` holds the three worker calls and URL constants
-only. `modal-search.js` imports worker calls from `psn.js` and search flow functions from `storage.js` — no circular
-dependency.
+**Navigation:** going back re-runs the query fresh. A running `seen` set
+accumulates `npCommId`s as the user goes deeper; going back trims it to match
+the step being returned to.
+
+**Deduplication:** the seen set grows at each step. Step 2 excludes step 1
+results; step 3 excludes steps 1+2 results. This ensures contribute results
+only surface genuinely new discoveries.
+
+Every step that discovers a new NPWR mapping causes the worker to save it to
+`bgt_trophy_hunter_lookup`, growing the catalog passively from normal search
+activity.
 
 ---
 

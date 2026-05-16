@@ -415,8 +415,8 @@ function _rankResults(rows, query, nameField = 'name') {
     const q = query.toLowerCase();
     const score = str => {
         const s = str.toLowerCase();
-        if (s === q)            return 0;  // exact
-        if (s.startsWith(q))   return 1;  // starts-with
+        if (s === q) return 0;  // exact
+        if (s.startsWith(q)) return 1;  // starts-with
         if (s.includes(` ${q} `) || s.endsWith(` ${q}`)) return 2;  // whole word
         return 3;                          // substring
     };
@@ -499,70 +499,6 @@ export async function searchCatalog(query) {
     } catch {
         return [];
     }
-}
-
-// ── 4-step search flow ────────────────────────────────────────────────────────
-
-export async function runSearch(query, userId) {
-    const trimmed = query.trim();
-
-    const catalogResults = await searchCatalog(trimmed);
-    if (catalogResults.length > 0) return {results: catalogResults, needsUsername: false, source: 'catalog'};
-
-    const lookupResults = await searchLookupTable(trimmed);
-    if (lookupResults.length > 0) {
-        const results = lookupResults.map(r => ({
-            npCommId: r.npCommId,
-            name: r.titleName,
-            platform: _platformFromService(r.platform, r.npServiceName),
-            iconUrl: null,
-        }));
-        return {results, needsUsername: false, source: 'lookup'};
-    }
-
-    const titleIds = await _searchPatchSites(trimmed);
-    if (titleIds.length > 0) {
-        try {
-            const {mappings} = await workerResolve(titleIds, userId);
-            if (mappings && mappings.length > 0) {
-                const seen = new Set();
-                const results = [];
-                for (const m of mappings) {
-                    if (seen.has(m.npCommId)) continue;
-                    seen.add(m.npCommId);
-                    results.push({
-                        npCommId: m.npCommId,
-                        name: normaliseTitle(m.titleName) || normaliseTitle(trimmed),
-                        platform: _platformFromTitleId(m.npTitleId, m.npServiceName),
-                        iconUrl: null,
-                    });
-                }
-                return {results, needsUsername: false, source: 'resolve'};
-            }
-        } catch { /* fall through to step 4 */
-        }
-    }
-
-    return {results: [], needsUsername: true, source: null};
-}
-
-export async function runContribute(query, username, userId) {
-    const trimmed = query.trim();
-    try {
-        await workerContribute(username, userId);
-    } catch (err) {
-        throw new Error(`Could not fetch ${username}'s library: ${err.message}`);
-    }
-    const lookupResults = await searchLookupTable(trimmed);
-    if (lookupResults.length > 0) {
-        return lookupResults.map(r => ({
-            npCommId: r.npCommId,
-            name: r.titleName,
-            platform: _platformFromService(r.platform, r.npServiceName),
-            iconUrl: null,
-        }));
-    }
-    return [];
 }
 
 // ── Private helpers ───────────────────────────────────────────────────────────

@@ -1183,3 +1183,15 @@ body.light .platform-ps3 {
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+
+.search-back-btn {
+  width: 100%;
+  margin: 4px 0;
+  font-size: 0.78rem;
+  text-align: left;
+  opacity: 0.7;
+}
+
+.search-back-btn:hover {
+  opacity: 1;
+}

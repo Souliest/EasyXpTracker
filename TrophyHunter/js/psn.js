@@ -10,20 +10,10 @@
 // functions live in storage.js where they have natural access to the catalog and
 // lookup helpers. modal-search.js imports them from storage.js directly.
 
-// ═══════════════════════════════════════════════
-// PSN — worker calls
-// ═══════════════════════════════════════════════
-
-// ── Cloudflare Worker URL ──
 export const WORKER_URL = 'https://bgt-psn-proxy.souliest.workers.dev';
 
-// ── Patch-site search URLs (step 3 of the search cascade) ──
 export const ORBIS_SEARCH_URL = 'https://orbispatches.com/api/internal/search';
 export const PROSPERO_SEARCH_URL = 'https://prosperopatches.com/api/internal/search';
-
-// ═══════════════════════════════════════════════
-// Worker calls
-// ═══════════════════════════════════════════════
 
 export async function workerResolve(titleIds, userId) {
     const url = new URL(`${WORKER_URL}/resolve`);

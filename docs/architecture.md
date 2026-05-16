@@ -454,6 +454,7 @@ See `docs/trophy-hunter.md` for Worker, PSN search flow, catalog cache, and rend
 - `_personalData` in `main.js` holds `{ index, blobs }` — drives the selector only.
 - `_selectedGameBlob` holds the full game object for the currently-selected game.
 - `modal-search.js` receives `personalIndex` (the index array) for the "already in list" check.
+- Search uses a 3-step flow with forward auto-proceed and back navigation — see `docs/trophy-hunter.md`.
 - `modal.js` is a barrel re-exporting from `modal-search.js` and `modal-settings.js`.
 - `psn.js` is a pure leaf — worker calls and URL constants only, no imports.
 - `stats.js` pure functions; re-exported from `render.js` for backward compatibility.
