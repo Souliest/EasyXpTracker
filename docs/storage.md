@@ -141,6 +141,10 @@ One row per game in each tool's personal games table. Schema unchanged from v1.
 Schema per table: `id uuid pk`, `user_id uuid → auth.users`, `name text`, `data jsonb`, `updated_at timestamptz`.
 RLS restricts all operations to `auth.uid() = user_id`.
 
+**Realtime publication:** all three tables are in the `supabase_realtime` publication with both UPDATE
+and DELETE events enabled. A single shared publication is the correct pattern — channel-level filtering
+(`filter: user_id=eq.${userId}`) scopes events to the right subscriber at runtime.
+
 ---
 
 ## Read Path — Selector (loadData)
@@ -157,7 +161,10 @@ On every `loadData()` call:
     - If **missing** or **already in the blob cache**: call `cacheSet` — update both tiers.
     - If **stale but not cached**: call `updateIndex` — update the index only, leave blob cache untouched. This
       preserves LRU shape: a game evicted from the cache stays evicted until the user selects it.
-6. `localSave` and return `{ index, blobs }`.
+6. **Stale-delete cleanup:** compare the local index against the remote ID set. Any local entry absent
+   from the server was deleted on another device while this one was offline. Remove it via `cacheDelete`
+   and `localSave`. Realtime handles live deletes; this block catches up devices that missed events.
+7. `localSave` and return `{ index, blobs }`.
 
 On a fresh device this downloads everything. In the steady state (all games local and up to date) it downloads nothing —
 the two queries return and find nothing to fetch.
@@ -235,8 +242,9 @@ graph clean.
 
 All three tools support live cross-device sync via Supabase Realtime.
 
-**Setup:** each tool's personal games table must have Update events enabled under
-**Database → Publications → supabase_realtime** in the Supabase dashboard.
+**Setup:** each tool's personal games table must have both UPDATE and DELETE events enabled under
+**Database → Publications → supabase_realtime** in the Supabase dashboard. A single shared publication
+covering all three tables is the correct configuration.
 
 **Kill switch:** set `REALTIME_ENABLED = false` in a tool's `storage.js`. `subscribeToGameChanges`
 and `unsubscribeFromGameChanges` become no-ops. The tool falls back to load-on-select sync with
@@ -250,7 +258,18 @@ no other code changes needed.
 
 ### Incoming update handler (_onRemoteUpdate)
 
-**LevelGoalTracker and ThingCounter:**
+The `realtime.js` factory delivers `{ type: 'update', row }` or `{ type: 'delete', row }`.
+All three tools handle both types.
+
+**DELETE handling (all tools):**
+
+1. Extract `id` from `payload.row`. Return early if the game isn't in the local index.
+2. `cacheDelete` + `localSave` — removes both the blob and the index entry.
+3. If the deleted game was currently selected: clear `selectedGameId` and any tool-specific
+   selected state (focus game ID, action button visibility, localStorage selected key).
+4. Rebuild the selector. Re-render (LGT: only if `!selectedGameId`; TC: unconditionally via `doRenderMain`).
+
+**UPDATE handling (LevelGoalTracker and ThingCounter):**
 
 1. Skip if the remote game data is missing.
 2. Compare `remoteGame.last_modified` against the local index entry's `last_modified`. Skip if remote is not strictly
@@ -266,12 +285,15 @@ no other code changes needed.
 - When applying a remote update to a cached blob: preserve the local `viewState` (filter, sort, ungrouped,
   collapsedGroups). Each device keeps its own display preferences during a session. `viewState` is still written to
   Supabase and restored on initial load on a new device — it just never overwrites the current session mid-play.
+- TrophyHunter wraps the factory callback in `storage.js` to unpack `payload.row.data` / `payload.row.updated_at`
+  and enforce the `REALTIME_ENABLED` guard, adapting the generic factory payload to TrophyHunter's `onUpdate` signature.
 
 ### Non-cached game updates
 
 Remote Realtime events for games not in the blob cache update the index entry only (keeping the
 selector timestamp correct) and discard the blob. The user sees the fresh data the next time they
 select that game, which is identical to pre-Realtime behaviour. No data loss, no corruption.
+This applies to UPDATE events only — DELETE events are always fully processed regardless of cache state.
 
 ---
 
@@ -303,6 +325,17 @@ and simpler since those tools don't hold module-level game data.
 - **Stale-but-not-cached: index update only** — when `loadData()` finds a stale remote game not in the blob cache, it
   updates only the index. The game was evicted for a reason and stays evicted until selected. Fetching it proactively
   would undermine the cache and could evict a game the user is actively using.
+- **Stale-delete cleanup in loadData()** — Realtime handles live deletes, but a device that was offline when a deletion
+  occurred would never receive the event. Comparing the local index against the remote ID set on every `loadData()` call
+  catches these missed events cheaply — the lightweight query that already runs for the selector provides the remote ID
+  set at no extra cost.
+- **DELETE always processed regardless of cache state** — unlike UPDATE events (which skip blob fetch for non-cached
+  games), a DELETE must always remove the index entry. Leaving a deleted game in the index would make it appear in the
+  selector permanently on that device.
+- **Single `supabase_realtime` publication for all tables** — a publication is transport-level plumbing;
+  channel filtering (`user_id=eq.${userId}`) is what scopes events to the right subscriber. One publication
+  is the standard Supabase configuration. Separate publications would only be needed for different replication
+  settings per table, which is not the case here.
 - **Realtime: drop non-cached game blobs** — a Realtime UPDATE for a non-cached game updates the index only. The user
   sees fresh data on next select — identical to pre-Realtime behaviour. No data loss.
 - **`common/migrations.js` as the single migration home** — all three tools share the runner, helpers, and version

@@ -121,6 +121,19 @@ export async function loadData() {
                 localSave(stored);
             }
         }
+
+        // Remove local games deleted on another device while this one was offline.
+        // Realtime handles live deletes; this catches up devices that missed the event.
+        const remoteIds = new Set(rows.map(r => r.id));
+        const deletedIds = stored.index
+            .filter(e => !remoteIds.has(e.id))
+            .map(e => e.id);
+        if (deletedIds.length > 0) {
+            for (const id of deletedIds) {
+                cacheDelete(stored, id);
+            }
+            localSave(stored);
+        }
     } catch {
         // Network unavailable — return local silently.
     }

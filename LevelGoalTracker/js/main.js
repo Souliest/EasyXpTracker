@@ -20,7 +20,7 @@ import {
     subscribeToGameChanges,
     unsubscribeFromGameChanges,
 } from './storage.js';
-import {TOOL_CONFIG, cacheSet, localLoad} from '../../common/migrations.js';
+import {TOOL_CONFIG, cacheSet, cacheDelete, localLoad} from '../../common/migrations.js';
 import {maybeRollSnapshot} from './snapshot.js';
 import {computeStats} from './stats.js';
 import {
@@ -203,11 +203,39 @@ async function tickRenderMain() {
 }
 
 // ── Realtime: handle an incoming remote update ────────────────────────────────
-// Remote updates for games not in the blob cache are dropped — the index is
-// updated so the selector stays correct, but no blob fetch is triggered.
-// The game will be fetched fresh from Supabase when the user selects it.
+// The realtime.js factory now delivers { type: 'update', row } or
+// { type: 'delete', row } instead of the raw Supabase payload.
+//
+// DELETE: remove the game locally; clear selected state if it was active.
+// UPDATE: unpack payload.row and proceed as before (was raw payload.new).
+//
+// Remote updates for games not in the blob cache update the index only — no
+// blob fetch is triggered. The game will be fetched fresh when the user selects it.
 
-function _onRemoteUpdate(row) {
+function _onRemoteUpdate(payload) {
+    // ── DELETE ──
+    if (payload.type === 'delete') {
+        const id = payload.row?.id;
+        if (!id) return;
+
+        const stored = _localLoad();
+        if (!stored.index.find(e => e.id === id)) return;
+
+        cacheDelete(stored, id);
+        localSave(stored);
+
+        if (selectedGameId === id) {
+            selectedGameId = null;
+            persistSelectedGame(null);
+        }
+
+        _rebuildSelector(stored.index);
+        if (!selectedGameId) renderMain();
+        return;
+    }
+
+    // ── UPDATE ──
+    const row = payload.row;
     if (!row || !row.data) return;
 
     const remoteGame = {...row.data, last_modified: row.updated_at};

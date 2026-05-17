@@ -135,6 +135,10 @@ export const subscribeToGameChanges = _rt.subscribe;
 export const unsubscribeFromGameChanges = _rt.unsubscribe;
 ```
 
+The factory subscribes to both UPDATE and DELETE events on the given table. It delivers a structured
+`{ type: 'update', row }` or `{ type: 'delete', row }` payload to the tool's `_onRemoteUpdate` handler,
+rather than the raw Supabase payload. All three tools handle both event types in their handler.
+
 TrophyHunter wraps the factory callback to unpack `payload.data` / `payload.updated_at` and
 enforce the `REALTIME_ENABLED` guard, since its `onUpdate` signature differs from the other two tools.
 
@@ -425,6 +429,10 @@ worker side. Spoofing it has no security consequence.
   `Infinity` on deadline day, making the pace-threshold comparison always fail.
 - `modal.js` calls `trapOpen`/`trapClose` from `common/utils.js` on every modal open/close to manage
   focus trapping and focus restoration.
+- `_onRemoteUpdate` handles both `{ type: 'delete', row }` and `{ type: 'update', row }` from the
+  Realtime factory. On delete, clears `selectedGameId` if the deleted game was active, rebuilds the
+  selector, and re-renders. `loadData()` also cleans up offline-missed deletions by comparing the
+  local index against the remote ID set on every load.
 
 ### ThingCounter
 
@@ -445,6 +453,11 @@ worker side. Spoofing it has no security consequence.
 - `game.sortOrder` stores `'asc'`, `'desc'`, or `null` (no sort). `cycleSortOrder` uses an explicit
   ternary on `game.sortOrder ?? null` — never a string-keyed lookup object — to avoid silent failure
   if a stale stored value were ever the literal string `'null'`.
+- `_onRemoteUpdate` handles both `{ type: 'delete', row }` and `{ type: 'update', row }` from the
+  Realtime factory. On delete, clears `selectedGameId`, `focusGameId`, action button visibility, and
+  the localStorage selected key if the deleted game was active, then rebuilds the selector and
+  re-renders. `loadData()` also cleans up offline-missed deletions by comparing the local index
+  against the remote ID set on every load.
 
 ### TrophyHunter
 
@@ -595,3 +608,10 @@ See `docs/trophy-hunter.md` for Worker, PlayStation search flow, catalog cache, 
   `<div id="th-trophy-list">` and exports `refreshTrophyList` to replace only that portion. The
   game header and toolbar are left untouched, so no flash occurs. The group-header click listeners
   are re-wired inside the container after each list refresh.
+- **DELETE always processed regardless of cache state (LGT, TC)** — unlike UPDATE events (which
+  skip blob fetch for non-cached games), a DELETE must always remove the index entry. Leaving a
+  deleted game in the index would strand it in the selector permanently on that device.
+- **Stale-delete cleanup in `loadData()` (LGT, TC)** — Realtime handles live deletes, but a device
+  offline when a deletion occurred never receives the event. Comparing the local index against the
+  remote ID set on every `loadData()` catches missed events at no extra query cost — the lightweight
+  select that already runs for the selector provides the remote ID set.

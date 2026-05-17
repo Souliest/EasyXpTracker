@@ -13,7 +13,7 @@ import {
     subscribeToGameChanges, unsubscribeFromGameChanges,
 } from './storage.js';
 import {
-    TOOL_CONFIG, cacheSet, localLoad,
+    TOOL_CONFIG, cacheSet, cacheDelete, localLoad,
 } from '../../common/migrations.js';
 import {findNode, clampValue, initialValue} from './nodes.js';
 import {
@@ -111,10 +111,41 @@ const callbacks = {
 const _localLoad = () => localLoad(STORAGE_KEY);
 
 // ── Realtime: handle an incoming remote update ────────────────────────────────
+// The realtime.js factory now delivers { type: 'update', row } or
+// { type: 'delete', row } instead of the raw Supabase payload.
+//
+// DELETE: remove the game locally; clear selected state if it was active.
+// UPDATE: unpack payload.row and proceed as before (was raw payload.new).
+//
 // Remote updates for games not in the blob cache update the index only — no
 // blob fetch is triggered. The game will be loaded fresh when the user selects it.
 
-function _onRemoteUpdate(row) {
+function _onRemoteUpdate(payload) {
+    // ── DELETE ──
+    if (payload.type === 'delete') {
+        const id = payload.row?.id;
+        if (!id) return;
+
+        const stored = _localLoad();
+        if (!stored.index.find(e => e.id === id)) return;
+
+        cacheDelete(stored, id);
+        localSave(stored);
+
+        if (selectedGameId === id) {
+            selectedGameId = null;
+            setFocusGameId(null);
+            localStorage.removeItem(STORAGE_SELECTED);
+            updateGameActionButtons(false);
+        }
+
+        _rebuildSelector(stored.index);
+        doRenderMain(_localLoad());
+        return;
+    }
+
+    // ── UPDATE ──
+    const row = payload.row;
     if (!row || !row.data) return;
 
     const remoteGame = {...row.data, last_modified: row.updated_at};
