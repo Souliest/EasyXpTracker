@@ -1,0 +1,101 @@
+<!-- ChecklistManager/index.html -->
+<!-- Shell: loads shared theme/header globals, then boots the tool via js/main.js (module). -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checklist Manager</title>
+  <link rel="stylesheet" href="../common/theme.css">
+  <link rel="stylesheet" href="../common/header.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="container">
+
+  <!-- ── Project selector bar ── -->
+  <div class="selector-bar">
+    <select id="projectSelect" aria-label="Select project">
+      <option value="">— select a project —</option>
+    </select>
+    <button class="btn btn-ghost project-action-btn" id="editProjectBtn"
+            title="Project settings" style="display:none">✎
+    </button>
+    <button class="btn btn-primary" id="addProjectBtn">+ Project</button>
+  </div>
+
+  <div id="mainContent"></div>
+
+</div>
+
+<!-- ── Project modal (create/edit) ── -->
+<div class="modal-overlay" id="projectModal">
+  <div class="modal modal-edit">
+    <h2 id="projectModalTitle">New Project</h2>
+
+    <div class="form-group">
+      <label for="pmName">Project name</label>
+      <input type="text" id="pmName" placeholder="My Checklist">
+    </div>
+
+    <!-- Resources -->
+    <div class="form-section-header">Resources</div>
+    <div id="pmResourceList" class="def-list"></div>
+    <button class="btn btn-ghost btn-add-row" id="pmAddResourceBtn">+ Resource</button>
+
+    <!-- Item tags -->
+    <div class="form-section-header">Item Tags</div>
+    <div id="pmItemTagList" class="def-list"></div>
+    <button class="btn btn-ghost btn-add-row" id="pmAddItemTagBtn">+ Item Tag</button>
+
+    <!-- Step tags -->
+    <div class="form-section-header">Step Tags</div>
+    <div id="pmStepTagList" class="def-list"></div>
+    <button class="btn btn-ghost btn-add-row" id="pmAddStepTagBtn">+ Step Tag</button>
+
+    <div class="modal-error" id="pmError" style="display:none" role="alert"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="pmCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="pmSaveBtn">Save</button>
+    </div>
+
+    <!-- Danger zone (edit only) -->
+    <div class="modal-danger" id="pmDanger" style="display:none">
+      <div class="danger-divider">Danger Zone</div>
+      <div class="danger-row">
+        <div class="danger-desc">
+          <div class="danger-label">Delete project</div>
+          <div class="danger-sub">Permanently removes this project and all its data.</div>
+        </div>
+        <button class="btn btn-danger" id="pmDeleteBtn">! Delete !</button>
+      </div>
+      <div class="danger-confirm" id="pmDeleteConfirm" style="display:none">
+        <span class="danger-confirm-text">Delete this project?</span>
+        <div class="danger-confirm-btns">
+          <button class="btn btn-ghost" id="pmDeleteCancelBtn">Cancel</button>
+          <button class="btn btn-danger" id="pmDeleteConfirmBtn">Yes, delete</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="../common/theme.js"></script>
+<script src="../common/header.js"></script>
+<script>
+    initHeader('Checklist Manager');
+    initTheme();
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            // modal close handlers are wired in main.js
+            window.closeProjectModal && window.closeProjectModal();
+        }
+    });
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

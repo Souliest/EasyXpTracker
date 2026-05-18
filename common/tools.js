@@ -5,6 +5,11 @@
 
 const TOOLS = [
     {
+        name: 'Checklist Manager',
+        path: './ChecklistManager/index.html',
+        description: 'Manage resettable checklists with resource tracking and tag-based filtering.'
+    },
+    {
         name: 'Level Goal Tracker',
         path: './LevelGoalTracker/index.html',
         description: 'Track progress toward a target level with deadlines and checkpoints.'

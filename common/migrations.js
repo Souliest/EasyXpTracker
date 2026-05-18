@@ -41,6 +41,11 @@ export const CURRENT_VERSION = 2;
 // Each tool passes one of these into runMigrations.
 
 export const TOOL_CONFIG = {
+    checklistManager: {
+        legacyKey: 'bgt:clm:data',
+        storageKey: 'bgt:clm:v2',
+        indexFields: ['id', 'name', 'last_modified'],
+    },
     levelGoalTracker: {
         legacyKey: 'bgt:level-goal-tracker:data',
         storageKey: 'bgt:level-goal-tracker:v2',

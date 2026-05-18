@@ -1,0 +1,363 @@
+/* ChecklistManager/styles.css */
+
+/* ── Layout ── */
+.container {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 12px 40px;
+}
+
+/* ── Selector bar ── */
+.selector-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+select#projectSelect {
+  flex: 1;
+  min-width: 0;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+select#projectSelect:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.project-action-btn {
+  padding: 8px 11px;
+  font-size: 0.95rem;
+}
+
+/* ── Buttons ── */
+.btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: bold;
+}
+
+.btn-primary:hover {
+  opacity: 0.85;
+  box-shadow: var(--glow);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+}
+
+.btn-ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-danger {
+  background: transparent;
+  color: #ff4444;
+  border-color: #ff4444;
+}
+
+.btn-danger:hover {
+  background: rgba(255, 68, 68, 0.1);
+}
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  color: var(--muted);
+  padding: 60px 20px;
+  font-size: 0.95rem;
+  line-height: 1.8;
+}
+
+.empty-state .big {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+}
+
+/* ── Modal overlay (shared) ── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.modal-overlay.open {
+  display: flex;
+}
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* ── Edit modal ── */
+.modal-edit {
+  padding: 20px;
+}
+
+.modal-edit h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1rem;
+  color: var(--accent);
+  margin-bottom: 18px;
+  letter-spacing: 0.05em;
+}
+
+/* ── Form elements ── */
+.form-group {
+  margin-bottom: 13px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.73rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 5px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 11px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.92rem;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+
+/* ── Form section headers (Resources, Item Tags, Step Tags) ── */
+.form-section-header {
+  font-size: 0.73rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 18px 0 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Definition list (resources / tags in project modal) ── */
+.def-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.def-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.def-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.88rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.def-row input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Emoji input — narrow fixed width */
+.def-row input.emoji-input {
+  flex: 0 0 48px;
+  text-align: center;
+  font-size: 1rem;
+  padding: 6px 4px;
+}
+
+/* Capacity input — narrow fixed width */
+.def-row input.capacity-input {
+  flex: 0 0 56px;
+  text-align: center;
+}
+
+.def-row-label {
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.def-row-remove {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: #ff4444;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 4px 7px;
+  line-height: 1;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.def-row-remove:hover {
+  background: rgba(255, 68, 68, 0.1);
+}
+
+.btn-add-row {
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  margin-bottom: 4px;
+  opacity: 0.75;
+  border-style: dashed;
+}
+
+.btn-add-row:hover {
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── Inline modal error ── */
+.modal-error {
+  font-size: 0.78rem;
+  color: #ff4444;
+  margin-top: 10px;
+  padding: 7px 10px;
+  background: rgba(255, 68, 68, 0.08);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  border-radius: 6px;
+}
+
+/* ── Modal actions ── */
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+/* ── Danger zone ── */
+.modal-danger {
+  margin-top: 20px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.danger-divider {
+  font-size: 0.68rem;
+  color: #ff4444;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 12px;
+  opacity: 0.7;
+}
+
+.danger-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.danger-desc {
+  flex: 1;
+}
+
+.danger-label {
+  font-size: 0.88rem;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.danger-sub {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.danger-confirm {
+  margin-top: 10px;
+  padding: 9px 12px;
+  background: rgba(255, 68, 68, 0.07);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.danger-confirm-text {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.danger-confirm-btns {
+  display: flex;
+  gap: 6px;
+}
