@@ -361,3 +361,682 @@ select#projectSelect:focus {
   display: flex;
   gap: 6px;
 }
+
+/* ═══════════════════════════════════════════════
+   LAYER 2 — Filter bar, tally, items, steps
+   ═══════════════════════════════════════════════ */
+
+/* ── Filter bar ── */
+.clm-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.clm-filter-select {
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.clm-filter-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.clm-sort-btn,
+.clm-edit-mode-btn,
+.clm-reset-btn {
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
+.clm-sort-btn.active,
+.clm-edit-mode-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--glow);
+}
+
+.clm-reset-btn {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.clm-reset-btn:hover {
+  color: var(--accent2);
+  border-color: var(--accent2);
+}
+
+/* ── Active filter pills ── */
+.clm-active-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.clm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--stat-bg);
+  border: 1px solid var(--accent);
+  border-radius: 20px;
+  padding: 3px 8px;
+  font-size: 0.78rem;
+  color: var(--accent);
+}
+
+.clm-pill-remove {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+
+.clm-pill-remove:hover {
+  opacity: 1;
+}
+
+.clm-pill-mode-btn {
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  border-radius: 20px;
+  margin-left: 2px;
+  color: var(--muted);
+}
+
+/* ── Resource tally ── */
+.clm-tally {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.clm-tally-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clm-tally-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--text);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+
+.clm-tally-count {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.clm-tally-over .clm-tally-count {
+  color: var(--accent2);
+}
+
+.clm-tally-bar-wrap {
+  flex: 1;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.clm-tally-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* ── Item list ── */
+.clm-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Item panel ── */
+.clm-item-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+  user-select: none;
+}
+
+.clm-item-panel:hover {
+  border-color: var(--muted);
+}
+
+.clm-item-complete {
+  border-color: var(--accent3);
+}
+
+.clm-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.clm-item-complete-indicator {
+  font-size: 0.85rem;
+  color: var(--accent3);
+  min-width: 14px;
+  flex-shrink: 0;
+}
+
+.clm-item-name {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clm-item-header-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.clm-item-tag-chip {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.clm-pin-indicator {
+  font-size: 0.8rem;
+}
+
+.clm-item-edit-btn,
+.clm-item-reset-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 3px 7px;
+  transition: all 0.15s;
+  line-height: 1.2;
+}
+
+.clm-item-edit-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.clm-item-reset-btn:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+
+/* Reorder arrows (edit mode) */
+.clm-item-order-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.clm-item-order-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.6rem;
+  cursor: pointer;
+  padding: 1px 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.clm-item-order-btn:hover:not([disabled]) {
+  color: var(--accent);
+}
+
+.clm-item-order-btn[disabled] {
+  opacity: 0.2;
+  cursor: default;
+}
+
+/* ── Step list (inside item panel) ── */
+.clm-step-list {
+  border-top: 1px solid var(--border);
+}
+
+/* ── Step row ── */
+.clm-step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px 8px 14px;
+  border-bottom: 1px solid var(--border);
+  transition: opacity 0.2s;
+}
+
+.clm-step-row:last-child {
+  border-bottom: none;
+}
+
+.clm-step-done {
+  opacity: 0.45;
+}
+
+/* Binary step checkbox button */
+.clm-step-check {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 2px solid var(--border);
+  background: transparent;
+  color: var(--accent3);
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, background 0.15s;
+  margin-top: 1px;
+}
+
+.clm-step-check:hover {
+  border-color: var(--accent3);
+}
+
+.clm-step-check-done {
+  border-color: var(--accent3);
+  background: rgba(127, 255, 107, 0.1);
+}
+
+/* Counted step controls */
+.clm-step-counter {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.clm-step-counter-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.clm-step-counter-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.clm-step-counter-btn-inc {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.clm-step-counter-val {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 36px;
+  text-align: center;
+}
+
+/* Step body */
+.clm-step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.clm-step-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.clm-step-title {
+  font-size: 0.88rem;
+  color: var(--text);
+  flex: 1;
+}
+
+.clm-step-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.clm-step-tag-chip {
+  font-size: 0.7rem;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 6px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.clm-step-desc-toggle {
+  font-size: 0.72rem;
+  color: var(--muted);
+  cursor: pointer;
+  margin-top: 3px;
+  display: inline-block;
+  transition: color 0.15s;
+  user-select: none;
+}
+
+.clm-step-desc-toggle:hover {
+  color: var(--accent);
+}
+
+.clm-step-desc {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  padding: 6px 8px;
+  background: var(--stat-bg);
+  border-radius: 5px;
+  border: 1px solid var(--border);
+}
+
+/* ══════════════════════════════════════════════
+   Item modal (modal-item.js)
+   ══════════════════════════════════════════════ */
+
+/* Tag checkbox group */
+.im-tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.im-tag-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.im-tag-check input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.im-tag-chip {
+  font-size: 0.82rem;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 3px 8px;
+  color: var(--text);
+  transition: border-color 0.15s;
+}
+
+.im-tag-check input:checked + .im-tag-chip {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.im-tag-check-sm .im-tag-chip {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+}
+
+.im-tag-chip-sm {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+}
+
+/* Resource cost row */
+.im-resource-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.im-resource-label {
+  font-size: 0.85rem;
+  color: var(--text);
+  flex: 1;
+  cursor: pointer;
+}
+
+.im-resource-input {
+  width: 60px;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.88rem;
+  text-align: center;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.im-resource-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.im-resource-cap {
+  font-size: 0.78rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+/* Empty hint */
+.im-empty-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* Step list in modal */
+.im-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.im-step-card {
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.im-step-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.im-step-order-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.im-step-order-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.6rem;
+  cursor: pointer;
+  padding: 1px 4px;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.im-step-order-btn:hover:not([disabled]) {
+  color: var(--accent);
+}
+
+.im-step-order-btn[disabled] {
+  opacity: 0.2;
+  cursor: default;
+}
+
+.im-step-title {
+  flex: 1;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.88rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.im-step-title:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.im-step-remove {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: #ff4444;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 4px 7px;
+  line-height: 1;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.im-step-remove:hover {
+  background: rgba(255, 68, 68, 0.1);
+}
+
+.im-step-desc {
+  width: 100%;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 9px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.im-step-desc:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.im-step-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.im-step-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.im-step-counter-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.im-step-counter-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.im-step-counter-input {
+  width: 52px;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 7px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  text-align: center;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.im-step-counter-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.im-step-counter-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-style: italic;
+}

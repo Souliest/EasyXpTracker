@@ -18,8 +18,10 @@ import {
     saveProjectModal, promptDeleteProject, cancelDeleteProject,
     confirmDeleteProject, addResourceRow, addItemTagRow, addStepTagRow,
     openAddItemModal, openEditItemModal, closeItemModal, saveItemModal,
+    addStepRow,
 } from './modal.js';
 import {initAuth, showCollisionModal} from '../../common/auth-ui.js';
+import {attachLongPress} from '../../common/utils.js';
 import {supabase} from '../../common/supabase.js';
 import {getUser} from '../../common/auth.js';
 
@@ -28,10 +30,26 @@ const CFG = TOOL_CONFIG.checklistManager;
 // ── Module-level state ────────────────────────────────────────────────────────
 
 let selectedProjectId = null;
+let _editMode = false;   // UI-only reorder mode; not persisted to Supabase
+let _syncTimer = null;    // debounced Supabase write timer
 
 // ── Local storage read ────────────────────────────────────────────────────────
 
 const _localLoad = () => localLoad(STORAGE_KEY);
+
+// ── Debounced Supabase sync ───────────────────────────────────────────────────
+// Session state (step ticks, counter increments) writes to localStorage
+// immediately and schedules a Supabase sync 2 seconds later — same pattern
+// as TrophyHunter.
+
+function _scheduleSync(projectId) {
+    if (_syncTimer) clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(async () => {
+        _syncTimer = null;
+        const stored = _localLoad();
+        await saveData(stored, projectId);
+    }, 2000);
+}
 
 // ── Realtime: handle incoming remote update ───────────────────────────────────
 
@@ -142,14 +160,273 @@ function _restoreSelectedProject(index) {
 // ── Render orchestration ──────────────────────────────────────────────────────
 
 function _doRenderMain(stored) {
-    renderMain(selectedProjectId, stored, _callbacks);
+    // Inject _editMode as a session overlay — UI-only, never written to storage.
+    const overlaid = !selectedProjectId ? stored : {
+        ...stored,
+        blobs: {
+            ...stored.blobs,
+            [selectedProjectId]: stored.blobs[selectedProjectId]
+                ? {
+                    ...stored.blobs[selectedProjectId],
+                    session: {
+                        ...(stored.blobs[selectedProjectId].session || {}),
+                        editMode: _editMode,
+                    },
+                }
+                : stored.blobs[selectedProjectId],
+        },
+    };
+    renderMain(selectedProjectId, overlaid, _callbacks);
 }
 
-// ── Callbacks (Layer 1: stubs for forward compat) ─────────────────────────────
+// ── Callbacks ────────────────────────────────────────────────────────────────
 
 const _callbacks = {
-    // Layer 2 will populate these.
+    // Step interactions
+    onToggleStep: (stepId, itemId) => _toggleStep(stepId, itemId),
+    onStepCount: (stepId, itemId, dir) => _stepCount(stepId, itemId, dir),
+
+    // Item interactions
+    onEditItem: itemId => openEditItemModal(itemId, selectedProjectId),
+    onResetItem: itemId => _resetItem(itemId),
+    onTogglePinned: itemId => _togglePinned(itemId),
+    onMoveItem: (itemId, dir) => _moveItem(itemId, dir),
+    onAttachLongPress: (el, cb) => attachLongPress(el, cb),
+
+    // Filter interactions
+    onAddItemTagFilter: tagId => _addFilter('item', tagId),
+    onRemoveItemTagFilter: tagId => _removeFilter('item', tagId),
+    onAddStepTagFilter: tagId => _addFilter('step', tagId),
+    onRemoveStepTagFilter: tagId => _removeFilter('step', tagId),
+    onTogglePillMode: () => _togglePillMode(),
+
+    // Sort / edit mode
+    onCycleSortMode: () => _cycleSortMode(),
+    onToggleEditMode: () => _toggleEditMode(),
+
+    // Resets
+    onResetAll: () => _promptResetAll(),
 };
+
+// ── Step interaction handlers ─────────────────────────────────────────────────
+
+function _toggleStep(stepId, itemId) {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    const item = (project.items || []).find(i => i.id === itemId);
+    if (!item) return;
+    const step = (item.steps || []).find(s => s.id === stepId);
+    if (!step) return;
+
+    const session = project.session || {};
+    const stepState = session.stepState || {};
+    const current = (stepState[stepId] || {current: 0}).current;
+
+    stepState[stepId] = {current: current >= 1 ? 0 : 1};
+    session.stepState = stepState;
+    project.session = session;
+
+    cacheSet(stored, project, CFG);
+    localSave(stored);
+    _scheduleSync(selectedProjectId);
+    _doRenderMain(_localLoad());
+}
+
+function _stepCount(stepId, itemId, dir) {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    const item = (project.items || []).find(i => i.id === itemId);
+    if (!item) return;
+    const step = (item.steps || []).find(s => s.id === stepId);
+    if (!step) return;
+
+    const target = step.counterTarget || 1;
+    const session = project.session || {};
+    const stepState = session.stepState || {};
+    const current = (stepState[stepId] || {current: 0}).current;
+    const next = Math.max(0, Math.min(target, current + dir));
+
+    stepState[stepId] = {current: next};
+    session.stepState = stepState;
+    project.session = session;
+
+    cacheSet(stored, project, CFG);
+    localSave(stored);
+    _scheduleSync(selectedProjectId);
+    _doRenderMain(_localLoad());
+}
+
+// ── Item interaction handlers ─────────────────────────────────────────────────
+
+function _resetItem(itemId) {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    const item = (project.items || []).find(i => i.id === itemId);
+    if (!item) return;
+
+    const stepState = project.session.stepState || {};
+    (item.steps || []).forEach(s => {
+        stepState[s.id] = {current: 0};
+    });
+    project.session.stepState = stepState;
+
+    cacheSet(stored, project, CFG);
+    localSave(stored);
+    _scheduleSync(selectedProjectId);
+    _doRenderMain(_localLoad());
+}
+
+async function _togglePinned(itemId) {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    const item = (project.items || []).find(i => i.id === itemId);
+    if (!item) return;
+
+    item.pinned = !item.pinned;
+    cacheSet(stored, project, CFG);
+    await saveData(stored, selectedProjectId);
+    _doRenderMain(_localLoad());
+}
+
+async function _moveItem(itemId, dir) {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    const items = [...(project.items || [])].sort((a, b) =>
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0)
+    );
+    const idx = items.findIndex(i => i.id === itemId);
+    if (idx === -1) return;
+
+    const swapIdx = idx + dir;
+    if (swapIdx < 0 || swapIdx >= items.length) return;
+
+    // Swap sortOrder values.
+    const tmpOrder = items[idx].sortOrder ?? idx;
+    items[idx].sortOrder = items[swapIdx].sortOrder ?? swapIdx;
+    items[swapIdx].sortOrder = tmpOrder;
+
+    project.items = items;
+    cacheSet(stored, project, CFG);
+    await saveData(stored, selectedProjectId);
+    _doRenderMain(_localLoad());
+}
+
+// ── Filter handlers ───────────────────────────────────────────────────────────
+
+function _addFilter(type, tagId) {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    const key = type === 'item' ? 'activeItemTags' : 'activeStepTags';
+    const arr = project.session[key] || [];
+    if (!arr.includes(tagId)) {
+        project.session[key] = [...arr, tagId];
+        cacheSet(stored, project, CFG);
+        localSave(stored);
+    }
+    _doRenderMain(_localLoad());
+}
+
+function _removeFilter(type, tagId) {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    const key = type === 'item' ? 'activeItemTags' : 'activeStepTags';
+    project.session[key] = (project.session[key] || []).filter(id => id !== tagId);
+    cacheSet(stored, project, CFG);
+    localSave(stored);
+    _doRenderMain(_localLoad());
+}
+
+function _togglePillMode() {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    project.session.pillDisplayMode =
+        project.session.pillDisplayMode === 'emoji' ? 'name' : 'emoji';
+    cacheSet(stored, project, CFG);
+    localSave(stored);
+    _doRenderMain(_localLoad());
+}
+
+// ── Sort / edit mode handlers ─────────────────────────────────────────────────
+
+async function _cycleSortMode() {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    const current = project.sortMode || 'manual';
+    const next = current === 'manual' ? 'name-asc' :
+        current === 'name-asc' ? 'name-desc' : 'manual';
+    project.sortMode = next;
+
+    // Applying a named sort rewrites sortOrder values so there is only ever
+    // one order. Manual leaves sortOrder as-is.
+    if (next === 'name-asc' || next === 'name-desc') {
+        const sorted = [...(project.items || [])].sort((a, b) =>
+            next === 'name-asc'
+                ? a.name.localeCompare(b.name)
+                : b.name.localeCompare(a.name)
+        );
+        sorted.forEach((item, idx) => {
+            item.sortOrder = idx;
+        });
+        project.items = sorted;
+    }
+
+    cacheSet(stored, project, CFG);
+    await saveData(stored, selectedProjectId);
+    _doRenderMain(_localLoad());
+}
+
+function _toggleEditMode() {
+    _editMode = !_editMode;
+    _doRenderMain(_localLoad());
+}
+
+// ── Reset handlers ────────────────────────────────────────────────────────────
+
+let _resetAllPending = false;
+
+function _promptResetAll() {
+    if (_resetAllPending) {
+        _resetAllPending = false;
+        _executeResetAll();
+        return;
+    }
+    _resetAllPending = true;
+    // Auto-cancel after 4 seconds if not confirmed.
+    setTimeout(() => {
+        _resetAllPending = false;
+        _doRenderMain(_localLoad());
+    }, 4000);
+    _doRenderMain(_localLoad());
+}
+
+async function _executeResetAll() {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    project.session.stepState = {};
+    cacheSet(stored, project, CFG);
+    await saveData(stored, selectedProjectId);
+    _doRenderMain(_localLoad());
+}
 
 // ── After-save / after-delete callbacks ──────────────────────────────────────
 
@@ -184,10 +461,10 @@ window.addResourceRow = () => addResourceRow();
 window.addItemTagRow = () => addItemTagRow();
 window.addStepTagRow = () => addStepTagRow();
 
-// Layer 2 item globals — stubs wired now so HTML can reference them safely.
 window.openAddItemModal = () => openAddItemModal(selectedProjectId);
 window.closeItemModal = () => closeItemModal();
 window.saveItemModal = () => saveItemModal(() => _doRenderMain(_localLoad()));
+window.addStepRow = () => addStepRow();
 
 // ── Wire modal button clicks ──────────────────────────────────────────────────
 // Buttons inside modals use addEventListener rather than inline onclick,
@@ -211,6 +488,19 @@ function _wireModalButtons() {
     wire('pmDeleteBtn', () => promptDeleteProject());
     wire('pmDeleteCancelBtn', () => cancelDeleteProject());
     wire('pmDeleteConfirmBtn', () => confirmDeleteProject(_afterProjectDeleted));
+
+    wire('addItemBtn', () => openAddItemModal(selectedProjectId));
+    wire('imCancelBtn', () => closeItemModal());
+    wire('imSaveBtn', () => saveItemModal(() => _doRenderMain(_localLoad())));
+    wire('imAddStepBtn', () => addStepRow());
+
+    // Backdrop tap closes item modal.
+    const itemOverlay = document.getElementById('itemModal');
+    if (itemOverlay) {
+        itemOverlay.addEventListener('click', e => {
+            if (e.target === itemOverlay) closeItemModal();
+        });
+    }
 
     // Backdrop tap closes project modal.
     const overlay = document.getElementById('projectModal');

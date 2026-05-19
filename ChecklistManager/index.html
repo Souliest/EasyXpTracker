@@ -23,6 +23,7 @@
             title="Project settings" style="display:none">✎
     </button>
     <button class="btn btn-primary" id="addProjectBtn">+ Project</button>
+    <button class="btn btn-ghost" id="addItemBtn" style="display:none">+ Item</button>
   </div>
 
   <div id="mainContent"></div>
@@ -83,6 +84,39 @@
   </div>
 </div>
 
+<!-- ── Item modal (create/edit) ── -->
+<div class="modal-overlay" id="itemModal">
+  <div class="modal modal-edit">
+    <h2 id="imTitle">New Item</h2>
+
+    <div class="form-group">
+      <label for="imName">Item name</label>
+      <input type="text" id="imName" placeholder="Checklist item">
+    </div>
+
+    <!-- Item tags -->
+    <div class="form-section-header">Item Tags</div>
+    <div id="imItemTagsGroup" class="im-tag-group"></div>
+
+    <!-- Resource costs -->
+    <div class="form-section-header">Resource Costs</div>
+    <div id="imResourceCostsGroup"></div>
+
+    <!-- Steps -->
+    <div class="form-section-header">Steps</div>
+    <div id="imStepList" class="im-step-list"></div>
+    <button class="btn btn-ghost btn-add-row" id="imAddStepBtn">+ Step</button>
+
+    <div class="modal-error" id="imError" style="display:none" role="alert"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="imCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="imSaveBtn">Save</button>
+    </div>
+
+  </div>
+</div>
+
 <script src="../common/theme.js"></script>
 <script src="../common/header.js"></script>
 <script>
@@ -93,6 +127,7 @@
         if (e.key === 'Escape') {
             // modal close handlers are wired in main.js
             window.closeProjectModal && window.closeProjectModal();
+            window.closeItemModal && window.closeItemModal();
         }
     });
 </script>

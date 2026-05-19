@@ -20,4 +20,5 @@ export {
     openEditItemModal,
     closeItemModal,
     saveItemModal,
+    addStepRow,
 } from './modal-item.js';
