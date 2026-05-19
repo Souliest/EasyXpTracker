@@ -117,6 +117,29 @@
   </div>
 </div>
 
+<!-- ── Briefing modal ── -->
+<div class="modal-overlay" id="briefingModal">
+  <div class="modal modal-briefing">
+    <div class="briefing-header">
+      <h2 class="briefing-title" id="briefingTitle"></h2>
+      <button class="modal-close" id="briefingCloseBtn"
+              aria-label="Close briefing">✕
+      </button>
+    </div>
+
+    <div class="briefing-toggle-wrap" id="briefingToggleWrap">
+      <button class="btn btn-ghost briefing-toggle-btn active"
+              id="briefingToggleAll">All Steps
+      </button>
+      <button class="btn btn-ghost briefing-toggle-btn"
+              id="briefingToggleFiltered">Filtered
+      </button>
+    </div>
+
+    <div class="briefing-body" id="briefingBody"></div>
+  </div>
+</div>
+
 <script src="../common/theme.js"></script>
 <script src="../common/header.js"></script>
 <script>
@@ -128,6 +151,7 @@
             // modal close handlers are wired in main.js
             window.closeProjectModal && window.closeProjectModal();
             window.closeItemModal && window.closeItemModal();
+            window.closeBriefingModal && window.closeBriefingModal();
         }
     });
 </script>

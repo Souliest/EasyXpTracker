@@ -4,7 +4,7 @@
 //
 // Layer 1: selector visibility, empty state.
 // Layer 2: filter bar, resource tally, item panels, step rows, completion.
-// Layer 3: pinned section, briefing modal.
+// Layer 3: pinned section, briefing modal, focus mode.
 
 import {escHtml} from '../../common/utils.js';
 
@@ -79,7 +79,7 @@ export function renderMain(selectedProjectId, stored, callbacks) {
         content.appendChild(_renderActivePills(project, session, callbacks));
     }
 
-    // Item list.
+    // Empty state — no items defined yet.
     if (items.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'empty-state';
@@ -92,25 +92,31 @@ export function renderMain(selectedProjectId, stored, callbacks) {
         return;
     }
 
-    const listEl = document.createElement('div');
-    listEl.className = 'clm-item-list';
-
+    const pinnedOnly = session.pinnedOnly || false;
     const sortedItems = _sortItems(items, project.sortMode || 'manual');
+    const pinnedItems = sortedItems.filter(i => i.pinned);
 
-    sortedItems.forEach(item => {
-        const visibleSteps = _visibleStepsForItem(item, activeStepTags);
-        // Hide items with no matching steps when a step filter is active.
-        if (activeStepTags.length > 0 && visibleSteps.length === 0) return;
-        // Hide items not matching item tag filter.
-        if (activeItemTags.length > 0 &&
-            !(item.tags || []).some(t => activeItemTags.includes(t))) return;
-
-        listEl.appendChild(
-            _renderItemPanel(item, visibleSteps, project, session, callbacks)
+    // ── Pinned section ──
+    if (pinnedItems.length > 0) {
+        content.appendChild(
+            _renderItemSection(
+                pinnedItems, '📌 Pinned', true,
+                activeItemTags, activeStepTags,
+                project, session, callbacks
+            )
         );
-    });
+    }
 
-    content.appendChild(listEl);
+    // ── All Items section (hidden in focus mode) ──
+    if (!pinnedOnly) {
+        content.appendChild(
+            _renderItemSection(
+                sortedItems, '── All Items ──', false,
+                activeItemTags, activeStepTags,
+                project, session, callbacks
+            )
+        );
+    }
 }
 
 // ── Filter bar ────────────────────────────────────────────────────────────────
@@ -152,6 +158,14 @@ function _renderFilterBar(project, session, callbacks) {
         stepTagSel.value = '';
     });
 
+    // 📌 Pinned-only toggle.
+    const pinnedBtn = document.createElement('button');
+    pinnedBtn.className = 'btn btn-ghost clm-pinned-btn' +
+        (session.pinnedOnly ? ' active' : '');
+    pinnedBtn.textContent = '📌';
+    pinnedBtn.title = session.pinnedOnly ? 'Show all items' : 'Pinned only';
+    pinnedBtn.addEventListener('click', () => callbacks.onTogglePinnedOnly());
+
     // Sort cycle button.
     const sortBtn = document.createElement('button');
     sortBtn.className = 'btn btn-ghost clm-sort-btn' +
@@ -182,11 +196,65 @@ function _renderFilterBar(project, session, callbacks) {
 
     bar.appendChild(itemTagSel);
     bar.appendChild(stepTagSel);
+    bar.appendChild(pinnedBtn);
     if (editBtn) bar.appendChild(editBtn);
     bar.appendChild(sortBtn);
     bar.appendChild(resetBtn);
 
     return bar;
+}
+
+// ── Item section (Pinned / All Items) ────────────────────────────────────────
+
+function _renderItemSection(
+    sectionItems, label, isPinned,
+    activeItemTags, activeStepTags,
+    project, session, callbacks
+) {
+    const wrap = document.createElement('div');
+    wrap.className = 'clm-section' + (isPinned ? ' clm-section-pinned' : '');
+
+    // Section header with label and reset button.
+    const header = document.createElement('div');
+    header.className = 'clm-section-header';
+    header.innerHTML = `
+        <span class="clm-section-label">${escHtml(label)}</span>
+        <button class="btn btn-ghost clm-section-reset"
+                aria-label="${isPinned ? 'Reset pinned items' : 'Reset all items'}">↺</button>
+    `;
+    header.querySelector('.clm-section-reset').addEventListener('click', () => {
+        isPinned
+            ? callbacks.onResetPinned()
+            : callbacks.onResetAll();
+    });
+    wrap.appendChild(header);
+
+    const listEl = document.createElement('div');
+    listEl.className = 'clm-item-list';
+
+    let rendered = 0;
+    sectionItems.forEach(item => {
+        const visibleSteps = _visibleStepsForItem(item, activeStepTags);
+        if (activeStepTags.length > 0 && visibleSteps.length === 0) return;
+        if (activeItemTags.length > 0 &&
+            !(item.tags || []).some(t => activeItemTags.includes(t))) return;
+
+        listEl.appendChild(
+            _renderItemPanel(item, visibleSteps, project, session, callbacks)
+        );
+        rendered++;
+    });
+
+    // If all items were filtered out, show a hint.
+    if (rendered === 0) {
+        const hint = document.createElement('div');
+        hint.className = 'clm-section-empty';
+        hint.textContent = 'No items match the active filters.';
+        listEl.appendChild(hint);
+    }
+
+    wrap.appendChild(listEl);
+    return wrap;
 }
 
 // ── Active filter pills ───────────────────────────────────────────────────────
@@ -296,7 +364,10 @@ function _renderItemPanel(item, visibleSteps, project, session, callbacks) {
                             aria-label="Move item down">▼</button>
                 </div>` : ''}
             <span class="clm-item-complete-indicator">${isComplete ? '✔' : ''}</span>
-            <span class="clm-item-name">${escHtml(item.name)}</span>
+            <span class="clm-item-name clm-item-name-link"
+                  role="button" tabindex="0"
+                  aria-label="Open briefing for ${escHtml(item.name)}"
+                  data-action="open-briefing">${escHtml(item.name)}</span>
             <div class="clm-item-header-right">
                 ${tagChips}
                 ${item.pinned ? '<span class="clm-pin-indicator">📌</span>' : ''}
@@ -333,6 +404,12 @@ function _renderItemPanel(item, visibleSteps, project, session, callbacks) {
 
     // Long-press to pin.
     callbacks.onAttachLongPress(panel, () => callbacks.onTogglePinned(item.id));
+
+    // Tap item name to open briefing.
+    panel.querySelector('[data-action="open-briefing"]').addEventListener('click', e => {
+        e.stopPropagation();
+        callbacks.onOpenBriefing(item.id);
+    });
 
     // Render steps.
     const stepList = panel.querySelector('.clm-step-list');
@@ -432,6 +509,67 @@ function _renderStepRow(step, item, stepState, project, callbacks) {
     }
 
     return row;
+}
+
+// ── Briefing modal ────────────────────────────────────────────────────────────
+
+export function renderBriefingModal(item, project, session) {
+    const modal = document.getElementById('briefingModal');
+    const titleEl = document.getElementById('briefingTitle');
+    const bodyEl = document.getElementById('briefingBody');
+    if (!modal || !titleEl || !bodyEl) return;
+
+    titleEl.textContent = item.name;
+
+    const showAll = session.briefingShowAll || false;
+    const activeStepTags = session.activeStepTags || [];
+    const hasFilter = activeStepTags.length > 0;
+
+    // Update toggle button state.
+    const allBtn = document.getElementById('briefingToggleAll');
+    const filteredBtn = document.getElementById('briefingToggleFiltered');
+    if (allBtn) allBtn.classList.toggle('active', showAll);
+    if (filteredBtn) filteredBtn.classList.toggle('active', !showAll);
+
+    // Dim toggle when no filter active — both views identical.
+    const toggleWrap = document.getElementById('briefingToggleWrap');
+    if (toggleWrap) toggleWrap.style.opacity = hasFilter ? '1' : '0.35';
+
+    const steps = item.steps || [];
+    const visibleSteps = (!showAll && hasFilter)
+        ? steps.filter(s => (s.tags || []).some(tid => activeStepTags.includes(tid)))
+        : steps;
+
+    bodyEl.innerHTML = '';
+
+    if (visibleSteps.length === 0) {
+        bodyEl.innerHTML = '<div class="briefing-empty">No steps to show.</div>';
+        return;
+    }
+
+    visibleSteps.forEach(step => {
+        const row = document.createElement('div');
+        row.className = 'briefing-step';
+
+        const stepTags = (step.tags || [])
+            .map(tid => {
+                const tag = (project.stepTags || []).find(t => t.id === tid);
+                return tag
+                    ? `<span class="clm-step-tag-chip">${escHtml(tag.emoji)} ${escHtml(tag.name)}</span>`
+                    : '';
+            }).join('');
+
+        row.innerHTML = `
+            <div class="briefing-step-title">
+                ${escHtml(step.title)}
+                <div class="clm-step-tags">${stepTags}</div>
+            </div>
+            ${step.description
+            ? `<div class="briefing-step-desc">${escHtml(step.description)}</div>`
+            : ''}
+        `;
+        bodyEl.appendChild(row);
+    });
 }
 
 // ── Filter helpers ────────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import {
 } from '../../common/migrations.js';
 import {
     renderMain, rebuildSelector, updateProjectActionButtons,
+    renderBriefingModal,
 } from './render.js';
 import {
     openAddProjectModal, openEditProjectModal, closeProjectModal,
@@ -32,6 +33,7 @@ const CFG = TOOL_CONFIG.checklistManager;
 let selectedProjectId = null;
 let _editMode = false;   // UI-only reorder mode; not persisted to Supabase
 let _syncTimer = null;    // debounced Supabase write timer
+let _briefingItemId = null;    // item currently shown in briefing modal
 
 // ── Local storage read ────────────────────────────────────────────────────────
 
@@ -160,6 +162,16 @@ function _restoreSelectedProject(index) {
 // ── Render orchestration ──────────────────────────────────────────────────────
 
 function _doRenderMain(stored) {
+    // If the briefing is open, keep it in sync with the current session
+    // (e.g. active step filters changed while briefing was open).
+    if (_briefingItemId && selectedProjectId) {
+        const project = stored.blobs[selectedProjectId];
+        if (project) {
+            const item = (project.items || []).find(i => i.id === _briefingItemId);
+            if (item) renderBriefingModal(item, project, project.session || {});
+        }
+    }
+
     // Inject _editMode as a session overlay — UI-only, never written to storage.
     const overlaid = !selectedProjectId ? stored : {
         ...stored,
@@ -203,9 +215,14 @@ const _callbacks = {
     // Sort / edit mode
     onCycleSortMode: () => _cycleSortMode(),
     onToggleEditMode: () => _toggleEditMode(),
+    onTogglePinnedOnly: () => _togglePinnedOnly(),
 
     // Resets
     onResetAll: () => _promptResetAll(),
+    onResetPinned: () => _promptResetPinned(),
+
+    // Briefing
+    onOpenBriefing: itemId => _openBriefing(itemId),
 };
 
 // ── Step interaction handlers ─────────────────────────────────────────────────
@@ -398,6 +415,17 @@ function _toggleEditMode() {
     _doRenderMain(_localLoad());
 }
 
+async function _togglePinnedOnly() {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    project.session.pinnedOnly = !project.session.pinnedOnly;
+    cacheSet(stored, project, CFG);
+    localSave(stored);
+    _doRenderMain(_localLoad());
+}
+
 // ── Reset handlers ────────────────────────────────────────────────────────────
 
 let _resetAllPending = false;
@@ -426,6 +454,80 @@ async function _executeResetAll() {
     cacheSet(stored, project, CFG);
     await saveData(stored, selectedProjectId);
     _doRenderMain(_localLoad());
+}
+
+let _resetPinnedPending = false;
+
+function _promptResetPinned() {
+    if (_resetPinnedPending) {
+        _resetPinnedPending = false;
+        _executeResetPinned();
+        return;
+    }
+    _resetPinnedPending = true;
+    setTimeout(() => {
+        _resetPinnedPending = false;
+        _doRenderMain(_localLoad());
+    }, 4000);
+    _doRenderMain(_localLoad());
+}
+
+async function _executeResetPinned() {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    const stepState = project.session.stepState || {};
+    (project.items || [])
+        .filter(i => i.pinned)
+        .forEach(item => {
+            (item.steps || []).forEach(s => {
+                stepState[s.id] = {current: 0};
+            });
+        });
+    project.session.stepState = stepState;
+    cacheSet(stored, project, CFG);
+    await saveData(stored, selectedProjectId);
+    _doRenderMain(_localLoad());
+}
+
+// ── Briefing modal ────────────────────────────────────────────────────────────
+
+function _openBriefing(itemId) {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    const item = (project.items || []).find(i => i.id === itemId);
+    if (!item) return;
+
+    _briefingItemId = itemId;
+    renderBriefingModal(item, project, project.session || {});
+
+    const overlay = document.getElementById('briefingModal');
+    if (overlay) overlay.classList.add('open');
+}
+
+function _closeBriefing() {
+    _briefingItemId = null;
+    const overlay = document.getElementById('briefingModal');
+    if (overlay) overlay.classList.remove('open');
+}
+
+async function _toggleBriefingShowAll(showAll) {
+    const stored = _localLoad();
+    const project = stored.blobs[selectedProjectId];
+    if (!project) return;
+
+    project.session.briefingShowAll = showAll;
+    cacheSet(stored, project, CFG);
+    localSave(stored);
+
+    // Re-render briefing with new toggle state.
+    if (_briefingItemId) {
+        const item = (project.items || []).find(i => i.id === _briefingItemId);
+        if (item) renderBriefingModal(item, project, project.session);
+    }
 }
 
 // ── After-save / after-delete callbacks ──────────────────────────────────────
@@ -460,6 +562,11 @@ window.confirmDeleteProject = () => confirmDeleteProject(_afterProjectDeleted);
 window.addResourceRow = () => addResourceRow();
 window.addItemTagRow = () => addItemTagRow();
 window.addStepTagRow = () => addStepTagRow();
+window.addStepRow = () => addStepRow();
+window.togglePinnedOnly = () => _togglePinnedOnly();
+window.closeBriefingModal = () => _closeBriefing();
+window.briefingShowAll = () => _toggleBriefingShowAll(true);
+window.briefingShowFiltered = () => _toggleBriefingShowAll(false);
 
 window.openAddItemModal = () => openAddItemModal(selectedProjectId);
 window.closeItemModal = () => closeItemModal();
@@ -499,6 +606,23 @@ function _wireModalButtons() {
     if (itemOverlay) {
         itemOverlay.addEventListener('click', e => {
             if (e.target === itemOverlay) closeItemModal();
+        });
+    }
+
+    // 📌 focus mode toggle — wired via window global from filter bar button,
+    // but also support a dedicated button if present in HTML.
+    wire('pinnedOnlyBtn', () => _togglePinnedOnly());
+
+    // Briefing modal close and toggle.
+    wire('briefingCloseBtn', () => _closeBriefing());
+    wire('briefingToggleAll', () => _toggleBriefingShowAll(true));
+    wire('briefingToggleFiltered', () => _toggleBriefingShowAll(false));
+
+    // Backdrop tap closes briefing.
+    const briefingOverlay = document.getElementById('briefingModal');
+    if (briefingOverlay) {
+        briefingOverlay.addEventListener('click', e => {
+            if (e.target === briefingOverlay) _closeBriefing();
         });
     }
 

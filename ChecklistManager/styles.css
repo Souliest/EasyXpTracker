@@ -1040,3 +1040,185 @@ select#projectSelect:focus {
   color: var(--muted);
   font-style: italic;
 }
+
+/* ═══════════════════════════════════════════════
+   LAYER 3 — Pinned section, briefing modal
+   ═══════════════════════════════════════════════ */
+
+/* ── Item section (shared by Pinned and All Items) ── */
+.clm-section {
+  margin-bottom: 16px;
+}
+
+.clm-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.clm-section-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  flex: 1;
+}
+
+.clm-section-pinned .clm-section-label {
+  color: var(--accent);
+}
+
+.clm-section-reset {
+  padding: 3px 9px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.clm-section-reset:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+
+.clm-section-empty {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-style: italic;
+  padding: 12px 4px;
+  text-align: center;
+}
+
+/* ── Item name as link (briefing trigger) ── */
+.clm-item-name-link {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.clm-item-name-link:hover {
+  color: var(--accent);
+}
+
+/* ── Briefing modal ── */
+.modal-briefing {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.briefing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.briefing-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.modal-close:hover {
+  color: var(--text);
+}
+
+.briefing-toggle-wrap {
+  display: flex;
+  gap: 6px;
+  padding: 10px 20px 0;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+
+.briefing-toggle-btn {
+  font-size: 0.78rem;
+  padding: 5px 12px;
+  border-radius: 20px;
+  color: var(--muted);
+}
+
+.briefing-toggle-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--glow);
+}
+
+.briefing-body {
+  padding: 14px 20px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.briefing-empty {
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.briefing-step {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.briefing-step:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.briefing-step-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.88rem;
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+}
+
+.briefing-step-desc {
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  padding: 7px 10px;
+  background: var(--stat-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+/* ── Pinned-only toggle button ── */
+.clm-pinned-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: var(--glow);
+}
