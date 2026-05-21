@@ -111,17 +111,6 @@ export async function saveItemModal(onSaved) {
     // Collect item tags.
     const selectedItemTags = _getCheckedIds('imItemTagsGroup');
 
-    // Collect resource costs.
-    const resourceCosts = {};
-    for (const res of (project.resources || [])) {
-        const input = document.getElementById(`imRes_${res.id}`);
-        if (!input) continue;
-        const val = input.type === 'checkbox'
-            ? (input.checked ? 1 : 0)
-            : Math.max(0, parseInt(input.value) || 0);
-        resourceCosts[res.id] = val;
-    }
-
     // Clean steps from working copy.
     const cleanedSteps = _steps.map(s => _cleanStep(s));
 
@@ -134,7 +123,6 @@ export async function saveItemModal(onSaved) {
         }
         item.name = name;
         item.tags = selectedItemTags;
-        item.resourceCosts = resourceCosts;
 
         // Reconcile step state: remove stepState entries for deleted steps,
         // keep existing state for steps that remain (matched by id).
@@ -152,7 +140,6 @@ export async function saveItemModal(onSaved) {
             name,
             pinned: false,
             tags: selectedItemTags,
-            resourceCosts,
             steps: cleanedSteps,
             sortOrder: items.length,
         };
@@ -177,7 +164,6 @@ function _renderModal(project, item) {
     if (nameInput) nameInput.value = item ? item.name : '';
 
     _renderItemTags(project, item);
-    _renderResourceCosts(project, item);
     _renderStepList();
 }
 
@@ -206,48 +192,6 @@ function _renderItemTags(project, item) {
     });
 }
 
-function _renderResourceCosts(project, item) {
-    const group = document.getElementById('imResourceCostsGroup');
-    if (!group) return;
-    group.innerHTML = '';
-
-    const resources = project.resources || [];
-    if (resources.length === 0) {
-        group.innerHTML = '<div class="im-empty-hint">No resources defined for this project.</div>';
-        return;
-    }
-
-    const existingCosts = item ? (item.resourceCosts || {}) : {};
-
-    resources.forEach(res => {
-        const isBinary = res.capacity === 1;
-        const savedVal = existingCosts[res.id] ?? 0;
-        const row = document.createElement('div');
-        row.className = 'im-resource-row';
-
-        if (isBinary) {
-            row.innerHTML = `
-                <label class="im-resource-label" for="imRes_${escHtml(res.id)}">
-                    ${escHtml(res.emoji)} ${escHtml(res.name)}
-                </label>
-                <input type="checkbox" id="imRes_${escHtml(res.id)}"
-                       ${savedVal ? 'checked' : ''}>
-            `;
-        } else {
-            row.innerHTML = `
-                <label class="im-resource-label" for="imRes_${escHtml(res.id)}">
-                    ${escHtml(res.emoji)} ${escHtml(res.name)}
-                </label>
-                <input type="number" id="imRes_${escHtml(res.id)}"
-                       value="${savedVal}" min="0" max="${res.capacity}"
-                       class="im-resource-input">
-                <span class="im-resource-cap">/ ${res.capacity}</span>
-            `;
-        }
-        group.appendChild(row);
-    });
-}
-
 // ── Step list ─────────────────────────────────────────────────────────────────
 
 function _renderStepList() {
@@ -263,20 +207,22 @@ function _renderStepList() {
     const stored = _localLoad();
     const project = stored.blobs[_editingProjectId];
     const stepTags = project ? (project.stepTags || []) : [];
+    const resources = project ? (project.resources || []) : [];
 
     _steps.forEach((step, idx) => {
-        container.appendChild(_buildStepCard(step, idx, stepTags));
+        container.appendChild(_buildStepCard(step, idx, stepTags, resources));
     });
 }
 
-function _buildStepCard(step, idx, stepTags) {
+function _buildStepCard(step, idx, stepTags, resources) {
     const card = document.createElement('div');
     card.className = 'im-step-card';
     card.dataset.idx = idx;
 
     const selectedStepTagIds = new Set(step.tags || []);
-    const counterTarget = step.counterTarget || 1;
+    const stepCosts = step.resourceCosts || {};
 
+    // Tag checkboxes.
     const tagChecks = stepTags.length > 0
         ? stepTags.map(t => `
             <label class="im-tag-check im-tag-check-sm">
@@ -286,6 +232,27 @@ function _buildStepCard(step, idx, stepTags) {
                 <span class="im-tag-chip im-tag-chip-sm">${escHtml(t.emoji)} ${escHtml(t.name)}</span>
             </label>`).join('')
         : '<span class="im-empty-hint">No step tags defined.</span>';
+
+    // Resource cost inputs.
+    const resourceInputs = resources.length > 0
+        ? resources.map(res => `
+            <div class="im-step-resource-row">
+                <label class="im-step-resource-label"
+                       for="imStepRes_${idx}_${escHtml(res.id)}">
+                    ${escHtml(res.emoji)} ${escHtml(res.name)}
+                </label>
+                <input type="number"
+                       id="imStepRes_${idx}_${escHtml(res.id)}"
+                       class="im-step-resource-input"
+                       value="${stepCosts[res.id] ?? 0}"
+                       min="0"
+                       data-step-idx="${idx}"
+                       data-field="rescost"
+                       data-res-id="${escHtml(res.id)}"
+                       aria-label="${escHtml(res.name)} cost">
+                <span class="im-resource-cap">/ ${res.capacity}</span>
+            </div>`).join('')
+        : '';
 
     card.innerHTML = `
         <div class="im-step-header">
@@ -305,24 +272,20 @@ function _buildStepCard(step, idx, stepTags) {
                     data-idx="${idx}" aria-label="Remove step">✕</button>
         </div>
         <textarea class="im-step-desc"
-                  placeholder="Description (optional)"
+                  placeholder="Description / ingredients / notes (optional)"
                   aria-label="Step description"
                   data-step-idx="${idx}" data-field="description"
-                  rows="2">${escHtml(step.description || '')}</textarea>
+                  rows="3">${escHtml(step.description || '')}</textarea>
         <div class="im-step-meta">
-            <div class="im-step-tags">${tagChecks}</div>
-            <div class="im-step-counter-row">
-                <label class="im-step-counter-label"
-                       for="imStepCounter_${idx}">Count target</label>
-                <input type="number" id="imStepCounter_${idx}"
-                       class="im-step-counter-input"
-                       value="${counterTarget}" min="1"
-                       data-step-idx="${idx}" data-field="counterTarget"
-                       aria-label="Counter target">
-                <span class="im-step-counter-hint" id="imStepCounterHint_${idx}">${
-        counterTarget > 1 ? `×${counterTarget} needed` : 'binary (1 = tick)'
-    }</span>
+            <div class="im-step-tags-section">
+                <div class="im-step-section-label">Tags</div>
+                <div class="im-step-tags">${tagChecks}</div>
             </div>
+            ${resources.length > 0 ? `
+            <div class="im-step-resources-section">
+                <div class="im-step-section-label">Resource costs</div>
+                ${resourceInputs}
+            </div>` : ''}
         </div>
     `;
 
@@ -351,18 +314,20 @@ function _buildStepCard(step, idx, stepTags) {
         _steps[idx].description = e.target.value;
     });
 
-    card.querySelector('[data-field="counterTarget"]').addEventListener('input', e => {
-        const val = Math.max(1, parseInt(e.target.value) || 1);
-        _steps[idx].counterTarget = val;
-        const hint = document.getElementById(`imStepCounterHint_${idx}`);
-        if (hint) hint.textContent = val > 1 ? `×${val} needed` : 'binary (1 = tick)';
-    });
-
     card.querySelectorAll('[data-field="steptag"]').forEach(cb => {
         cb.addEventListener('change', () => {
             _steps[idx].tags = _getCheckedIdsFromGroup(
                 card.querySelectorAll('[data-field="steptag"]')
             );
+        });
+    });
+
+    card.querySelectorAll('[data-field="rescost"]').forEach(input => {
+        input.addEventListener('input', () => {
+            const resId = input.dataset.resId;
+            const val = Math.max(0, parseInt(input.value) || 0);
+            if (!_steps[idx].resourceCosts) _steps[idx].resourceCosts = {};
+            _steps[idx].resourceCosts[resId] = val;
         });
     });
 
@@ -375,7 +340,7 @@ export function addStepRow() {
         title: '',
         description: '',
         tags: [],
-        counterTarget: 1,
+        resourceCosts: {},
     });
     _renderStepList();
     const cards = document.querySelectorAll('.im-step-card');
@@ -407,6 +372,11 @@ function _cleanStep(s) {
         title: (s.title || '').trim(),
         description: (s.description || '').trim(),
         tags: Array.isArray(s.tags) ? [...s.tags] : [],
-        counterTarget: Math.max(1, parseInt(s.counterTarget) || 1),
+        resourceCosts: s.resourceCosts
+            ? Object.fromEntries(
+                Object.entries(s.resourceCosts)
+                    .map(([k, v]) => [k, Math.max(0, parseInt(v) || 0)])
+            )
+            : {},
     };
 }

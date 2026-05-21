@@ -177,27 +177,42 @@ function _renderResourceList() {
     const container = document.getElementById('pmResourceList');
     container.innerHTML = '';
 
+    if (_resources.length > 0) {
+        // Column headers — only shown when there is at least one resource row.
+        const headers = document.createElement('div');
+        headers.className = 'def-row def-row-headers';
+        headers.innerHTML = `
+            <span class="def-col-header def-col-name">Name</span>
+            <span class="def-col-header def-col-emoji">Emoji</span>
+            <span class="def-col-header def-col-capacity">Slots</span>
+            <span class="def-col-header def-col-remove"></span>
+        `;
+        container.appendChild(headers);
+    }
+
     _resources.forEach((res, idx) => {
         const row = document.createElement('div');
-        row.className = 'def-row';
+        row.className = 'def-row def-row-resource';
         row.innerHTML = `
-            <input type="text" class="emoji-input" value="${escHtml(res.emoji)}"
-                   aria-label="Resource emoji" maxlength="2"
-                   data-field="emoji" data-idx="${idx}">
-            <input type="text" value="${escHtml(res.name)}"
-                   aria-label="Resource name" placeholder="Name"
+            <input type="text" class="def-col-name" value="${escHtml(res.name)}"
+                   aria-label="Resource name" placeholder="e.g. Warmer"
                    data-field="name" data-idx="${idx}">
-            <input type="number" class="capacity-input" value="${res.capacity}"
-                   aria-label="Capacity" min="1"
+            <input type="text" class="def-col-emoji emoji-input"
+                   value="${escHtml(res.emoji)}"
+                   aria-label="Resource emoji" maxlength="2"
+                   placeholder="🔥"
+                   data-field="emoji" data-idx="${idx}">
+            <input type="number" class="def-col-capacity capacity-input"
+                   value="${res.capacity}"
+                   aria-label="Available slots" min="1"
                    data-field="capacity" data-idx="${idx}">
-            <span class="def-row-label">cap</span>
-            <button class="def-row-remove" aria-label="Remove resource"
+            <button class="def-row-remove def-col-remove"
+                    aria-label="Remove resource"
                     data-action="remove-resource" data-idx="${idx}">✕</button>
         `;
         container.appendChild(row);
     });
 
-    // Wire inputs — update working copy on change.
     container.querySelectorAll('input').forEach(input => {
         input.addEventListener('input', () => {
             const idx = parseInt(input.dataset.idx);
@@ -223,17 +238,31 @@ function _renderTagList(containerId, list, kind) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
 
+    if (list.length > 0) {
+        const headers = document.createElement('div');
+        headers.className = 'def-row def-row-headers';
+        headers.innerHTML = `
+            <span class="def-col-header def-col-name">Name</span>
+            <span class="def-col-header def-col-emoji">Emoji</span>
+            <span class="def-col-header def-col-remove"></span>
+        `;
+        container.appendChild(headers);
+    }
+
     list.forEach((tag, idx) => {
         const row = document.createElement('div');
-        row.className = 'def-row';
+        row.className = 'def-row def-row-tag';
         row.innerHTML = `
-            <input type="text" class="emoji-input" value="${escHtml(tag.emoji)}"
-                   aria-label="Tag emoji" maxlength="2"
-                   data-field="emoji" data-idx="${idx}" data-kind="${kind}">
-            <input type="text" value="${escHtml(tag.name)}"
-                   aria-label="Tag name" placeholder="Name"
+            <input type="text" class="def-col-name" value="${escHtml(tag.name)}"
+                   aria-label="Tag name" placeholder="e.g. Prep"
                    data-field="name" data-idx="${idx}" data-kind="${kind}">
-            <button class="def-row-remove" aria-label="Remove tag"
+            <input type="text" class="def-col-emoji emoji-input"
+                   value="${escHtml(tag.emoji)}"
+                   aria-label="Tag emoji" maxlength="2"
+                   placeholder="🔪"
+                   data-field="emoji" data-idx="${idx}" data-kind="${kind}">
+            <button class="def-row-remove def-col-remove"
+                    aria-label="Remove tag"
                     data-action="remove-tag" data-idx="${idx}" data-kind="${kind}">✕</button>
         `;
         container.appendChild(row);
@@ -340,9 +369,11 @@ function _cleanTag(t) {
 function _reconcileDeletedResources(project) {
     const keepIds = new Set(_resources.map(r => r.id));
     for (const item of (project.items || [])) {
-        if (!item.resourceCosts) continue;
-        for (const rid of Object.keys(item.resourceCosts)) {
-            if (!keepIds.has(rid)) delete item.resourceCosts[rid];
+        for (const step of (item.steps || [])) {
+            if (!step.resourceCosts) continue;
+            for (const rid of Object.keys(step.resourceCosts)) {
+                if (!keepIds.has(rid)) delete step.resourceCosts[rid];
+            }
         }
     }
 }

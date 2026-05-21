@@ -34,6 +34,7 @@ let selectedProjectId = null;
 let _editMode = false;   // UI-only reorder mode; not persisted to Supabase
 let _syncTimer = null;    // debounced Supabase write timer
 let _briefingItemId = null;    // item currently shown in briefing modal
+let _expandedItems = new Set(); // UI-only; item IDs whose step list is expanded
 
 // ── Local storage read ────────────────────────────────────────────────────────
 
@@ -122,6 +123,8 @@ function _onRemoteUpdate(payload) {
 
 async function selectProject(id) {
     selectedProjectId = id || null;
+    _expandedItems.clear();
+    _editMode = false;
 
     if (selectedProjectId) {
         localStorage.setItem(STORAGE_SELECTED, selectedProjectId);
@@ -172,7 +175,7 @@ function _doRenderMain(stored) {
         }
     }
 
-    // Inject _editMode as a session overlay — UI-only, never written to storage.
+    // Inject UI-only state as a session overlay — never written to storage.
     const overlaid = !selectedProjectId ? stored : {
         ...stored,
         blobs: {
@@ -183,6 +186,7 @@ function _doRenderMain(stored) {
                     session: {
                         ...(stored.blobs[selectedProjectId].session || {}),
                         editMode: _editMode,
+                        expandedItems: _expandedItems,
                     },
                 }
                 : stored.blobs[selectedProjectId],
@@ -195,7 +199,6 @@ function _doRenderMain(stored) {
 
 const _callbacks = {
     // Step interactions
-    onToggleStep: (stepId, itemId) => _toggleStep(stepId, itemId),
     onStepCount: (stepId, itemId, dir) => _stepCount(stepId, itemId, dir),
 
     // Item interactions
@@ -203,6 +206,7 @@ const _callbacks = {
     onResetItem: itemId => _resetItem(itemId),
     onTogglePinned: itemId => _togglePinned(itemId),
     onMoveItem: (itemId, dir) => _moveItem(itemId, dir),
+    onToggleExpanded: itemId => _toggleExpanded(itemId),
     onAttachLongPress: (el, cb) => attachLongPress(el, cb),
 
     // Filter interactions
@@ -227,30 +231,6 @@ const _callbacks = {
 
 // ── Step interaction handlers ─────────────────────────────────────────────────
 
-function _toggleStep(stepId, itemId) {
-    const stored = _localLoad();
-    const project = stored.blobs[selectedProjectId];
-    if (!project) return;
-
-    const item = (project.items || []).find(i => i.id === itemId);
-    if (!item) return;
-    const step = (item.steps || []).find(s => s.id === stepId);
-    if (!step) return;
-
-    const session = project.session || {};
-    const stepState = session.stepState || {};
-    const current = (stepState[stepId] || {current: 0}).current;
-
-    stepState[stepId] = {current: current >= 1 ? 0 : 1};
-    session.stepState = stepState;
-    project.session = session;
-
-    cacheSet(stored, project, CFG);
-    localSave(stored);
-    _scheduleSync(selectedProjectId);
-    _doRenderMain(_localLoad());
-}
-
 function _stepCount(stepId, itemId, dir) {
     const stored = _localLoad();
     const project = stored.blobs[selectedProjectId];
@@ -261,11 +241,10 @@ function _stepCount(stepId, itemId, dir) {
     const step = (item.steps || []).find(s => s.id === stepId);
     if (!step) return;
 
-    const target = step.counterTarget || 1;
     const session = project.session || {};
     const stepState = session.stepState || {};
     const current = (stepState[stepId] || {current: 0}).current;
-    const next = Math.max(0, Math.min(target, current + dir));
+    const next = Math.max(0, current + dir);
 
     stepState[stepId] = {current: next};
     session.stepState = stepState;
@@ -415,12 +394,33 @@ function _toggleEditMode() {
     _doRenderMain(_localLoad());
 }
 
+function _toggleExpanded(itemId) {
+    if (_expandedItems.has(itemId)) {
+        _expandedItems.delete(itemId);
+    } else {
+        _expandedItems.add(itemId);
+    }
+    _doRenderMain(_localLoad());
+}
+
 async function _togglePinnedOnly() {
     const stored = _localLoad();
     const project = stored.blobs[selectedProjectId];
     if (!project) return;
 
-    project.session.pinnedOnly = !project.session.pinnedOnly;
+    const entering = !project.session.pinnedOnly;
+    project.session.pinnedOnly = entering;
+
+    if (entering) {
+        // Expand all pinned items automatically on entering focus mode.
+        (project.items || [])
+            .filter(i => i.pinned)
+            .forEach(i => _expandedItems.add(i.id));
+    } else {
+        // Clear expanded state on exit — back to default collapsed.
+        _expandedItems.clear();
+    }
+
     cacheSet(stored, project, CFG);
     localSave(stored);
     _doRenderMain(_localLoad());
@@ -654,6 +654,14 @@ function _wireModalButtons() {
 
     if (selectedProjectId) {
         await loadProject(selectedProjectId);
+        // Expand pinned items by default on initial load.
+        const stored = _localLoad();
+        const project = stored.blobs[selectedProjectId];
+        if (project) {
+            (project.items || [])
+                .filter(i => i.pinned)
+                .forEach(i => _expandedItems.add(i.id));
+        }
     }
 
     _wireModalButtons();
