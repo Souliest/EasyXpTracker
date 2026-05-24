@@ -63,6 +63,9 @@ export const TOOL_CONFIG = {
         // platform is needed to render the selector label "[name] [platform]"
         indexFields: ['id', 'name', 'last_modified', 'platform'],
     },
+    trophySummary: {
+        storageKey: 'bgt:trophy-summary:v2',
+    },
 };
 
 export const BLOB_CACHE_SIZE = 5;

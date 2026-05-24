@@ -15,6 +15,11 @@ const TOOLS = [
         description: 'Track progress toward a target level with deadlines and checkpoints.'
     },
     {
+        name: 'PlayStation Trophy Summary Display',
+        path: './TrophySummary/index.html',
+        description: 'View your PlayStation trophy profile — level, completion, and progress across your library.'
+    },
+    {
         name: 'Thing Counter',
         path: './ThingCounter/index.html',
         description: 'Count anything, organised in a collapsible tree, split by game.'
