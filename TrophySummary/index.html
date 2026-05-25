@@ -1,0 +1,86 @@
+<!-- TrophySummary/index.html -->
+<!-- Shell: loads shared theme/header globals, then boots the tool via js/main.js (module). -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PlayStation Trophy Summary Display</title>
+  <link rel="stylesheet" href="../common/theme.css">
+  <link rel="stylesheet" href="../common/header.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Shared header injected by header.js -->
+
+  <div id="mainContent"></div>
+
+</div><!-- /.container -->
+
+<!-- ══════════════════════════════════════════
+     Settings Modal
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="ptsd-settings-modal">
+  <div class="modal modal-settings">
+    <div class="modal-header">
+      <h2>Settings</h2>
+      <button class="modal-close" onclick="_closeModal('ptsd-settings-modal')">✕</button>
+    </div>
+    <div class="ptsd-modal-body">
+      <!-- Populated dynamically by modal.js -->
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     Hidden Games Modal
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="ptsd-hidden-modal">
+  <div class="modal modal-settings">
+    <div class="modal-header">
+      <h2>Hidden Games</h2>
+      <button class="modal-close" onclick="_closeModal('ptsd-hidden-modal')">✕</button>
+    </div>
+    <div class="ptsd-modal-body">
+      <!-- Populated dynamically by modal.js -->
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     Missing Game Prompt Modal
+══════════════════════════════════════════ -->
+<div class="modal-overlay" id="ptsd-missing-modal">
+  <div class="modal ptsd-modal-missing">
+    <div class="modal-header">
+      <h2>Game Missing from PlayStation</h2>
+    </div>
+    <div class="ptsd-modal-body">
+      <!-- Populated dynamically by modal.js -->
+    </div>
+  </div>
+</div>
+
+<script src="../common/theme.js"></script>
+<script src="../common/header.js"></script>
+<script>
+    initHeader('PlayStation Trophy Summary Display');
+    initTheme();
+
+    // Shared close handler for modal ✕ buttons.
+    // modal.js manages its own open/close logic; this is a fallback for the
+    // ✕ button which fires before modal.js has wired the specific close function.
+    function _closeModal(id) {
+        const overlay = document.getElementById(id);
+        if (overlay) {
+            overlay.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+    }
+</script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
