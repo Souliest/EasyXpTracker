@@ -2,8 +2,9 @@
 // All HTML builders for the main view.
 // Receives data as parameters — no loadData calls, no module-level state.
 //
-// Step 3: renderProfileCard is fully implemented.
-//         renderFilterBar and renderGameList are stubs (Steps 4 and 5).
+// Step 3 (corrected): renderProfileCard — overallPct removed, levelProgress % inline.
+// Step 4: renderFilterBar fully implemented.
+// Step 5: renderGameList stub.
 
 import {escHtml} from '../../common/utils.js';
 import {isRateLimited} from './storage.js';
@@ -71,7 +72,7 @@ function _formatRelativeTime(isoString) {
 
 // ── Tier chips with optional deltas ──────────────────────────────────────────
 // Renders: [icon][count][(+N)] for each tier.
-// Delta rendered in --accent3, slightly smaller, immediately after count.
+// Delta in --accent3, slightly smaller, immediately after count.
 
 function _renderTierChipsWithDeltas(tierEarned, deltas) {
     const tiers = ['platinum', 'gold', 'silver', 'bronze'];
@@ -101,11 +102,10 @@ function _renderRefreshButton(refreshing, rateLimited) {
     >${label}</button>`;
 }
 
-// ── Avatar ─────────────────────────────────────────────────────────────────────
+// ── Avatar ────────────────────────────────────────────────────────────────────
 
 function _renderAvatar(avatarUrl) {
     if (avatarUrl) {
-        // Validate protocol before use (same pattern as TrophyHunter _safeIconUrl).
         try {
             const parsed = new URL(avatarUrl);
             if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
@@ -118,24 +118,29 @@ function _renderAvatar(avatarUrl) {
     return `<span class="ptsd-avatar ptsd-avatar--glyph" aria-hidden="true">🎮</span>`;
 }
 
-// ── Level progress bar ────────────────────────────────────────────────────────
+// ── Level progress bar — bar + inline percentage ──────────────────────────────
 
 function _renderLevelBar(progress) {
     const pct = Math.max(0, Math.min(100, progress || 0));
-    return `<div class="ptsd-level-bar th-progress-track" role="progressbar"
-        aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
-        aria-label="Level progress ${pct}%">
-        <div class="th-progress-fill" style="width:${pct}%"></div>
+    return `<div class="ptsd-level-bar-row">
+        <div class="ptsd-level-bar th-progress-track" role="progressbar"
+            aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
+            aria-label="Level progress ${pct}%">
+            <div class="th-progress-fill" style="width:${pct}%"></div>
+        </div>
+        <span class="ptsd-level-pct">${pct}%</span>
     </div>`;
 }
 
 // ── renderProfileCard ─────────────────────────────────────────────────────────
-// Sticky card at the top of the page.
-// Stale marker visual states per handoff:
-//   clean + rate-limited:  timestamp muted, button grayed, no stale label
-//   stale + rate-limited:  stale label in --muted, button grayed
-//   stale + available:     stale label AND timestamp in red (#ff4444), button active
-//   clean + available:     timestamp normal, button active, no stale label
+// Sticky card. Layout:
+//   [avatar] [username]                    [✎] [⥀]
+//            [Lv. 427]
+//   [level progress bar]  43%
+//   P 47(+1)  G 312(+3)  S 891  B 2041(+12)
+//   Updated 4m ago  stale data
+//
+// levelProgress is the only percentage. overallPct does not exist.
 
 export function renderProfileCard(profile, refreshing = false) {
     const rateLimited = isRateLimited('global');
@@ -147,23 +152,18 @@ export function renderProfileCard(profile, refreshing = false) {
 
     const timestamp = _formatRelativeTime(profile.lastFullRefresh);
 
-    // Determine visual states.
     const refreshAvailable = !rateLimited && !refreshing;
     const staleAndAvailable = stale && refreshAvailable;
 
-    // Timestamp color: red only when stale AND available.
     const tsColorStyle = staleAndAvailable ? ' style="color:#ff4444"' : '';
 
-    // Stale label: shown when stale; color is red when available, muted otherwise.
     const staleLabel = stale
         ? `<span class="ptsd-stale-label${staleAndAvailable ? ' ptsd-stale-label--urgent' : ''}"
               id="ptsd-stale-label">stale data</span>`
         : `<span class="ptsd-stale-label" id="ptsd-stale-label" style="display:none"></span>`;
 
-    const overallPct = profile.overallPct || 0;
-
     return `<div class="ptsd-profile-card panel" id="ptsd-profile-card">
-        <div class="ptsd-card-row ptsd-card-top">
+        <div class="ptsd-card-top">
             ${_renderAvatar(profile.avatarUrl)}
             <div class="ptsd-card-identity">
                 <span class="ptsd-username">${escHtml(profile.psUsername)}</span>
@@ -178,32 +178,124 @@ export function renderProfileCard(profile, refreshing = false) {
 
         ${_renderLevelBar(profile.levelProgress)}
 
-        <div class="ptsd-card-row ptsd-card-stats">
-            <div class="ptsd-tier-chips-row">
-                ${_renderTierChipsWithDeltas(profile.tierEarned, deltas)}
-            </div>
-            <span class="ptsd-overall-pct th-stat-pct">${overallPct}%</span>
+        <div class="ptsd-card-chips-row">
+            ${_renderTierChipsWithDeltas(profile.tierEarned, deltas)}
         </div>
 
-        <div class="ptsd-card-row ptsd-card-footer">
-            <div class="ptsd-footer-left">
-                ${timestamp
+        <div class="ptsd-card-footer">
+            ${timestamp
         ? `<span class="ptsd-timestamp${staleAndAvailable ? ' ptsd-timestamp--urgent' : ''}"${tsColorStyle}
-                          id="ptsd-timestamp">Updated ${escHtml(timestamp)}</span>`
+                      id="ptsd-timestamp">Updated ${escHtml(timestamp)}</span>`
         : `<span class="ptsd-timestamp ptsd-timestamp--never" id="ptsd-timestamp">Never refreshed</span>`
     }
-                ${staleLabel}
-            </div>
+            ${staleLabel}
         </div>
     </div>`;
 }
 
-// ── renderFilterBar (Step 4 stub) ─────────────────────────────────────────────
+// ── renderFilterBar ───────────────────────────────────────────────────────────
+// Sits directly below the profile card. Not sticky.
+// All controls are data-driven: platform chips and visibility toggles only
+// appear if the library contains matching games.
 
 export function renderFilterBar(profile) {
-    // Fully implemented in Step 4.
-    return `<div class="ptsd-filter-bar" id="ptsd-filter-bar">
-        <!-- Filter/sort controls — Step 4 -->
+    const vs = profile.viewState || {};
+    const games = profile.games || [];
+
+    // ── Sort dropdown ──
+    const sortOptions = [
+        {value: 'recent', label: 'Recent activity'},
+        {value: 'pct_asc', label: 'Completion % ↑'},
+        {value: 'pct_desc', label: 'Completion % ↓'},
+        {value: 'alpha', label: 'A–Z'},
+        {value: 'platform', label: 'Platform'},
+        {value: 'platinum', label: 'Platinum first'},
+    ];
+    const sortHtml = sortOptions.map(o =>
+        `<option value="${o.value}"${vs.sort === o.value ? ' selected' : ''}>${o.value === 'recent' && !vs.sort ? ' selected' : ''}${o.label}</option>`
+    ).join('');
+
+    // ── Completion floor pills ──
+    const floorOptions = [
+        {value: 'any', label: 'Any'},
+        {value: '25', label: '>25%'},
+        {value: '50', label: '>50%'},
+        {value: '75', label: '>75%'},
+        {value: '90', label: '>90%'},
+        {value: '100', label: '100%'},
+    ];
+    const floorHtml = floorOptions.map(o => {
+        const active = (vs.minCompletion || 'any') === o.value;
+        return `<button class="ptsd-pill${active ? ' ptsd-pill--active' : ''}" data-min-completion="${o.value}">${o.label}</button>`;
+    }).join('');
+
+    // ── Recency pills ──
+    const recencyOptions = [
+        {value: 'all', label: 'All time'},
+        {value: 'year', label: 'This year'},
+        {value: '3months', label: 'Last 3 months'},
+        {value: 'month', label: 'Last month'},
+    ];
+    const recencyHtml = recencyOptions.map(o => {
+        const active = (vs.recency || 'all') === o.value;
+        return `<button class="ptsd-pill${active ? ' ptsd-pill--active' : ''}" data-recency="${o.value}">${o.label}</button>`;
+    }).join('');
+
+    // ── Platform chips — data-driven ──
+    const platforms = ['ps3', 'ps4', 'ps5', 'vita'];
+    const presentPlatforms = new Set(games.map(g => g.platform.toLowerCase()));
+    const platformFilter = vs.platformFilter || {};
+
+    const platformHtml = platforms
+        .filter(p => presentPlatforms.has(p))
+        .map(p => {
+            // Default ON: if key absent from platformFilter, treat as true.
+            const on = platformFilter[p] !== false;
+            const label = p === 'vita' ? 'Vita' : p.toUpperCase();
+            return `<button class="ptsd-pill ptsd-pill--platform${on ? ' ptsd-pill--active' : ''}"
+                data-platform="${p}">${label}</button>`;
+        }).join('');
+
+    // ── Visibility toggles — data-driven ──
+    const hasNoTrophies = games.some(g => g.pct === 0);
+    const hasPlatinum = games.some(g => (g.tierEarned?.platinum || 0) > 0);
+    const hasPct100 = games.some(g => g.pct === 100 && !(g.tierEarned?.platinum));
+
+    const visHtml = [
+        hasNoTrophies ? `<button class="ptsd-pill${vs.showNoTrophies !== false ? ' ptsd-pill--active' : ''}"
+            id="ptsd-toggle-no-trophies">No Trophies</button>` : '',
+        hasPlatinum ? `<button class="ptsd-pill${vs.showPlatinum !== false ? ' ptsd-pill--active' : ''}"
+            id="ptsd-toggle-platinum">Platinums</button>` : '',
+        hasPct100 ? `<button class="ptsd-pill${vs.showPct100 !== false ? ' ptsd-pill--active' : ''}"
+            id="ptsd-toggle-pct100">100%</button>` : '',
+    ].join('');
+
+    const hasToggles = platformHtml || visHtml;
+
+    return `<div class="ptsd-filter-bar panel" id="ptsd-filter-bar">
+        <div class="ptsd-filter-row ptsd-filter-row--sort">
+            <select class="ptsd-sort-select" id="ptsd-sort-select" aria-label="Sort games">
+                ${sortHtml}
+            </select>
+        </div>
+
+        <div class="ptsd-filter-section">
+            <span class="ptsd-filter-label">Completion</span>
+            <div class="ptsd-pill-row">${floorHtml}</div>
+        </div>
+
+        <div class="ptsd-filter-section">
+            <span class="ptsd-filter-label">Activity</span>
+            <div class="ptsd-pill-row">${recencyHtml}</div>
+        </div>
+
+        ${hasToggles ? `<div class="ptsd-filter-section">
+            <span class="ptsd-filter-label">Show</span>
+            <div class="ptsd-pill-row">
+                ${platformHtml}
+                ${visHtml}
+            </div>
+        </div>` : ''}
     </div>`;
 }
 
@@ -217,7 +309,6 @@ export function renderGameList(profile) {
             No games found in your PlayStation library.
         </div>`;
     }
-    // Fully implemented in Step 5.
     return `<div class="ptsd-game-list" id="ptsd-game-list">
         <div class="empty-state" style="padding:24px">
             ${count} game${count !== 1 ? 's' : ''} in library — game cards coming in Step 5.
@@ -226,7 +317,6 @@ export function renderGameList(profile) {
 }
 
 // ── renderEmptyState ──────────────────────────────────────────────────────────
-// Shown before a PS username is linked.
 
 export function renderEmptyState() {
     return `<div class="empty-state">

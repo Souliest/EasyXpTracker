@@ -76,7 +76,6 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  /* Fully opaque background — prevents game cards bleeding through on scroll */
   background: #111520;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
   margin-bottom: 10px;
@@ -87,26 +86,12 @@ body.light .ptsd-profile-card {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
 }
 
-/* ── Card rows ── */
-.ptsd-card-row {
+/* ── Top row: avatar | identity | actions ── */
+.ptsd-card-top {
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-.ptsd-card-top {
   margin-bottom: 8px;
-}
-
-.ptsd-card-stats {
-  margin-top: 6px;
-  justify-content: space-between;
-}
-
-.ptsd-card-footer {
-  margin-top: 6px;
-  flex-wrap: wrap;
-  gap: 4px;
 }
 
 /* ── Avatar ── */
@@ -126,7 +111,7 @@ body.light .ptsd-profile-card {
   font-size: 1.3rem;
 }
 
-/* ── Identity (username + level) ── */
+/* ── Identity: username + level stacked ── */
 .ptsd-card-identity {
   flex: 1;
   min-width: 0;
@@ -155,7 +140,7 @@ body.light .ptsd-profile-card {
   line-height: 1;
 }
 
-/* ── Actions (settings + refresh) ── */
+/* ── Actions: settings + refresh ── */
 .ptsd-card-actions {
   display: flex;
   align-items: center;
@@ -207,7 +192,7 @@ body.light .ptsd-profile-card {
   color: var(--muted);
   border-color: var(--border);
   cursor: default;
-  pointer-events: auto; /* keep clickable so we can show the countdown */
+  pointer-events: auto;
 }
 
 .ptsd-refresh-btn--disabled:hover {
@@ -215,20 +200,38 @@ body.light .ptsd-profile-card {
   border-color: var(--border);
 }
 
-/* ── Level bar ── */
+/* ── Level bar row: [bar] [pct] ── */
+.ptsd-level-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .ptsd-level-bar {
-  width: 100%;
-  max-width: 100%;
+  flex: 1;
   height: 6px;
+  max-width: none;
   margin: 0;
 }
 
+.ptsd-level-pct {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+}
+
 /* ── Tier chips row ── */
-.ptsd-tier-chips-row {
+.ptsd-card-chips-row {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  margin-bottom: 8px;
 }
 
 .ptsd-tier-chip {
@@ -258,17 +261,8 @@ body.light .ptsd-profile-card {
   display: block;
 }
 
-/* ── Overall pct ── */
-.ptsd-overall-pct {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--text);
-  flex-shrink: 0;
-}
-
-/* ── Footer (timestamp + stale label) ── */
-.ptsd-footer-left {
+/* ── Footer: timestamp + stale label ── */
+.ptsd-card-footer {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -301,18 +295,103 @@ body.light .ptsd-profile-card {
   color: #ff4444;
 }
 
-/* Rate-limit countdown message — shown inline for 3 seconds */
 .ptsd-rate-limit-msg {
   color: #ff4444;
 }
 
 /* ══════════════════════════════════════
-   Filter bar (Step 4 stub)
+   Filter bar
+   Not sticky — scrolls away with content.
 ══════════════════════════════════════ */
 
 .ptsd-filter-bar {
   margin-bottom: 10px;
-  min-height: 0;
+}
+
+/* Sort row */
+.ptsd-filter-row--sort {
+  margin-bottom: 10px;
+}
+
+.ptsd-sort-select {
+  width: 100%;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.ptsd-sort-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Filter section: label + pill row */
+.ptsd-filter-section {
+  margin-bottom: 8px;
+}
+
+.ptsd-filter-section:last-child {
+  margin-bottom: 0;
+}
+
+.ptsd-filter-label {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 5px;
+}
+
+/* Pill row — wraps naturally on narrow screens */
+.ptsd-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+/* Pill base */
+.ptsd-pill {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.ptsd-pill:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Active pill */
+.ptsd-pill--active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(0, 229, 255, 0.08);
+}
+
+body.light .ptsd-pill--active {
+  background: rgba(0, 119, 170, 0.08);
+}
+
+/* Platform pill — slightly different inactive color to match TH badge aesthetic */
+.ptsd-pill--platform {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
 }
 
 /* ══════════════════════════════════════
@@ -327,7 +406,6 @@ body.light .ptsd-profile-card {
 
 /* ══════════════════════════════════════
    Modal — shared base
-   (mirrors TrophyHunter/styles.css modal base)
 ══════════════════════════════════════ */
 
 .modal-overlay {
@@ -404,8 +482,7 @@ body.light .ptsd-profile-card {
   padding: 0;
 }
 
-/* ── Form group (shared with TH pattern) ── */
-
+/* ── Form group ── */
 .form-group {
   margin: 16px 20px 0;
 }
@@ -452,8 +529,7 @@ body.light .ptsd-profile-card {
   border-radius: 6px;
 }
 
-/* ── Settings section (reused from TH) ── */
-
+/* ── Settings section ── */
 .settings-section {
   margin: 16px 20px 0;
   border-top: 1px solid var(--border);
@@ -568,7 +644,6 @@ body.light .ptsd-profile-card {
 }
 
 .ptsd-missing-game-name {
-  /* Hidden — used for accessibility; the game name appears in the message */
   display: none;
 }
 
@@ -603,5 +678,3 @@ body.light .ptsd-profile-card {
   justify-content: flex-start;
   padding-top: 4px;
 }
-
-/* Keep is primary (left), Remove is ghost (right) — Keep is the safe default */
