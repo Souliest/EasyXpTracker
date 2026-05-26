@@ -8,11 +8,9 @@
 import {
     loadData,
     saveData,
-    getPSUsername,
     isRateLimited,
     getRateLimitRemaining,
     setRateLimit,
-    clearRateLimit
 } from './storage.js';
 import {workerFetchProfile} from './psn.js';
 import {renderProfileCard, renderFilterBar, renderGameList, renderEmptyState} from './render.js';
@@ -98,10 +96,73 @@ function _showRateLimitFeedback() {
     }, 3000);
 }
 
-// ── Filter bar wiring (stub — wired fully in Step 4) ─────────────────────────
+// ── Filter bar wiring ─────────────────────────────────────────────────────────
 
 function _wireFilterBar() {
-    // Placeholder — filter controls wired in Step 4.
+    if (!_profile) return;
+
+    // Sort dropdown
+    const sortSel = document.getElementById('ptsd-sort-select');
+    if (sortSel) {
+        sortSel.addEventListener('change', () => _updateViewState({sort: sortSel.value}));
+    }
+
+    // Completion floor pills
+    document.querySelectorAll('[data-min-completion]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            _updateViewState({minCompletion: btn.dataset.minCompletion});
+        });
+    });
+
+    // Recency pills
+    document.querySelectorAll('[data-recency]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            _updateViewState({recency: btn.dataset.recency});
+        });
+    });
+
+    // Platform toggles
+    document.querySelectorAll('[data-platform]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const plat = btn.dataset.platform;
+            const current = _profile.viewState.platformFilter || {};
+            _updateViewState({
+                platformFilter: {...current, [plat]: !current[plat]},
+            });
+        });
+    });
+
+    // Visibility toggles
+    const noTrophiesBtn = document.getElementById('ptsd-toggle-no-trophies');
+    if (noTrophiesBtn) {
+        noTrophiesBtn.addEventListener('click', () => {
+            _updateViewState({showNoTrophies: !_profile.viewState.showNoTrophies});
+        });
+    }
+
+    const platinumBtn = document.getElementById('ptsd-toggle-platinum');
+    if (platinumBtn) {
+        platinumBtn.addEventListener('click', () => {
+            _updateViewState({showPlatinum: !_profile.viewState.showPlatinum});
+        });
+    }
+
+    const pct100Btn = document.getElementById('ptsd-toggle-pct100');
+    if (pct100Btn) {
+        pct100Btn.addEventListener('click', () => {
+            _updateViewState({showPct100: !_profile.viewState.showPct100});
+        });
+    }
+}
+
+function _updateViewState(patch) {
+    if (!_profile) return;
+    _profile = {
+        ..._profile,
+        viewState: {..._profile.viewState, ...patch},
+    };
+    saveData(_profile);  // fire-and-forget
+    _doRender();
 }
 
 // ── Game card wiring (stub — wired fully in Steps 5–7) ───────────────────────
@@ -127,7 +188,6 @@ async function _startGlobalRefresh() {
             setRateLimit('global', err.retryAfter);
         }
         // Refresh failed — re-render to restore normal state.
-        // No toast/alert per handoff: button just returns to its resting state.
     } finally {
         _refreshing = false;
         _doRender();
@@ -191,12 +251,10 @@ async function _applyGlobalRefresh(result) {
     });
 
     // 2. Collect missing games (in blob but absent from PS response).
-    // hiddenOnPs games are silently kept; others go to the prompt queue.
     const missingQueue = [];
     for (const prev of (existing.games || [])) {
         if (returnedCommIds.has(prev.npCommId)) continue;
         if (prev.hiddenOnPs) {
-            // Silently preserve flagged games.
             mergedGames.push(prev);
         } else {
             missingQueue.push(prev);
@@ -223,8 +281,6 @@ async function _applyGlobalRefresh(result) {
         tierEarned: result.tierEarned,
         tierTotal: result.tierTotal,
         tierEarnedAtLastGlobalRefresh: {...result.tierEarned},
-        overallPct: result.overallPct !== undefined ? result.overallPct
-            : _computeOverallPct(result.tierEarned, result.tierTotal),
         lastFullRefresh: now,
         viewState: existing.viewState || _defaultViewState(),
         games: mergedGames,
@@ -232,18 +288,6 @@ async function _applyGlobalRefresh(result) {
 
     // 6. Save.
     await saveData(_profile);
-}
-
-function _computeOverallPct(tierEarned, tierTotal) {
-    // Fallback if worker doesn't include overallPct directly.
-    // Weighted by Sony's trophy point values.
-    const WEIGHTS = {bronze: 15, silver: 30, gold: 90};
-    let earned = 0, total = 0;
-    for (const tier of ['bronze', 'silver', 'gold']) {
-        earned += (tierEarned[tier] || 0) * WEIGHTS[tier];
-        total += (tierTotal[tier] || 0) * WEIGHTS[tier];
-    }
-    return total > 0 ? Math.floor((earned / total) * 100) : 0;
 }
 
 function _defaultViewState() {
@@ -260,9 +304,6 @@ function _defaultViewState() {
 
 // ── Missing game prompt ───────────────────────────────────────────────────────
 
-// Presents the missing game prompt queue one at a time (or all at once via
-// "do for all"). Mutates mergedGames in-place: adds games back with
-// hiddenOnPs:true (Keep) or omits them (Remove).
 async function _runMissingGamePrompt(queue, mergedGames) {
     return new Promise(resolve => {
         openMissingGamePrompt(queue, {
@@ -274,7 +315,6 @@ async function _runMissingGamePrompt(queue, mergedGames) {
                 if (doAll) resolve();
             },
             onRemove: (game, doAll) => {
-                // Games not pushed to mergedGames are effectively removed.
                 if (doAll) resolve();
             },
             onDone: resolve,
@@ -287,7 +327,6 @@ async function _runMissingGamePrompt(queue, mergedGames) {
 function _openSettings() {
     openSettingsModal(_profile, {
         onUsernameChange: async (newUsername) => {
-            // Username changed — update profile and trigger a fresh global refresh.
             if (!_profile) {
                 _profile = {
                     psUsername: newUsername,
@@ -299,7 +338,6 @@ function _openSettings() {
             }
             await saveData(_profile);
             _doRender();
-            // Fire global refresh with the new username.
             _startGlobalRefresh();
         },
         onHiddenGamesChange: async (updatedProfile) => {
@@ -323,7 +361,6 @@ function _promptFirstRun() {
                 tierEarned: {platinum: 0, gold: 0, silver: 0, bronze: 0},
                 tierTotal: {platinum: 0, gold: 0, silver: 0, bronze: 0},
                 tierEarnedAtLastGlobalRefresh: {platinum: 0, gold: 0, silver: 0, bronze: 0},
-                overallPct: 0,
                 lastFullRefresh: null,
                 viewState: _defaultViewState(),
                 games: [],
@@ -340,7 +377,7 @@ function _promptFirstRun() {
 // ── Realtime incoming update handler ─────────────────────────────────────────
 
 function _onRemoteUpdate(payload) {
-    if (_refreshing) return;  // local work in progress — local changes win
+    if (_refreshing) return;
 
     const {data: remoteProfile, updatedAt: remoteUpdatedAt} = payload;
     if (!remoteProfile) return;
@@ -350,7 +387,6 @@ function _onRemoteUpdate(payload) {
 
     if (localTime && remoteTime && remoteTime <= localTime) return;
 
-    // Remote is newer — apply, preserving local viewState for this session.
     const localViewState = _profile?.viewState;
     _profile = {
         ...remoteProfile,
