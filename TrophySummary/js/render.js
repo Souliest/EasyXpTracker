@@ -3,7 +3,7 @@
 // Receives data as parameters — no loadData calls, no module-level state.
 //
 // Step 3 (corrected): renderProfileCard — overallPct removed, levelProgress % inline.
-// Step 4: renderFilterBar fully implemented.
+// Step 4: renderFilterBar — collapsible toggle row + floating panel.
 // Step 5: renderGameList stub.
 
 import {escHtml} from '../../common/utils.js';
@@ -71,8 +71,6 @@ function _formatRelativeTime(isoString) {
 }
 
 // ── Tier chips with optional deltas ──────────────────────────────────────────
-// Renders: [icon][count][(+N)] for each tier.
-// Delta in --accent3, slightly smaller, immediately after count.
 
 function _renderTierChipsWithDeltas(tierEarned, deltas) {
     const tiers = ['platinum', 'gold', 'silver', 'bronze'];
@@ -118,7 +116,7 @@ function _renderAvatar(avatarUrl) {
     return `<span class="ptsd-avatar ptsd-avatar--glyph" aria-hidden="true">🎮</span>`;
 }
 
-// ── Level progress bar — bar + inline percentage ──────────────────────────────
+// ── Level progress bar row: [bar]  43% ────────────────────────────────────────
 
 function _renderLevelBar(progress) {
     const pct = Math.max(0, Math.min(100, progress || 0));
@@ -133,14 +131,6 @@ function _renderLevelBar(progress) {
 }
 
 // ── renderProfileCard ─────────────────────────────────────────────────────────
-// Sticky card. Layout:
-//   [avatar] [username]                    [✎] [⥀]
-//            [Lv. 427]
-//   [level progress bar]  43%
-//   P 47(+1)  G 312(+3)  S 891  B 2041(+12)
-//   Updated 4m ago  stale data
-//
-// levelProgress is the only percentage. overallPct does not exist.
 
 export function renderProfileCard(profile, refreshing = false) {
     const rateLimited = isRateLimited('global');
@@ -151,10 +141,8 @@ export function renderProfileCard(profile, refreshing = false) {
     );
 
     const timestamp = _formatRelativeTime(profile.lastFullRefresh);
-
     const refreshAvailable = !rateLimited && !refreshing;
     const staleAndAvailable = stale && refreshAvailable;
-
     const tsColorStyle = staleAndAvailable ? ' style="color:#ff4444"' : '';
 
     const staleLabel = stale
@@ -193,14 +181,66 @@ export function renderProfileCard(profile, refreshing = false) {
     </div>`;
 }
 
-// ── renderFilterBar ───────────────────────────────────────────────────────────
-// Sits directly below the profile card. Not sticky.
-// All controls are data-driven: platform chips and visibility toggles only
-// appear if the library contains matching games.
+// ── Active filter summary ─────────────────────────────────────────────────────
+// Returns an array of short label strings for non-default filter values.
+// Used in the toggle row to show what's active without opening the panel.
 
-export function renderFilterBar(profile) {
+export function getActiveFilterSummary(profile) {
     const vs = profile.viewState || {};
     const games = profile.games || [];
+    const labels = [];
+
+    // Sort — only show if non-default
+    const sortLabels = {
+        pct_asc: 'Completion ↑',
+        pct_desc: 'Completion ↓',
+        alpha: 'A–Z',
+        platform: 'Platform',
+        platinum: 'Platinum first',
+    };
+    if (vs.sort && vs.sort !== 'recent') labels.push(sortLabels[vs.sort] || vs.sort);
+
+    // Completion floor
+    if (vs.minCompletion && vs.minCompletion !== 'any') {
+        labels.push(vs.minCompletion === '100' ? '100%' : `>${vs.minCompletion}%`);
+    }
+
+    // Recency
+    const recencyLabels = {year: 'This year', '3months': '3 months', month: 'Last month'};
+    if (vs.recency && vs.recency !== 'all') labels.push(recencyLabels[vs.recency] || vs.recency);
+
+    // Platforms turned OFF
+    const presentPlatforms = new Set(games.map(g => g.platform.toLowerCase()));
+    const platformFilter = vs.platformFilter || {};
+    for (const p of ['ps3', 'ps4', 'ps5', 'vita']) {
+        if (presentPlatforms.has(p) && platformFilter[p] === false) {
+            labels.push(`No ${p === 'vita' ? 'Vita' : p.toUpperCase()}`);
+        }
+    }
+
+    // Visibility toggles turned OFF
+    if (vs.showNoTrophies === false && games.some(g => g.pct === 0)) labels.push('No 0%');
+    if (vs.showPlatinum === false && games.some(g => (g.tierEarned?.platinum || 0) > 0)) labels.push('No Plat');
+    if (vs.showPct100 === false && games.some(g => g.pct === 100 && !g.tierEarned?.platinum)) labels.push('No 100%');
+
+    return labels;
+}
+
+// ── renderFilterBar ───────────────────────────────────────────────────────────
+// Toggle row (normal flow) + floating panel (absolute, shown/hidden via class).
+// The wrapper is position:relative so the panel anchors to it.
+// filtersOpen is session-only state passed in from main.js.
+
+export function renderFilterBar(profile, filtersOpen = false) {
+    const vs = profile.viewState || {};
+    const games = profile.games || [];
+    const activeLabels = getActiveFilterSummary(profile);
+
+    const summaryHtml = activeLabels.length > 0
+        ? activeLabels.map(l => `<span class="ptsd-filter-summary-pill">${escHtml(l)}</span>`).join('')
+        : '';
+
+    const arrow = filtersOpen ? '▼' : '▶';
 
     // ── Sort dropdown ──
     const sortOptions = [
@@ -211,8 +251,9 @@ export function renderFilterBar(profile) {
         {value: 'platform', label: 'Platform'},
         {value: 'platinum', label: 'Platinum first'},
     ];
+    const currentSort = vs.sort || 'recent';
     const sortHtml = sortOptions.map(o =>
-        `<option value="${o.value}"${vs.sort === o.value ? ' selected' : ''}>${o.value === 'recent' && !vs.sort ? ' selected' : ''}${o.label}</option>`
+        `<option value="${o.value}"${currentSort === o.value ? ' selected' : ''}>${o.label}</option>`
     ).join('');
 
     // ── Completion floor pills ──
@@ -249,7 +290,6 @@ export function renderFilterBar(profile) {
     const platformHtml = platforms
         .filter(p => presentPlatforms.has(p))
         .map(p => {
-            // Default ON: if key absent from platformFilter, treat as true.
             const on = platformFilter[p] !== false;
             const label = p === 'vita' ? 'Vita' : p.toUpperCase();
             return `<button class="ptsd-pill ptsd-pill--platform${on ? ' ptsd-pill--active' : ''}"
@@ -272,30 +312,38 @@ export function renderFilterBar(profile) {
 
     const hasToggles = platformHtml || visHtml;
 
-    return `<div class="ptsd-filter-bar panel" id="ptsd-filter-bar">
-        <div class="ptsd-filter-row ptsd-filter-row--sort">
-            <select class="ptsd-sort-select" id="ptsd-sort-select" aria-label="Sort games">
-                ${sortHtml}
-            </select>
-        </div>
+    return `<div class="ptsd-filter-wrapper" id="ptsd-filter-wrapper">
+        <button class="ptsd-filter-toggle" id="ptsd-filter-toggle" aria-expanded="${filtersOpen}">
+            <span class="ptsd-filter-arrow">${arrow}</span>
+            <span class="ptsd-filter-toggle-label">Filters</span>
+            ${summaryHtml}
+        </button>
 
-        <div class="ptsd-filter-section">
-            <span class="ptsd-filter-label">Completion</span>
-            <div class="ptsd-pill-row">${floorHtml}</div>
-        </div>
-
-        <div class="ptsd-filter-section">
-            <span class="ptsd-filter-label">Activity</span>
-            <div class="ptsd-pill-row">${recencyHtml}</div>
-        </div>
-
-        ${hasToggles ? `<div class="ptsd-filter-section">
-            <span class="ptsd-filter-label">Show</span>
-            <div class="ptsd-pill-row">
-                ${platformHtml}
-                ${visHtml}
+        <div class="ptsd-filter-panel${filtersOpen ? ' ptsd-filter-panel--open' : ''}" id="ptsd-filter-panel">
+            <div class="ptsd-filter-row--sort">
+                <select class="ptsd-sort-select" id="ptsd-sort-select" aria-label="Sort games">
+                    ${sortHtml}
+                </select>
             </div>
-        </div>` : ''}
+
+            <div class="ptsd-filter-section">
+                <span class="ptsd-filter-label">Completion</span>
+                <div class="ptsd-pill-row">${floorHtml}</div>
+            </div>
+
+            <div class="ptsd-filter-section">
+                <span class="ptsd-filter-label">Activity</span>
+                <div class="ptsd-pill-row">${recencyHtml}</div>
+            </div>
+
+            ${hasToggles ? `<div class="ptsd-filter-section">
+                <span class="ptsd-filter-label">Show</span>
+                <div class="ptsd-pill-row">
+                    ${platformHtml}
+                    ${visHtml}
+                </div>
+            </div>` : ''}
+        </div>
     </div>`;
 }
 

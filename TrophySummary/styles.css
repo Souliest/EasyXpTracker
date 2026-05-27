@@ -300,17 +300,94 @@ body.light .ptsd-profile-card {
 }
 
 /* ══════════════════════════════════════
-   Filter bar
-   Not sticky — scrolls away with content.
+   Filter wrapper, toggle row, floating panel
 ══════════════════════════════════════ */
 
-.ptsd-filter-bar {
-  margin-bottom: 10px;
+/* Wrapper: position:relative anchors the floating panel */
+.ptsd-filter-wrapper {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+/* Toggle row — single line, normal flow */
+.ptsd-filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: left;
+  transition: border-color 0.15s, color 0.15s;
+  flex-wrap: wrap;
+}
+
+.ptsd-filter-toggle:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.ptsd-filter-arrow {
+  font-size: 0.6rem;
+  flex-shrink: 0;
+  width: 10px;
+  text-align: center;
+}
+
+.ptsd-filter-toggle-label {
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Read-only summary pills shown in toggle row */
+.ptsd-filter-summary-pill {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 1px 7px;
+  background: rgba(0, 229, 255, 0.07);
+  pointer-events: none;
+}
+
+body.light .ptsd-filter-summary-pill {
+  background: rgba(0, 119, 170, 0.07);
+}
+
+/* Floating panel — absolutely positioned, sits over game cards */
+.ptsd-filter-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  z-index: 15;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+body.light .ptsd-filter-panel {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.ptsd-filter-panel--open {
+  display: block;
 }
 
 /* Sort row */
 .ptsd-filter-row--sort {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .ptsd-sort-select {
@@ -333,7 +410,7 @@ body.light .ptsd-profile-card {
 
 /* Filter section: label + pill row */
 .ptsd-filter-section {
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .ptsd-filter-section:last-child {
@@ -349,7 +426,7 @@ body.light .ptsd-profile-card {
   margin-bottom: 5px;
 }
 
-/* Pill row — wraps naturally on narrow screens */
+/* Pill row */
 .ptsd-pill-row {
   display: flex;
   flex-wrap: wrap;
@@ -376,7 +453,6 @@ body.light .ptsd-profile-card {
   color: var(--accent);
 }
 
-/* Active pill */
 .ptsd-pill--active {
   border-color: var(--accent);
   color: var(--accent);
@@ -387,7 +463,6 @@ body.light .ptsd-pill--active {
   background: rgba(0, 119, 170, 0.08);
 }
 
-/* Platform pill — slightly different inactive color to match TH badge aesthetic */
 .ptsd-pill--platform {
   letter-spacing: 0.06em;
   text-transform: uppercase;
