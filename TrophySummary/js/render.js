@@ -212,10 +212,16 @@ export function getActiveFilterSummary(profile) {
     // Platforms turned OFF
     const presentPlatforms = new Set(games.map(g => g.platform.toLowerCase()));
     const platformFilter = vs.platformFilter || {};
-    for (const p of ['ps3', 'ps4', 'ps5', 'vita']) {
-        if (presentPlatforms.has(p) && platformFilter[p] === false) {
-            labels.push(`No ${p === 'vita' ? 'Vita' : p.toUpperCase()}`);
-        }
+    const activePlatforms = ['ps3', 'ps4', 'ps5', 'vita']
+        .filter(p => presentPlatforms.has(p) && platformFilter[p] !== false)
+        .map(p => p === 'vita' ? 'Vita' : p.toUpperCase());
+    const allOn = ['ps3', 'ps4', 'ps5', 'vita']
+        .filter(p => presentPlatforms.has(p)).length === activePlatforms.length;
+    if (!allOn) {
+        const label = activePlatforms.length === 1
+            ? `${activePlatforms[0]} only`
+            : activePlatforms.join('/');
+        labels.push(label);
     }
 
     // Visibility toggles turned OFF
@@ -310,8 +316,6 @@ export function renderFilterBar(profile, filtersOpen = false) {
             id="ptsd-toggle-pct100">100%</button>` : '',
     ].join('');
 
-    const hasToggles = platformHtml || visHtml;
-
     return `<div class="ptsd-filter-wrapper" id="ptsd-filter-wrapper">
         <button class="ptsd-filter-toggle" id="ptsd-filter-toggle" aria-expanded="${filtersOpen}">
             <span class="ptsd-filter-arrow">${arrow}</span>
@@ -336,12 +340,14 @@ export function renderFilterBar(profile, filtersOpen = false) {
                 <div class="ptsd-pill-row">${recencyHtml}</div>
             </div>
 
-            ${hasToggles ? `<div class="ptsd-filter-section">
-                <span class="ptsd-filter-label">Show</span>
-                <div class="ptsd-pill-row">
-                    ${platformHtml}
-                    ${visHtml}
-                </div>
+            ${platformHtml ? `<div class="ptsd-filter-section">
+                <span class="ptsd-filter-label">Platforms</span>
+                <div class="ptsd-pill-row">${platformHtml}</div>
+            </div>` : ''}
+
+            ${visHtml ? `<div class="ptsd-filter-section">
+                <span class="ptsd-filter-label">Visibility</span>
+                <div class="ptsd-pill-row">${visHtml}</div>
             </div>` : ''}
         </div>
     </div>`;

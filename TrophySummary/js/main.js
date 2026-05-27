@@ -160,9 +160,21 @@ function _wireFilterBar() {
         btn.addEventListener('click', () => {
             const plat = btn.dataset.platform;
             const current = _profile.viewState.platformFilter || {};
-            _updateViewState({
-                platformFilter: {...current, [plat]: !current[plat]},
-            });
+            const games = _profile.games || [];
+            const present = ['ps3', 'ps4', 'ps5', 'vita']
+                .filter(p => games.some(g => g.platform.toLowerCase() === p));
+            const currentlyOn = present.filter(p => current[p] !== false);
+
+            // If this is the last active platform, reset all to on
+            if (currentlyOn.length === 1 && currentlyOn[0] === plat) {
+                const reset = {};
+                present.forEach(p => reset[p] = true);
+                _updateViewState({platformFilter: reset});
+            } else {
+                _updateViewState({
+                    platformFilter: {...current, [plat]: !current[plat]},
+                });
+            }
         });
     });
 
