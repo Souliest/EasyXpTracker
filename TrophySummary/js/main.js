@@ -24,6 +24,7 @@ import {subscribeToProfileChanges, unsubscribeFromProfileChanges, REALTIME_ENABL
 
 let _profile = null;       // full profile blob or null
 let _refreshing = false;   // global refresh in progress
+let _filtersOpen = false;  // session-only — not persisted
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ function _doRender() {
 
     content.innerHTML = [
         renderProfileCard(_profile, _refreshing),
-        renderFilterBar(_profile),
+        renderFilterBar(_profile, _filtersOpen),
         renderGameList(_profile),
     ].join('');
 
@@ -100,6 +101,39 @@ function _showRateLimitFeedback() {
 
 function _wireFilterBar() {
     if (!_profile) return;
+
+    // Toggle open/close
+    const toggleBtn = document.getElementById('ptsd-filter-toggle');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            _filtersOpen = !_filtersOpen;
+            const panel = document.getElementById('ptsd-filter-panel');
+            const arrow = toggleBtn.querySelector('.ptsd-filter-arrow');
+            if (panel) panel.classList.toggle('ptsd-filter-panel--open', _filtersOpen);
+            if (arrow) arrow.textContent = _filtersOpen ? '▼' : '▶';
+            toggleBtn.setAttribute('aria-expanded', String(_filtersOpen));
+        });
+    }
+
+    // Stop clicks inside the panel from bubbling to the document close handler
+    const panel = document.getElementById('ptsd-filter-panel');
+    if (panel) {
+        panel.addEventListener('click', e => e.stopPropagation());
+    }
+
+    // Outside click closes the panel
+    const _outsideClick = () => {
+        if (!_filtersOpen) return;
+        _filtersOpen = false;
+        const p = document.getElementById('ptsd-filter-panel');
+        const t = document.getElementById('ptsd-filter-toggle');
+        const a = t && t.querySelector('.ptsd-filter-arrow');
+        if (p) p.classList.remove('ptsd-filter-panel--open');
+        if (a) a.textContent = '▶';
+        if (t) t.setAttribute('aria-expanded', 'false');
+    };
+    document.addEventListener('click', _outsideClick);
 
     // Sort dropdown
     const sortSel = document.getElementById('ptsd-sort-select');
