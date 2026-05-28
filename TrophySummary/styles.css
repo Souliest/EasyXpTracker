@@ -1030,27 +1030,52 @@ body.light .ptsd-pill--include {
   padding-top: 6px;
 }
 
-/* Desktop: name | chips | bar | pct — all on one line */
+/* Desktop: name | chips | bar | pct — all on one line.
+   Bar capped at 120px — decorative, percentage is the precise value. */
 .ptsd-group-row {
   display: grid;
-  grid-template-columns: minmax(80px, 140px) auto 1fr 36px;
+  grid-template-columns: minmax(80px, 1fr) auto max-content 36px;
   grid-template-rows: 1fr;
   align-items: center;
   column-gap: 8px;
-  padding: 5px 0 5px 28px;
+  padding: 5px 0;
   min-width: 0;
 }
 
-/* Mobile: name full width, then chips | bar | pct on second line */
+/* Mobile: name full width, then chips | bar | pct right-aligned on second line */
 @media (max-width: 560px) {
   .ptsd-group-row {
-    grid-template-columns: auto 1fr 36px;
+    grid-template-columns: 1fr auto max-content 36px;
     grid-template-rows: auto auto;
     row-gap: 3px;
   }
 
   .ptsd-group-name {
     grid-column: 1 / -1;
+  }
+
+  /* Second row pushed right */
+  .ptsd-group-chips--mobile {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .ptsd-group-chips--desktop {
+    display: none;
+  }
+
+  .ptsd-group-track {
+    grid-column: 3;
+  }
+
+  .ptsd-group-pct {
+    grid-column: 4;
+  }
+}
+
+@media (min-width: 561px) {
+  .ptsd-group-chips--mobile {
+    display: none;
   }
 }
 
@@ -1063,7 +1088,7 @@ body.light .ptsd-pill--include {
   text-overflow: ellipsis;
 }
 
-/* Chips: four fixed-width cells, always the same total width */
+/* Chips: four fixed-width cells, always the same total width on desktop */
 .ptsd-group-chips {
   display: flex;
   align-items: center;
@@ -1074,8 +1099,8 @@ body.light .ptsd-pill--include {
 .ptsd-group-tier-cell {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  width: 36px;   /* fixed — holds space even when empty */
+  gap: 1px;
+  width: 34px;   /* fixed — holds space even when empty */
   flex-shrink: 0;
 }
 
@@ -1105,13 +1130,15 @@ body.light .ptsd-pill--include {
 
 .ptsd-group-track {
   height: 4px;
+  max-width: 120px;
+  min-width: 40px;
 }
 
 .ptsd-group-loading {
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.72rem;
   color: var(--muted);
-  padding: 8px 0 4px 28px;
+  padding: 8px 0 4px 0;
   border-top: 1px solid var(--border);
   margin-top: 6px;
 }
