@@ -451,7 +451,7 @@ function _renderThumb(thumbnailUrl) {
 // pinnedFiltered — pinned game that doesn't pass the active filters.
 //   Rendered at reduced opacity with a "📌 pinned" label instead of normal chips.
 
-export function renderGameCard(game, pinnedFiltered = false) {
+export function renderGameCard(game, pinnedFiltered = false, expandedIds = new Set()) {
     const rateLimited = isRateLimited(game.npCommId);
     const deltas = computeDeltas(game.tierEarned, game.tierEarnedAtLastGlobalRefresh);
     const hasDeltas = Object.keys(deltas).length > 0;
@@ -465,7 +465,8 @@ export function renderGameCard(game, pinnedFiltered = false) {
     const expandSlot = `<div class="ptsd-card-expand-slot">${
         game.hasTrophyGroups
             ? `<button class="ptsd-card-expand-btn" data-npcommid="${escHtml(game.npCommId)}"
-                   aria-label="Expand trophy groups" aria-expanded="false">▶</button>`
+                   aria-label="${expandedIds.has(game.id) ? 'Collapse' : 'Expand'} trophy groups"
+                   aria-expanded="${expandedIds.has(game.id)}">▶</button>`
             : ''
     }</div>`;
 
@@ -540,18 +541,77 @@ export function renderGameCard(game, pinnedFiltered = false) {
         </div>
     </div>`;
 
-    return `<div class="ptsd-game-card"
+    const expanded = expandedIds.has(game.id);
+    const groupsHtml = expanded ? _renderGroupSection(game) : '';
+
+    return `<div class="ptsd-game-card${expanded ? ' ptsd-game-card--expanded' : ''}"
         data-id="${escHtml(game.id)}" data-npcommid="${escHtml(game.npCommId)}">
         ${topRow}
         ${chipsRow}
         ${deltaRow}
         ${progressRow}
+        ${groupsHtml}
+    </div>`;
+}
+
+// ── _renderGroupSection ───────────────────────────────────────────────────────
+// Renders the group rows beneath an expanded card, or a loading placeholder
+// if groups haven't been fetched yet.
+
+function _renderGroupSection(game) {
+    if (game.groups === null) {
+        return `<div class="ptsd-group-loading">Loading…</div>`;
+    }
+
+    if (game.groups.length === 0) {
+        return '';
+    }
+
+    return `<div class="ptsd-group-list">
+        ${game.groups.map(g => renderGroupRow(g)).join('')}
+    </div>`;
+}
+
+// ── renderGroupRow ────────────────────────────────────────────────────────────
+//
+// [Group Name]  P1  G3  S5  B11    100%  [████████████]
+//
+// Non-sticky, non-clickable. No delta row — current state only.
+// tierTotal may be null if populated before full=true was ever called
+// (shouldn't happen in practice — groups are always fetched with full=true).
+
+export function renderGroupRow(group) {
+    const pct = group.pct ?? 0;
+    const tiers = ['platinum', 'gold', 'silver', 'bronze'];
+
+    const chipsHtml = tiers.map(tier => {
+        const earned = group.tierEarned?.[tier] || 0;
+        const total  = group.tierTotal?.[tier]  || 0;
+        if (total === 0) return '';
+        const color = TIER_COLORS[tier];
+        return `<span class="ptsd-tier-chip">
+            ${_trophyIcon(tier, 14)}
+            <span class="ptsd-tier-count" style="color:${color}">${earned}</span>
+        </span>`;
+    }).filter(Boolean).join('');
+
+    const name = group.name || group.groupId;
+
+    return `<div class="ptsd-group-row">
+        <span class="ptsd-group-name">${escHtml(name)}</span>
+        <div class="ptsd-group-chips">${chipsHtml}</div>
+        <span class="ptsd-group-pct">${pct}%</span>
+        <div class="ptsd-group-track th-progress-track" role="progressbar"
+            aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
+            aria-label="${escHtml(name)} ${pct}% complete">
+            <div class="th-progress-fill" style="width:${pct}%"></div>
+        </div>
     </div>`;
 }
 
 // ── renderGameList ────────────────────────────────────────────────────────────
 
-export function renderGameList(profile) {
+export function renderGameList(profile, expandedIds = new Set()) {
     const vs = profile.viewState || {};
     const filterState = vs.filterState || {};
     const allGames = profile.games || [];
@@ -574,9 +634,9 @@ export function renderGameList(profile) {
     const visible        = unpinned.filter(g => _passesFilter(g, filterState));
 
     const cards = [
-        ..._sortGames(pinnedPassing,  sort).map(g => renderGameCard(g, false)),
-        ..._sortGames(pinnedFiltered, sort).map(g => renderGameCard(g, true)),
-        ..._sortGames(visible,        sort).map(g => renderGameCard(g, false)),
+        ..._sortGames(pinnedPassing,  sort).map(g => renderGameCard(g, false, expandedIds)),
+        ..._sortGames(pinnedFiltered, sort).map(g => renderGameCard(g, true,  expandedIds)),
+        ..._sortGames(visible,        sort).map(g => renderGameCard(g, false, expandedIds)),
     ];
 
     return `<div class="ptsd-game-list" id="ptsd-game-list">
