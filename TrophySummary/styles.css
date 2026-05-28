@@ -1044,7 +1044,7 @@ body.light .ptsd-pill--include {
 /* Mobile: name full width on first row, chips | bar | pct right-aligned on second. */
 @media (max-width: 560px) {
   .ptsd-group-row {
-    grid-template-columns: 1fr auto 80px 36px;
+    grid-template-columns: 1fr auto minmax(30px, 50px) 36px;
     grid-template-rows: auto auto;
     row-gap: 3px;
   }
@@ -1054,7 +1054,7 @@ body.light .ptsd-pill--include {
   }
 
   /* Empty cells hidden on mobile — no cross-row alignment benefit on two lines */
-  .ptsd-group-tier-cell--empty {
+  .ptsd-group-chips .ptsd-group-tier-cell--empty {
     display: none;
   }
 }
