@@ -466,7 +466,7 @@ export function renderGameCard(game, pinnedFiltered = false, expandedIds = new S
         game.hasTrophyGroups
             ? `<button class="ptsd-card-expand-btn" data-npcommid="${escHtml(game.npCommId)}"
                    aria-label="${expandedIds.has(game.id) ? 'Collapse' : 'Expand'} trophy groups"
-                   aria-expanded="${expandedIds.has(game.id)}">▶</button>`
+                   aria-expanded="${expandedIds.has(game.id)}">${expandedIds.has(game.id) ? '▼' : '▶'}</button>`
             : ''
     }</div>`;
 
@@ -589,9 +589,9 @@ export function renderGroupRow(group) {
         const total  = group.tierTotal?.[tier]  || 0;
         if (total === 0) return '';
         const color = TIER_COLORS[tier];
-        return `<span class="ptsd-tier-chip">
+        return `<span class="ptsd-tier-chip${earned === 0 ? ' ptsd-tier-chip--unearned' : ''}">
             ${_trophyIcon(tier, 14)}
-            <span class="ptsd-tier-count" style="color:${color}">${earned}</span>
+            <span class="ptsd-tier-count" style="color:${earned > 0 ? color : ''}">${earned}</span>
         </span>`;
     }).filter(Boolean).join('');
 
