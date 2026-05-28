@@ -72,13 +72,24 @@
    position: sticky so it pins above the filter bar and game cards.
 ══════════════════════════════════════ */
 
-.ptsd-profile-card {
+/* Sticky wrapper — holds profile card + filter bar together */
+.ptsd-sticky-header {
   position: sticky;
-  top: 0;
+  top: 6px;
   z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 12px;
+}
+
+.ptsd-profile-card {
   background: #111520;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
-  margin-bottom: 10px;
+  margin-bottom: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none;
 }
 
 body.light .ptsd-profile-card {
@@ -303,13 +314,49 @@ body.light .ptsd-profile-card {
    Filter wrapper, toggle row, floating panel
 ══════════════════════════════════════ */
 
-/* Wrapper: position:relative anchors the floating panel */
+/* Wrapper: position:relative anchors the floating panel.
+   Inside the sticky header — no bottom margin, flush with profile card. */
 .ptsd-filter-wrapper {
   position: relative;
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
-/* Toggle row — single line, normal flow */
+/* Game count readout — right side of toggle row */
+.ptsd-filter-count {
+  margin-left: auto;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.ptsd-filter-count--filtered {
+  color: var(--accent);
+}
+
+/* Clear filters button — only visible when filters are active */
+.ptsd-filter-clear {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--accent2);
+  background: none;
+  border: 1px solid var(--accent2);
+  border-radius: 10px;
+  padding: 1px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.ptsd-filter-clear:hover {
+  background: rgba(255, 107, 53, 0.08);
+}
+
+/* Toggle row — single line, normal flow.
+   Top corners squared off to sit flush against the profile card. */
 .ptsd-filter-toggle {
   display: flex;
   align-items: center;
@@ -317,7 +364,7 @@ body.light .ptsd-profile-card {
   width: 100%;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0 0 8px 8px;
   padding: 8px 12px;
   cursor: pointer;
   font-family: 'Share Tech Mono', monospace;
@@ -433,7 +480,7 @@ body.light .ptsd-filter-panel {
   gap: 5px;
 }
 
-/* Pill base */
+/* Pill base — three states: neutral, include (green), exclude (red) */
 .ptsd-pill {
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.75rem;
@@ -449,18 +496,26 @@ body.light .ptsd-filter-panel {
 }
 
 .ptsd-pill:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--muted);
+  color: var(--text);
 }
 
-.ptsd-pill--active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: rgba(0, 229, 255, 0.08);
+/* Include state — green/accent */
+.ptsd-pill--include {
+  border-color: var(--accent3);
+  color: var(--accent3);
+  background: rgba(127, 255, 107, 0.08);
 }
 
-body.light .ptsd-pill--active {
-  background: rgba(0, 119, 170, 0.08);
+body.light .ptsd-pill--include {
+  background: rgba(42, 138, 0, 0.08);
+}
+
+/* Exclude state — red */
+.ptsd-pill--exclude {
+  border-color: #ff4444;
+  color: #ff4444;
+  background: rgba(255, 68, 68, 0.08);
 }
 
 .ptsd-pill--platform {
@@ -627,7 +682,16 @@ body.light .ptsd-pill--active {
   letter-spacing: 0.06em;
 }
 
-/* ── Expand affordance (hasTrophyGroups) ── */
+/* ── Expand affordance — reserved space on every card ──
+   Visible (▶/▼) only on hasTrophyGroups cards, invisible spacer otherwise. */
+.ptsd-card-expand-slot {
+  width: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .ptsd-card-expand-btn {
   background: none;
   border: none;
@@ -635,9 +699,11 @@ body.light .ptsd-pill--active {
   font-size: 0.65rem;
   padding: 0;
   cursor: pointer;
-  flex-shrink: 0;
   width: 14px;
-  text-align: center;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   transition: color 0.15s;
 }
 
@@ -651,15 +717,6 @@ body.light .ptsd-pill--active {
   align-items: center;
   justify-content: center;
   font-size: 1.1rem;
-}
-
-/* ── Filtered games count note ── */
-.ptsd-filtered-note {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 0.72rem;
-  color: var(--muted);
-  text-align: center;
-  padding: 8px 0 4px;
 }
 
 /* ── Rate limit flash message on card ── */
