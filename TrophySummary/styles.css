@@ -368,21 +368,13 @@ body.light .ptsd-profile-card {
   background: rgba(255, 107, 53, 0.08);
 }
 
-/* Toggle row wrapper — holds toggle button + inline Clear pill as siblings */
-.ptsd-filter-toggle-row {
-  display: flex;
-  align-items: stretch;
-  gap: 6px;
-}
-
 /* Toggle button — single line, normal flow.
    Top corners squared off to sit flush against the profile card. */
 .ptsd-filter-toggle {
   display: flex;
   align-items: center;
   gap: 7px;
-  flex: 1;
-  min-width: 0;
+  width: 100%;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 0 0 8px 8px;
