@@ -22,6 +22,42 @@ const TIER_COLORS = {
     bronze: '#c4713a',
 };
 
+// ── Filter registry ───────────────────────────────────────────────────────────
+// Each entry owns its own test lambda. _passesFilter drives everything from here.
+// singleSelect: true means cycling one active pill in the group clears siblings.
+
+function _withinDays(game, days) {
+    if (!game.lastTrophyEarned) return false;
+    return (Date.now() - new Date(game.lastTrophyEarned).getTime()) <= days * 86400000;
+}
+
+export const FILTER_REGISTRY = {
+    // Visibility
+    noTrophies:    { label: 'No Trophies', test: g => g.pct === 0 },
+    platinums:     { label: 'Platinums',   test: g => (g.tierEarned?.platinum || 0) > 0 },
+    completed:     { label: 'Completed',   test: g => g.pct === 100 },
+    hasDlc:        { label: 'Has DLC',     test: g => g.hasTrophyGroups },
+
+    // Platforms
+    ps5:           { label: 'PS5',  test: g => g.platform === 'PS5' },
+    ps4:           { label: 'PS4',  test: g => g.platform === 'PS4' },
+    ps3:           { label: 'PS3',  test: g => g.platform === 'PS3' },
+    vita:          { label: 'Vita', test: g => g.platform === 'Vita' },
+
+    // Completion — single-select group
+    pct25:  { label: '25%+',  group: 'completion', singleSelect: true, test: g => g.pct >= 25 },
+    pct50:  { label: '50%+',  group: 'completion', singleSelect: true, test: g => g.pct >= 50 },
+    pct75:  { label: '75%+',  group: 'completion', singleSelect: true, test: g => g.pct >= 75 },
+    pct90:  { label: '90%+',  group: 'completion', singleSelect: true, test: g => g.pct >= 90 },
+    pct100: { label: '100%',  group: 'completion', singleSelect: true, test: g => g.pct === 100 },
+
+    // Recency — single-select group
+    today:    { label: 'Today',    group: 'recency', singleSelect: true, test: g => _withinDays(g, 1) },
+    month:    { label: 'Month',    group: 'recency', singleSelect: true, test: g => _withinDays(g, 30) },
+    months3:  { label: '3 Months', group: 'recency', singleSelect: true, test: g => _withinDays(g, 90) },
+    year:     { label: 'Year',     group: 'recency', singleSelect: true, test: g => _withinDays(g, 365) },
+};
+
 function _trophyIcon(tier, size = 16) {
     const color = TIER_COLORS[tier] || TIER_COLORS.bronze;
     if (tier === 'platinum') {
@@ -187,7 +223,7 @@ export function renderProfileCard(profile, refreshing = false) {
 
 export function getActiveFilterSummary(profile) {
     const vs = profile.viewState || {};
-    const games = profile.games || [];
+    const filterState = vs.filterState || {};
     const labels = [];
 
     // Sort — only show if non-default
@@ -200,34 +236,13 @@ export function getActiveFilterSummary(profile) {
     };
     if (vs.sort && vs.sort !== 'recent') labels.push(sortLabels[vs.sort] || vs.sort);
 
-    // Completion floor
-    if (vs.minCompletion && vs.minCompletion !== 'any') {
-        labels.push(vs.minCompletion === '100' ? '100%' : `>${vs.minCompletion}%`);
+    // Active filters — include gets plain label, exclude gets 'not·label'
+    for (const [key, state] of Object.entries(filterState)) {
+        if (!state) continue;
+        const def = FILTER_REGISTRY[key];
+        if (!def) continue;
+        labels.push(state === 'exclude' ? `not·${def.label}` : def.label);
     }
-
-    // Recency
-    const recencyLabels = {year: 'This year', '3months': '3 months', month: 'Last month'};
-    if (vs.recency && vs.recency !== 'all') labels.push(recencyLabels[vs.recency] || vs.recency);
-
-    // Platforms turned OFF
-    const presentPlatforms = new Set(games.map(g => g.platform.toLowerCase()));
-    const platformFilter = vs.platformFilter || {};
-    const activePlatforms = ['ps3', 'ps4', 'ps5', 'vita']
-        .filter(p => presentPlatforms.has(p) && platformFilter[p] !== false)
-        .map(p => p === 'vita' ? 'Vita' : p.toUpperCase());
-    const allOn = ['ps3', 'ps4', 'ps5', 'vita']
-        .filter(p => presentPlatforms.has(p)).length === activePlatforms.length;
-    if (!allOn) {
-        const label = activePlatforms.length === 1
-            ? `${activePlatforms[0]} only`
-            : activePlatforms.join('/');
-        labels.push(label);
-    }
-
-    // Visibility toggles turned OFF
-    if (vs.showNoTrophies === false && games.some(g => g.pct === 0)) labels.push('No 0%');
-    if (vs.showPlatinum === false && games.some(g => (g.tierEarned?.platinum || 0) > 0)) labels.push('No Plat');
-    if (vs.showPct100 === false && games.some(g => g.pct === 100 && !g.tierEarned?.platinum)) labels.push('No 100%');
 
     return labels;
 }
@@ -240,7 +255,20 @@ export function getActiveFilterSummary(profile) {
 export function renderFilterBar(profile, filtersOpen = false) {
     const vs = profile.viewState || {};
     const games = profile.games || [];
+    const filterState = vs.filterState || {};
     const activeLabels = getActiveFilterSummary(profile);
+    const hasActiveFilters = Object.values(filterState).some(v => v !== null);
+
+    // ── Game count readout ──
+    const total = games.filter(g => !g.hiddenOnPs).length;
+    const visible = games.filter(g => !g.hiddenOnPs && _passesFilter(g, filterState)).length;
+    const countHtml = hasActiveFilters
+        ? `<span class="ptsd-filter-count ptsd-filter-count--filtered">${visible} / ${total}</span>`
+        : `<span class="ptsd-filter-count">${total} games</span>`;
+
+    const clearHtml = hasActiveFilters
+        ? `<button class="ptsd-filter-clear" id="ptsd-filter-clear">Clear</button>`
+        : '';
 
     const summaryHtml = activeLabels.length > 0
         ? activeLabels.map(l => `<span class="ptsd-filter-summary-pill">${escHtml(l)}</span>`).join('')
@@ -250,10 +278,10 @@ export function renderFilterBar(profile, filtersOpen = false) {
 
     // ── Sort dropdown ──
     const sortOptions = [
-        {value: 'recent', label: 'Recent activity'},
-        {value: 'pct_asc', label: 'Completion % ↑'},
+        {value: 'recent',   label: 'Recent activity'},
+        {value: 'pct_asc',  label: 'Completion % ↑'},
         {value: 'pct_desc', label: 'Completion % ↓'},
-        {value: 'alpha', label: 'A–Z'},
+        {value: 'alpha',    label: 'A–Z'},
         {value: 'platform', label: 'Platform'},
         {value: 'platinum', label: 'Platinum first'},
     ];
@@ -262,65 +290,49 @@ export function renderFilterBar(profile, filtersOpen = false) {
         `<option value="${o.value}"${currentSort === o.value ? ' selected' : ''}>${o.label}</option>`
     ).join('');
 
-    // ── Completion floor pills ──
-    const floorOptions = [
-        {value: 'any', label: 'Any'},
-        {value: '25', label: '>25%'},
-        {value: '50', label: '>50%'},
-        {value: '75', label: '>75%'},
-        {value: '90', label: '>90%'},
-        {value: '100', label: '100%'},
-    ];
-    const floorHtml = floorOptions.map(o => {
-        const active = (vs.minCompletion || 'any') === o.value;
-        return `<button class="ptsd-pill${active ? ' ptsd-pill--active' : ''}" data-min-completion="${o.value}">${o.label}</button>`;
-    }).join('');
+    // ── Pill helper ──
+    function _pill(key, extraClass = '') {
+        const def = FILTER_REGISTRY[key];
+        if (!def) return '';
+        const state = filterState[key] || null;
+        const stateClass = state === 'include' ? ' ptsd-pill--include'
+            : state === 'exclude' ? ' ptsd-pill--exclude'
+                : '';
+        return `<button class="ptsd-pill${stateClass}${extraClass ? ' ' + extraClass : ''}"
+            data-filter="${key}">${escHtml(def.label)}</button>`;
+    }
 
-    // ── Recency pills ──
-    const recencyOptions = [
-        {value: 'all', label: 'All time'},
-        {value: 'year', label: 'This year'},
-        {value: '3months', label: 'Last 3 months'},
-        {value: 'month', label: 'Last month'},
-    ];
-    const recencyHtml = recencyOptions.map(o => {
-        const active = (vs.recency || 'all') === o.value;
-        return `<button class="ptsd-pill${active ? ' ptsd-pill--active' : ''}" data-recency="${o.value}">${o.label}</button>`;
-    }).join('');
-
-    // ── Platform chips — data-driven ──
-    const platforms = ['ps3', 'ps4', 'ps5', 'vita'];
+    // ── Platform section — data-driven ──
     const presentPlatforms = new Set(games.map(g => g.platform.toLowerCase()));
-    const platformFilter = vs.platformFilter || {};
-
-    const platformHtml = platforms
+    const platformHtml = ['ps5', 'ps4', 'ps3', 'vita']
         .filter(p => presentPlatforms.has(p))
-        .map(p => {
-            const on = platformFilter[p] !== false;
-            const label = p === 'vita' ? 'Vita' : p.toUpperCase();
-            return `<button class="ptsd-pill ptsd-pill--platform${on ? ' ptsd-pill--active' : ''}"
-                data-platform="${p}">${label}</button>`;
-        }).join('');
+        .map(p => _pill(p, 'ptsd-pill--platform'))
+        .join('');
 
-    // ── Visibility toggles — data-driven ──
-    const hasNoTrophies = games.some(g => g.pct === 0);
-    const hasPlatinum = games.some(g => (g.tierEarned?.platinum || 0) > 0);
-    const hasPct100 = games.some(g => g.pct === 100 && !(g.tierEarned?.platinum));
+    // ── Visibility section — data-driven ──
+    const visKeys = [
+        games.some(g => g.pct === 0)                              ? 'noTrophies' : null,
+        games.some(g => (g.tierEarned?.platinum || 0) > 0)        ? 'platinums'  : null,
+        games.some(g => g.pct === 100)                             ? 'completed'  : null,
+        games.some(g => g.hasTrophyGroups)                         ? 'hasDlc'     : null,
+    ].filter(Boolean);
+    const visHtml = visKeys.map(k => _pill(k)).join('');
 
-    const visHtml = [
-        hasNoTrophies ? `<button class="ptsd-pill${vs.showNoTrophies !== false ? ' ptsd-pill--active' : ''}"
-            id="ptsd-toggle-no-trophies">No Trophies</button>` : '',
-        hasPlatinum ? `<button class="ptsd-pill${vs.showPlatinum !== false ? ' ptsd-pill--active' : ''}"
-            id="ptsd-toggle-platinum">Platinums</button>` : '',
-        hasPct100 ? `<button class="ptsd-pill${vs.showPct100 !== false ? ' ptsd-pill--active' : ''}"
-            id="ptsd-toggle-pct100">100%</button>` : '',
-    ].join('');
+    // ── Completion section ──
+    const completionHtml = ['pct25', 'pct50', 'pct75', 'pct90', 'pct100']
+        .map(k => _pill(k)).join('');
+
+    // ── Recency section ──
+    const recencyHtml = ['today', 'month', 'months3', 'year']
+        .map(k => _pill(k)).join('');
 
     return `<div class="ptsd-filter-wrapper" id="ptsd-filter-wrapper">
         <button class="ptsd-filter-toggle" id="ptsd-filter-toggle" aria-expanded="${filtersOpen}">
             <span class="ptsd-filter-arrow">${arrow}</span>
             <span class="ptsd-filter-toggle-label">Filters</span>
             ${summaryHtml}
+            ${countHtml}
+            ${clearHtml}
         </button>
 
         <div class="ptsd-filter-panel${filtersOpen ? ' ptsd-filter-panel--open' : ''}" id="ptsd-filter-panel">
@@ -330,53 +342,40 @@ export function renderFilterBar(profile, filtersOpen = false) {
                 </select>
             </div>
 
+            ${visHtml ? `<div class="ptsd-filter-section">
+                <span class="ptsd-filter-label">Visibility</span>
+                <div class="ptsd-pill-row">${visHtml}</div>
+            </div>` : ''}
+
+            <div class="ptsd-filter-section">
+                <span class="ptsd-filter-label">Platforms</span>
+                <div class="ptsd-pill-row">${platformHtml}</div>
+            </div>
+
             <div class="ptsd-filter-section">
                 <span class="ptsd-filter-label">Completion</span>
-                <div class="ptsd-pill-row">${floorHtml}</div>
+                <div class="ptsd-pill-row">${completionHtml}</div>
             </div>
 
             <div class="ptsd-filter-section">
                 <span class="ptsd-filter-label">Activity</span>
                 <div class="ptsd-pill-row">${recencyHtml}</div>
             </div>
-
-            ${platformHtml ? `<div class="ptsd-filter-section">
-                <span class="ptsd-filter-label">Platforms</span>
-                <div class="ptsd-pill-row">${platformHtml}</div>
-            </div>` : ''}
-
-            ${visHtml ? `<div class="ptsd-filter-section">
-                <span class="ptsd-filter-label">Visibility</span>
-                <div class="ptsd-pill-row">${visHtml}</div>
-            </div>` : ''}
         </div>
     </div>`;
 }
 
 // ── Filtering and sorting ─────────────────────────────────────────────────────
 
-function _passesFilter(game, vs) {
-    const pf = vs.platformFilter || {};
-    const plat = game.platform.toLowerCase();
-
-    if (pf[plat] === false) return false;
-    if (vs.showNoTrophies === false && game.pct === 0) return false;
-    if (vs.showPlatinum === false && (game.tierEarned?.platinum || 0) > 0) return false;
-    if (vs.showPct100 === false && game.pct === 100 && !(game.tierEarned?.platinum)) return false;
-
-    if (vs.minCompletion && vs.minCompletion !== 'any') {
-        if (game.pct < Number(vs.minCompletion)) return false;
+function _passesFilter(game, filterState) {
+    for (const [key, state] of Object.entries(filterState)) {
+        if (!state) continue;
+        const def = FILTER_REGISTRY[key];
+        if (!def) continue;
+        const matches = def.test(game);
+        if (state === 'include' && !matches) return false;
+        if (state === 'exclude' && matches) return false;
     }
-
-    if (vs.recency && vs.recency !== 'all') {
-        if (!game.lastTrophyEarned) return false;
-        const now = Date.now();
-        const ts = new Date(game.lastTrophyEarned).getTime();
-        const windows = {year: 365, '3months': 90, month: 30};
-        const days = windows[vs.recency];
-        if (days && (now - ts) > days * 86400000) return false;
-    }
-
     return true;
 }
 
@@ -461,10 +460,12 @@ export function renderGameCard(game, pinnedFiltered = false) {
         ? `<span class="ptsd-card-pin" aria-label="Pinned">📌</span>`
         : '';
 
-    const expandHtml = game.hasTrophyGroups
-        ? `<button class="ptsd-card-expand-btn" data-npcommid="${escHtml(game.npCommId)}"
-               aria-label="Expand trophy groups" aria-expanded="false">▶</button>`
-        : '';
+    const expandSlot = `<div class="ptsd-card-expand-slot">${
+        game.hasTrophyGroups
+            ? `<button class="ptsd-card-expand-btn" data-npcommid="${escHtml(game.npCommId)}"
+                   aria-label="Expand trophy groups" aria-expanded="false">▶</button>`
+            : ''
+    }</div>`;
 
     const refreshDisabled = rateLimited;
     const refreshHtml = `<button
@@ -476,10 +477,10 @@ export function renderGameCard(game, pinnedFiltered = false) {
     >⟳</button>`;
 
     const topRow = `<div class="ptsd-card-top-row">
+        ${expandSlot}
         ${pinHtml}
         ${_renderThumb(game.thumbnailUrl)}
         <span class="ptsd-card-name">${escHtml(game.name)}</span>
-        ${expandHtml}
         <span class="th-platform-badge">${escHtml(game.platform)}</span>
         ${refreshHtml}
     </div>`;
@@ -550,6 +551,7 @@ export function renderGameCard(game, pinnedFiltered = false) {
 
 export function renderGameList(profile) {
     const vs = profile.viewState || {};
+    const filterState = vs.filterState || {};
     const allGames = profile.games || [];
 
     if (allGames.length === 0) {
@@ -559,38 +561,24 @@ export function renderGameList(profile) {
         </div>`;
     }
 
+    const sort = vs.sort || 'recent';
+
     // Pinned games always float above, bypassing all filters.
     const pinned = allGames.filter(g => g.pinned);
     const unpinned = allGames.filter(g => !g.pinned);
 
-    // Split unpinned into passing and filtered-out.
-    const visible = unpinned.filter(g => _passesFilter(g, vs));
-    const hidden = unpinned.filter(g => !_passesFilter(g, vs));
-
-    // Sort visible games. Pinned games sorted among themselves by the same key.
-    const sort = vs.sort || 'recent';
-    const sortedPinned = _sortGames(pinned, sort);
-    const sortedVisible = _sortGames(visible, sort);
-
-    // Pinned games that don't pass the active filters render at reduced opacity.
-    const pinnedFiltered = pinned.filter(g => !_passesFilter(g, vs));
-    const pinnedPassing = pinned.filter(g => _passesFilter(g, vs));
+    const pinnedPassing  = pinned.filter(g =>  _passesFilter(g, filterState));
+    const pinnedFiltered = pinned.filter(g => !_passesFilter(g, filterState));
+    const visible        = unpinned.filter(g => _passesFilter(g, filterState));
 
     const cards = [
-        ..._sortGames(pinnedPassing, sort).map(g => renderGameCard(g, false)),
+        ..._sortGames(pinnedPassing,  sort).map(g => renderGameCard(g, false)),
         ..._sortGames(pinnedFiltered, sort).map(g => renderGameCard(g, true)),
-        ...sortedVisible.map(g => renderGameCard(g, false)),
+        ..._sortGames(visible,        sort).map(g => renderGameCard(g, false)),
     ];
-
-    const hiddenNote = hidden.length > 0
-        ? `<div class="ptsd-filtered-note" aria-live="polite">
-               ${hidden.length} game${hidden.length !== 1 ? 's' : ''} hidden by filters
-           </div>`
-        : '';
 
     return `<div class="ptsd-game-list" id="ptsd-game-list">
         ${cards.join('')}
-        ${hiddenNote}
     </div>`;
 }
 

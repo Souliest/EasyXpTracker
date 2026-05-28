@@ -13,7 +13,7 @@ import {
     setRateLimit,
 } from './storage.js';
 import {workerFetchProfile} from './psn.js';
-import {renderProfileCard, renderFilterBar, renderGameList, renderEmptyState} from './render.js';
+import {renderProfileCard, renderFilterBar, renderGameList, renderEmptyState, FILTER_REGISTRY} from './render.js';
 import {openSettingsModal, openMissingGamePrompt} from './modal.js';
 import {attachLongPress} from '../../common/utils.js';
 import {initAuth} from '../../common/auth-ui.js';
@@ -39,8 +39,10 @@ function _doRender() {
     }
 
     content.innerHTML = [
+        `<div class="ptsd-sticky-header">`,
         renderProfileCard(_profile, _refreshing),
         renderFilterBar(_profile, _filtersOpen),
+        `</div>`,
         renderGameList(_profile),
     ].join('');
 
@@ -142,64 +144,40 @@ function _wireFilterBar() {
         sortSel.addEventListener('change', () => _updateViewState({sort: sortSel.value}));
     }
 
-    // Completion floor pills
-    document.querySelectorAll('[data-min-completion]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            _updateViewState({minCompletion: btn.dataset.minCompletion});
-        });
+    // Filter pills — all use data-filter attribute, single handler
+    document.querySelectorAll('[data-filter]').forEach(btn => {
+        btn.addEventListener('click', () => _cycleFilter(btn.dataset.filter));
     });
 
-    // Recency pills
-    document.querySelectorAll('[data-recency]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            _updateViewState({recency: btn.dataset.recency});
-        });
-    });
-
-    // Platform toggles
-    document.querySelectorAll('[data-platform]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const plat = btn.dataset.platform;
-            const current = _profile.viewState.platformFilter || {};
-            const games = _profile.games || [];
-            const present = ['ps3', 'ps4', 'ps5', 'vita']
-                .filter(p => games.some(g => g.platform.toLowerCase() === p));
-            const currentlyOn = present.filter(p => current[p] !== false);
-
-            // If this is the last active platform, reset all to on
-            if (currentlyOn.length === 1 && currentlyOn[0] === plat) {
-                const reset = {};
-                present.forEach(p => reset[p] = true);
-                _updateViewState({platformFilter: reset});
-            } else {
-                _updateViewState({
-                    platformFilter: {...current, [plat]: !current[plat]},
-                });
-            }
-        });
-    });
-
-    // Visibility toggles
-    const noTrophiesBtn = document.getElementById('ptsd-toggle-no-trophies');
-    if (noTrophiesBtn) {
-        noTrophiesBtn.addEventListener('click', () => {
-            _updateViewState({showNoTrophies: !_profile.viewState.showNoTrophies});
+    // Clear filters
+    const clearBtn = document.getElementById('ptsd-filter-clear');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            _updateViewState({filterState: {}});
         });
     }
+}
 
-    const platinumBtn = document.getElementById('ptsd-toggle-platinum');
-    if (platinumBtn) {
-        platinumBtn.addEventListener('click', () => {
-            _updateViewState({showPlatinum: !_profile.viewState.showPlatinum});
-        });
+// Cycles a filter key through null → 'include' → 'exclude' → null.
+// Single-select filters clear their group siblings when becoming non-null.
+function _cycleFilter(key) {
+    if (!_profile) return;
+    const filterState = _profile.viewState.filterState || {};
+    const current = filterState[key] ?? null;
+    const next = current === null ? 'include' : current === 'include' ? 'exclude' : null;
+
+    const patch = {...filterState, [key]: next};
+
+    // Single-select: clear siblings in the same group when becoming non-null
+    const def = FILTER_REGISTRY[key];
+    if (def && def.singleSelect && next !== null) {
+        for (const [k, d] of Object.entries(FILTER_REGISTRY)) {
+            if (k !== key && d.group === def.group) patch[k] = null;
+        }
     }
 
-    const pct100Btn = document.getElementById('ptsd-toggle-pct100');
-    if (pct100Btn) {
-        pct100Btn.addEventListener('click', () => {
-            _updateViewState({showPct100: !_profile.viewState.showPct100});
-        });
-    }
+    _updateViewState({filterState: patch});
 }
 
 function _updateViewState(patch) {
@@ -392,12 +370,7 @@ async function _applyGlobalRefresh(result) {
 function _defaultViewState() {
     return {
         sort: 'recent',
-        minCompletion: 'any',
-        recency: 'all',
-        showNoTrophies: true,
-        showPlatinum: true,
-        showPct100: true,
-        platformFilter: {},
+        filterState: {},
     };
 }
 
@@ -505,6 +478,17 @@ window.openPTSDSettings = () => _openSettings();
     await initAuth();
 
     _profile = await loadData();
+
+    // TODO: remove after next deploy — wipes pre-filterState viewState shapes
+    // so existing profiles pick up the new model cleanly.
+    if (_profile && _profile.viewState && (
+        'showNoTrophies' in _profile.viewState ||
+        'platformFilter' in _profile.viewState ||
+        'minCompletion'  in _profile.viewState
+    )) {
+        _profile.viewState = _defaultViewState();
+        saveData(_profile);
+    }
 
     if (!_profile || !_profile.psUsername) {
         _promptFirstRun();
