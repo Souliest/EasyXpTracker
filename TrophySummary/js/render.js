@@ -327,15 +327,17 @@ export function renderFilterBar(profile, filtersOpen = false) {
         .map(k => _pill(k)).join('');
 
     return `<div class="ptsd-filter-wrapper" id="ptsd-filter-wrapper">
-        <button class="ptsd-filter-toggle" id="ptsd-filter-toggle" aria-expanded="${filtersOpen}">
-            <span class="ptsd-filter-arrow">${arrow}</span>
-            <span class="ptsd-filter-toggle-label">Filters</span>
-            ${summaryHtml}
-            ${countHtml}
-        </button>
+        <div class="ptsd-filter-toggle-row">
+            <button class="ptsd-filter-toggle" id="ptsd-filter-toggle" aria-expanded="${filtersOpen}">
+                <span class="ptsd-filter-arrow">${arrow}</span>
+                <span class="ptsd-filter-toggle-label">Filters</span>
+                ${summaryHtml}
+                ${countHtml}
+            </button>
+            ${hasActiveFilters ? `<button class="ptsd-pill ptsd-pill--clear" id="ptsd-filter-clear-inline">✕ Clear</button>` : ''}
+        </div>
 
         <div class="ptsd-filter-panel${filtersOpen ? ' ptsd-filter-panel--open' : ''}" id="ptsd-filter-panel">
-            ${clearHtml}
             <div class="ptsd-filter-row--sort">
                 <select class="ptsd-sort-select" id="ptsd-sort-select" aria-label="Sort games">
                     ${sortHtml}
@@ -361,6 +363,8 @@ export function renderFilterBar(profile, filtersOpen = false) {
                 <span class="ptsd-filter-label">Activity</span>
                 <div class="ptsd-pill-row">${recencyHtml}</div>
             </div>
+            
+            ${clearHtml}
         </div>
     </div>`;
 }
