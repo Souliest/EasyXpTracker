@@ -1034,18 +1034,17 @@ body.light .ptsd-pill--include {
    Bar capped at 120px — decorative, percentage is the precise value. */
 .ptsd-group-row {
   display: grid;
-  grid-template-columns: minmax(80px, 1fr) auto max-content 36px;
-  grid-template-rows: 1fr;
+  grid-template-columns: minmax(80px, 1fr) auto 120px 36px;
   align-items: center;
   column-gap: 8px;
   padding: 5px 0;
   min-width: 0;
 }
 
-/* Mobile: name full width, then chips | bar | pct right-aligned on second line */
+/* Mobile: name full width on first row, chips | bar | pct right-aligned on second. */
 @media (max-width: 560px) {
   .ptsd-group-row {
-    grid-template-columns: 1fr auto max-content 36px;
+    grid-template-columns: 1fr auto 80px 36px;
     grid-template-rows: auto auto;
     row-gap: 3px;
   }
@@ -1054,27 +1053,8 @@ body.light .ptsd-pill--include {
     grid-column: 1 / -1;
   }
 
-  /* Second row pushed right */
-  .ptsd-group-chips--mobile {
-    grid-column: 2;
-    justify-self: end;
-  }
-
-  .ptsd-group-chips--desktop {
-    display: none;
-  }
-
-  .ptsd-group-track {
-    grid-column: 3;
-  }
-
-  .ptsd-group-pct {
-    grid-column: 4;
-  }
-}
-
-@media (min-width: 561px) {
-  .ptsd-group-chips--mobile {
+  /* Empty cells hidden on mobile — no cross-row alignment benefit on two lines */
+  .ptsd-group-tier-cell--empty {
     display: none;
   }
 }
@@ -1105,7 +1085,7 @@ body.light .ptsd-pill--include {
 }
 
 .ptsd-group-tier-cell--empty {
-  /* reserved space only */
+  /* reserved space only — hidden on mobile via media query above */
 }
 
 .ptsd-group-tier-cell--unearned {
@@ -1130,7 +1110,6 @@ body.light .ptsd-pill--include {
 
 .ptsd-group-track {
   height: 4px;
-  max-width: 120px;
   min-width: 40px;
 }
 

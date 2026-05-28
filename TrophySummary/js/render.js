@@ -589,9 +589,9 @@ export function renderGroupRow(group) {
     const pct = group.pct ?? 0;
     const tiers = ['platinum', 'gold', 'silver', 'bronze'];
 
-    // Desktop: fixed-width cells for all four tiers — empty cell holds space
-    // when no trophy of that type exists, keeping columns aligned across rows.
-    const desktopChipsHtml = tiers.map(tier => {
+    // Fixed-width cells for all four tiers — empty cell holds space on desktop
+    // for column alignment. On mobile, empty cells are hidden via CSS.
+    const chipsHtml = tiers.map(tier => {
         const earned = group.tierEarned?.[tier] || 0;
         const total  = group.tierTotal?.[tier]  || 0;
         const color  = TIER_COLORS[tier];
@@ -607,36 +607,17 @@ export function renderGroupRow(group) {
         </span>`;
     }).join('');
 
-    // Mobile: skip absent tiers entirely — no alignment benefit on two lines,
-    // and blank cells look broken in the condensed layout.
-    const mobileChipsHtml = tiers.map(tier => {
-        const earned = group.tierEarned?.[tier] || 0;
-        const total  = group.tierTotal?.[tier]  || 0;
-        const color  = TIER_COLORS[tier];
-
-        if (total === 0) return '';
-
-        const unearned = earned === 0;
-        return `<span class="ptsd-group-tier-cell${unearned ? ' ptsd-group-tier-cell--unearned' : ''}">
-            ${_trophyIcon(tier, 13)}
-            <span class="ptsd-group-tier-count" style="color:${unearned ? '' : color}">${earned}</span>
-        </span>`;
-    }).filter(Boolean).join('');
-
     const name = group.name || group.groupId;
-    const barHtml = `<div class="ptsd-group-track th-progress-track" role="progressbar"
-        aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
-        aria-label="${escHtml(name)} ${pct}% complete">
-        <div class="th-progress-fill" style="width:${pct}%"></div>
-    </div>`;
-    const pctHtml = `<span class="ptsd-group-pct">${pct}%</span>`;
 
     return `<div class="ptsd-group-row">
         <span class="ptsd-group-name">${escHtml(name)}</span>
-        <div class="ptsd-group-chips ptsd-group-chips--desktop">${desktopChipsHtml}</div>
-        <div class="ptsd-group-chips ptsd-group-chips--mobile">${mobileChipsHtml}</div>
-        ${barHtml}
-        ${pctHtml}
+        <div class="ptsd-group-chips">${chipsHtml}</div>
+        <div class="ptsd-group-track th-progress-track" role="progressbar"
+            aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
+            aria-label="${escHtml(name)} ${pct}% complete">
+            <div class="th-progress-fill" style="width:${pct}%"></div>
+        </div>
+        <span class="ptsd-group-pct">${pct}%</span>
     </div>`;
 }
 
