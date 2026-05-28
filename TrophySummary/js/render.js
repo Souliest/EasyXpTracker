@@ -332,10 +332,10 @@ export function renderFilterBar(profile, filtersOpen = false) {
             <span class="ptsd-filter-toggle-label">Filters</span>
             ${summaryHtml}
             ${countHtml}
-            ${clearHtml}
         </button>
 
         <div class="ptsd-filter-panel${filtersOpen ? ' ptsd-filter-panel--open' : ''}" id="ptsd-filter-panel">
+            ${clearHtml}
             <div class="ptsd-filter-row--sort">
                 <select class="ptsd-sort-select" id="ptsd-sort-select" aria-label="Sort games">
                     ${sortHtml}

@@ -479,17 +479,6 @@ window.openPTSDSettings = () => _openSettings();
 
     _profile = await loadData();
 
-    // TODO: remove after next deploy — wipes pre-filterState viewState shapes
-    // so existing profiles pick up the new model cleanly.
-    if (_profile && _profile.viewState && (
-        'showNoTrophies' in _profile.viewState ||
-        'platformFilter' in _profile.viewState ||
-        'minCompletion'  in _profile.viewState
-    )) {
-        _profile.viewState = _defaultViewState();
-        saveData(_profile);
-    }
-
     if (!_profile || !_profile.psUsername) {
         _promptFirstRun();
         return;
