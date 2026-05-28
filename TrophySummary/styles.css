@@ -1016,3 +1016,74 @@ body.light .ptsd-pill--include {
   justify-content: flex-start;
   padding-top: 4px;
 }
+
+/* ══════════════════════════════════════
+   Group rows (Step 6)
+══════════════════════════════════════ */
+
+.ptsd-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
+.ptsd-group-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0 5px 28px; /* 28px left indent aligns under game name */
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.ptsd-group-name {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 60px;
+  max-width: 140px;
+  flex-shrink: 1;
+}
+
+.ptsd-group-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.ptsd-group-pct {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+}
+
+.ptsd-group-track {
+  flex: 1;
+  height: 4px;
+  min-width: 40px;
+}
+
+.ptsd-group-loading {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  padding: 8px 0 4px 28px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+}
+
+/* Expanded card — subtle border accent */
+.ptsd-game-card--expanded {
+  border-color: var(--muted);
+}

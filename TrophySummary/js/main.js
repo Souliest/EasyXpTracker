@@ -12,7 +12,7 @@ import {
     getRateLimitRemaining,
     setRateLimit,
 } from './storage.js';
-import {workerFetchProfile} from './psn.js';
+import {workerFetchProfile, workerFetchSummary} from './psn.js';
 import {renderProfileCard, renderFilterBar, renderGameList, renderEmptyState, FILTER_REGISTRY} from './render.js';
 import {openSettingsModal, openMissingGamePrompt} from './modal.js';
 import {attachLongPress} from '../../common/utils.js';
@@ -26,6 +26,7 @@ import {subscribeToProfileChanges, unsubscribeFromProfileChanges, REALTIME_ENABL
 let _profile = null;       // full profile blob or null
 let _refreshing = false;   // global refresh in progress
 let _filtersOpen = false;  // session-only — not persisted
+let _expandedIds = new Set(); // session-only — cleared on re-render
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -43,7 +44,7 @@ function _doRender() {
         renderProfileCard(_profile, _refreshing),
         renderFilterBar(_profile, _filtersOpen),
         `</div>`,
-        renderGameList(_profile),
+        renderGameList(_profile, _expandedIds),
     ].join('');
 
     _wireProfileCard();
@@ -227,13 +228,72 @@ function _wireGameCards() {
         });
     });
 
-    // ── Expand button (stub — wired fully in Step 6) ──
+    // ── Expand button ──
     list.querySelectorAll('.ptsd-card-expand-btn').forEach(btn => {
         btn.addEventListener('click', e => {
             e.stopPropagation();
-            // Step 6 will wire the actual expand/collapse and group fetch here.
+            const id = btn.closest('.ptsd-game-card')?.dataset.id;
+            if (!id) return;
+            _toggleExpand(id);
         });
     });
+}
+
+// ── Group expand/collapse ─────────────────────────────────────────────────────
+
+async function _toggleExpand(id) {
+    if (!_profile) return;
+    const game = _profile.games.find(g => g.id === id);
+    if (!game) return;
+
+    if (_expandedIds.has(id)) {
+        _expandedIds.delete(id);
+        _doRender();
+        return;
+    }
+
+    _expandedIds.add(id);
+
+    // If groups already cached, render immediately.
+    if (game.groups !== null) {
+        _doRender();
+        return;
+    }
+
+    // First expand — fetch from worker.
+    _doRender(); // shows loading state
+
+    try {
+        const result = await workerFetchSummary(
+            _profile.psUsername,
+            game.npCommId,
+            game.platform,
+            true  // full=true — need names and tierTotal
+        );
+
+        // Merge result into game blob.
+        game.groups = result.groups.map(g => ({
+            groupId:             g.groupId,
+            name:                g.name,
+            tierEarned:          g.tierEarned,
+            tierTotal:           g.tierTotal,
+            pct:                 g.pct,
+            lastUpdatedDateTime: g.lastUpdatedDateTime,
+        }));
+        game.pct                = result.pct;
+        game.tierEarned         = result.tierEarned;
+        if (result.tierTotal)   game.tierTotal = result.tierTotal;
+
+        await saveData(_profile);
+    } catch (err) {
+        if (err.rateLimited) {
+            setRateLimit(game.npCommId, err.retryAfter);
+        }
+        // On error, collapse — don't leave expanded with no data.
+        _expandedIds.delete(id);
+    } finally {
+        _doRender();
+    }
 }
 
 // Shows "Available in Xm" beside the refresh button for 3 seconds
@@ -260,6 +320,7 @@ async function _startGlobalRefresh() {
     if (_refreshing) return;
 
     _refreshing = true;
+    _expandedIds.clear();
     _doRender();   // re-render to show loading state on the button
 
     try {
