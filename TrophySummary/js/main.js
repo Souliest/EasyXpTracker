@@ -149,14 +149,16 @@ function _wireFilterBar() {
         btn.addEventListener('click', () => _cycleFilter(btn.dataset.filter));
     });
 
-    // Clear filters
-    const clearBtn = document.getElementById('ptsd-filter-clear');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', e => {
-            e.stopPropagation();
-            _updateViewState({filterState: {}});
-        });
-    }
+    // Clear filters — panel button and inline pill
+    ['ptsd-filter-clear', 'ptsd-filter-clear-inline'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                _updateViewState({filterState: {}});
+            });
+        }
+    });
 }
 
 // Cycles a filter key through null → 'include' → 'exclude' → null.

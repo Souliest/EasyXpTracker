@@ -336,7 +336,7 @@ body.light .ptsd-profile-card {
   color: var(--accent);
 }
 
-/* Clear filters button — sits at top of filter panel, only when filters active */
+/* Clear filters button — full width at bottom of filter panel */
 .ptsd-filter-clear {
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.75rem;
@@ -347,7 +347,7 @@ body.light .ptsd-profile-card {
   padding: 5px 12px;
   cursor: pointer;
   width: 100%;
-  margin-bottom: 10px;
+  margin-top: 10px;
   transition: background 0.15s;
 }
 
@@ -355,13 +355,34 @@ body.light .ptsd-profile-card {
   background: rgba(255, 107, 53, 0.08);
 }
 
-/* Toggle row — single line, normal flow.
+/* Clear pill — inline in toggle row, same size as summary pills */
+.ptsd-pill--clear {
+  font-size: 0.68rem;
+  color: var(--accent2);
+  border-color: var(--accent2);
+  background: none;
+  padding: 1px 7px;
+}
+
+.ptsd-pill--clear:hover {
+  background: rgba(255, 107, 53, 0.08);
+}
+
+/* Toggle row wrapper — holds toggle button + inline Clear pill as siblings */
+.ptsd-filter-toggle-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+/* Toggle button — single line, normal flow.
    Top corners squared off to sit flush against the profile card. */
 .ptsd-filter-toggle {
   display: flex;
   align-items: center;
   gap: 7px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 0 0 8px 8px;
