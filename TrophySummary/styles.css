@@ -356,7 +356,7 @@ body.light .ptsd-profile-card {
 }
 
 /* Clear pill — inline in toggle row, matches summary pill size, red */
-.ptsd-pill--clear {
+.ptsd-pill.ptsd-pill--clear {
   font-size: 0.68rem;
   color: #ff4444;
   border-color: #ff4444;
@@ -364,7 +364,9 @@ body.light .ptsd-profile-card {
   padding: 1px 7px;
 }
 
-.ptsd-pill--clear:hover {
+.ptsd-pill.ptsd-pill--clear:hover {
+  color: #ff4444;
+  border-color: #ff4444;
   background: rgba(255, 68, 68, 0.08);
 }
 
