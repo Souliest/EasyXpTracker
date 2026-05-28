@@ -336,19 +336,19 @@ body.light .ptsd-profile-card {
   color: var(--accent);
 }
 
-/* Clear filters button — only visible when filters are active */
+/* Clear filters button — sits at top of filter panel, only when filters active */
 .ptsd-filter-clear {
   font-family: 'Share Tech Mono', monospace;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   color: var(--accent2);
   background: none;
   border: 1px solid var(--accent2);
-  border-radius: 10px;
-  padding: 1px 8px;
+  border-radius: 6px;
+  padding: 5px 12px;
   cursor: pointer;
-  flex-shrink: 0;
+  width: 100%;
+  margin-bottom: 10px;
   transition: background 0.15s;
-  white-space: nowrap;
 }
 
 .ptsd-filter-clear:hover {
