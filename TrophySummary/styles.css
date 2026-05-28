@@ -340,9 +340,9 @@ body.light .ptsd-profile-card {
 .ptsd-filter-clear {
   font-family: 'Share Tech Mono', monospace;
   font-size: 0.75rem;
-  color: var(--accent2);
+  color: #ff4444;
   background: none;
-  border: 1px solid var(--accent2);
+  border: 1px solid #ff4444;
   border-radius: 6px;
   padding: 5px 12px;
   cursor: pointer;
@@ -352,20 +352,20 @@ body.light .ptsd-profile-card {
 }
 
 .ptsd-filter-clear:hover {
-  background: rgba(255, 107, 53, 0.08);
+  background: rgba(255, 68, 68, 0.08);
 }
 
-/* Clear pill — inline in toggle row, same size as summary pills */
+/* Clear pill — inline in toggle row, matches summary pill size, red */
 .ptsd-pill--clear {
   font-size: 0.68rem;
-  color: var(--accent2);
-  border-color: var(--accent2);
+  color: #ff4444;
+  border-color: #ff4444;
   background: none;
   padding: 1px 7px;
 }
 
 .ptsd-pill--clear:hover {
-  background: rgba(255, 107, 53, 0.08);
+  background: rgba(255, 68, 68, 0.08);
 }
 
 /* Toggle button — single line, normal flow.
