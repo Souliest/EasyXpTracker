@@ -1053,6 +1053,19 @@ body.light .ptsd-pill--include {
     grid-column: 1 / -1;
   }
 
+  .ptsd-group-chips {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .ptsd-group-track {
+    grid-column: 3;
+  }
+
+  .ptsd-group-pct {
+    grid-column: 4;
+  }
+
   /* Empty cells hidden on mobile — no cross-row alignment benefit on two lines */
   .ptsd-group-chips .ptsd-group-tier-cell--empty {
     display: none;
