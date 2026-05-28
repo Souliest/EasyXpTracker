@@ -574,38 +574,52 @@ function _renderGroupSection(game) {
 
 // ── renderGroupRow ────────────────────────────────────────────────────────────
 //
-// [Group Name]  P1  G3  S5  B11    100%  [████████████]
+// Desktop (one line):
+//   [Group Name]  P1  G3  S5  B11  [████████████]  100%
 //
+// Mobile ≤560px (two lines):
+//   [Group Name]
+//   P1  G3  S5  B11  [████████████]  100%
+//
+// Four tier cells always rendered at fixed width — empty if that tier doesn't
+// exist in this group, dimmed if it exists but none earned.
 // Non-sticky, non-clickable. No delta row — current state only.
-// tierTotal may be null if populated before full=true was ever called
-// (shouldn't happen in practice — groups are always fetched with full=true).
 
 export function renderGroupRow(group) {
     const pct = group.pct ?? 0;
     const tiers = ['platinum', 'gold', 'silver', 'bronze'];
 
+    // Each tier cell is always rendered at fixed width.
+    // Empty cell (total === 0) — no icon, no number, just the reserved space.
+    // Unearned cell (total > 0, earned === 0) — dimmed icon + centered 0.
+    // Earned cell — full color icon + centered count.
     const chipsHtml = tiers.map(tier => {
         const earned = group.tierEarned?.[tier] || 0;
         const total  = group.tierTotal?.[tier]  || 0;
-        if (total === 0) return '';
-        const color = TIER_COLORS[tier];
-        return `<span class="ptsd-tier-chip${earned === 0 ? ' ptsd-tier-chip--unearned' : ''}">
-            ${_trophyIcon(tier, 14)}
-            <span class="ptsd-tier-count" style="color:${earned > 0 ? color : ''}">${earned}</span>
+        const color  = TIER_COLORS[tier];
+
+        if (total === 0) {
+            return `<span class="ptsd-group-tier-cell ptsd-group-tier-cell--empty"></span>`;
+        }
+
+        const unearned = earned === 0;
+        return `<span class="ptsd-group-tier-cell${unearned ? ' ptsd-group-tier-cell--unearned' : ''}">
+            ${_trophyIcon(tier, 13)}
+            <span class="ptsd-group-tier-count" style="color:${unearned ? '' : color}">${earned}</span>
         </span>`;
-    }).filter(Boolean).join('');
+    }).join('');
 
     const name = group.name || group.groupId;
 
     return `<div class="ptsd-group-row">
         <span class="ptsd-group-name">${escHtml(name)}</span>
         <div class="ptsd-group-chips">${chipsHtml}</div>
-        <span class="ptsd-group-pct">${pct}%</span>
         <div class="ptsd-group-track th-progress-track" role="progressbar"
             aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
             aria-label="${escHtml(name)} ${pct}% complete">
             <div class="th-progress-fill" style="width:${pct}%"></div>
         </div>
+        <span class="ptsd-group-pct">${pct}%</span>
     </div>`;
 }
 

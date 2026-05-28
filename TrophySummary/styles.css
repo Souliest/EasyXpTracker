@@ -1030,13 +1030,28 @@ body.light .ptsd-pill--include {
   padding-top: 6px;
 }
 
+/* Desktop: name | chips | bar | pct — all on one line */
 .ptsd-group-row {
   display: grid;
-  grid-template-columns: 140px auto 36px 1fr;
+  grid-template-columns: minmax(80px, 140px) auto 1fr 36px;
+  grid-template-rows: 1fr;
   align-items: center;
   column-gap: 8px;
   padding: 5px 0 5px 28px;
   min-width: 0;
+}
+
+/* Mobile: name full width, then chips | bar | pct on second line */
+@media (max-width: 560px) {
+  .ptsd-group-row {
+    grid-template-columns: auto 1fr 36px;
+    grid-template-rows: auto auto;
+    row-gap: 3px;
+  }
+
+  .ptsd-group-name {
+    grid-column: 1 / -1;
+  }
 }
 
 .ptsd-group-name {
@@ -1048,11 +1063,36 @@ body.light .ptsd-pill--include {
   text-overflow: ellipsis;
 }
 
+/* Chips: four fixed-width cells, always the same total width */
 .ptsd-group-chips {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
   flex-shrink: 0;
+}
+
+.ptsd-group-tier-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  width: 36px;   /* fixed — holds space even when empty */
+  flex-shrink: 0;
+}
+
+.ptsd-group-tier-cell--empty {
+  /* reserved space only */
+}
+
+.ptsd-group-tier-cell--unearned {
+  opacity: 0.35;
+}
+
+.ptsd-group-tier-count {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  min-width: 1.2em;   /* room for 2 chars */
+  text-align: center;
+  color: var(--muted);
 }
 
 .ptsd-group-pct {
@@ -1074,10 +1114,6 @@ body.light .ptsd-pill--include {
   padding: 8px 0 4px 28px;
   border-top: 1px solid var(--border);
   margin-top: 6px;
-}
-
-.ptsd-tier-chip--unearned {
-  opacity: 0.35;
 }
 
 /* Expanded card — subtle border accent */
