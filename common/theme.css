@@ -39,3 +39,55 @@ body {
   overflow-x: hidden;
   transition: background 0.25s, color 0.25s;
 }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  min-height: 100vh;
+  padding: 12px;
+  overflow-x: hidden;
+  transition: background 0.25s, color 0.25s;
+}
+
+/* ══════════════════════════════════════
+   Shared visual primitives (.th-*)
+   Geometry (size, max-width) is overridden locally per tool.
+   Note: .th- prefix is TrophyHunter-origin but these are shared.
+══════════════════════════════════════ */
+
+/* Game thumbnail */
+.th-game-icon {
+  border-radius: 6px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+}
+
+/* Platform badge */
+.th-platform-badge {
+  font-size: 0.65rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 0.06em;
+}
+
+/* Progress track — structural only; height/max-width set per tool */
+.th-progress-track {
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.th-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.35s ease;
+}

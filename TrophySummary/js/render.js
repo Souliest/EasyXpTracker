@@ -353,20 +353,244 @@ export function renderFilterBar(profile, filtersOpen = false) {
     </div>`;
 }
 
-// ── renderGameList (Step 5 stub) ──────────────────────────────────────────────
+// ── Filtering and sorting ─────────────────────────────────────────────────────
+
+function _passesFilter(game, vs) {
+    const pf = vs.platformFilter || {};
+    const plat = game.platform.toLowerCase();
+
+    if (pf[plat] === false) return false;
+    if (vs.showNoTrophies === false && game.pct === 0) return false;
+    if (vs.showPlatinum === false && (game.tierEarned?.platinum || 0) > 0) return false;
+    if (vs.showPct100 === false && game.pct === 100 && !(game.tierEarned?.platinum)) return false;
+
+    if (vs.minCompletion && vs.minCompletion !== 'any') {
+        if (game.pct < Number(vs.minCompletion)) return false;
+    }
+
+    if (vs.recency && vs.recency !== 'all') {
+        if (!game.lastTrophyEarned) return false;
+        const now = Date.now();
+        const ts = new Date(game.lastTrophyEarned).getTime();
+        const windows = {year: 365, '3months': 90, month: 30};
+        const days = windows[vs.recency];
+        if (days && (now - ts) > days * 86400000) return false;
+    }
+
+    return true;
+}
+
+function _sortGames(games, sort) {
+    const sorted = [...games];
+    switch (sort) {
+        case 'pct_asc':
+            sorted.sort((a, b) => a.pct - b.pct);
+            break;
+        case 'pct_desc':
+            sorted.sort((a, b) => b.pct - a.pct);
+            break;
+        case 'alpha':
+            sorted.sort((a, b) => a.name.localeCompare(b.name));
+            break;
+        case 'platform': {
+            const order = {PS5: 0, PS4: 1, PS3: 2, Vita: 3};
+            sorted.sort((a, b) => {
+                const po = (order[a.platform] ?? 99) - (order[b.platform] ?? 99);
+                if (po !== 0) return po;
+                return _cmpRecent(a, b);
+            });
+            break;
+        }
+        case 'platinum':
+            sorted.sort((a, b) => {
+                const ap = (a.tierEarned?.platinum || 0) > 0 ? 0 : 1;
+                const bp = (b.tierEarned?.platinum || 0) > 0 ? 0 : 1;
+                if (ap !== bp) return ap - bp;
+                return b.pct - a.pct;
+            });
+            break;
+        case 'recent':
+        default:
+            sorted.sort(_cmpRecent);
+            break;
+    }
+    return sorted;
+}
+
+function _cmpRecent(a, b) {
+    if (!a.lastTrophyEarned && !b.lastTrophyEarned) return 0;
+    if (!a.lastTrophyEarned) return 1;
+    if (!b.lastTrophyEarned) return -1;
+    return new Date(b.lastTrophyEarned) - new Date(a.lastTrophyEarned);
+}
+
+// ── Game card thumbnail ───────────────────────────────────────────────────────
+
+function _renderThumb(thumbnailUrl) {
+    if (thumbnailUrl) {
+        try {
+            const parsed = new URL(thumbnailUrl);
+            if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+                return `<img class="th-game-icon" src="${escHtml(thumbnailUrl)}" alt="" aria-hidden="true">`;
+            }
+        } catch { /* fall through */ }
+    }
+    return `<span class="th-game-icon ptsd-thumb--glyph" aria-hidden="true">🎮</span>`;
+}
+
+// ── renderGameCard ────────────────────────────────────────────────────────────
+//
+// Two-line layout when any delta > 0, one-line when clean:
+//
+//   [pin?] [thumb] [name ···················] [PS5] [⟳]
+//          P1(+1)  G3(+1)  S5  B11(+2)              100%
+//              +1      +1          +2                     ← delta row, only if any > 0
+//          [████████████████████████████████████]
+//
+// pinnedFiltered — pinned game that doesn't pass the active filters.
+//   Rendered at reduced opacity with a "📌 pinned" label instead of normal chips.
+
+export function renderGameCard(game, pinnedFiltered = false) {
+    const rateLimited = isRateLimited(game.npCommId);
+    const deltas = computeDeltas(game.tierEarned, game.tierEarnedAtLastGlobalRefresh);
+    const hasDeltas = Object.keys(deltas).length > 0;
+    const pct = game.pct ?? 0;
+
+    // ── Top row ──
+    const pinHtml = game.pinned
+        ? `<span class="ptsd-card-pin" aria-label="Pinned">📌</span>`
+        : '';
+
+    const expandHtml = game.hasTrophyGroups
+        ? `<button class="ptsd-card-expand-btn" data-npcommid="${escHtml(game.npCommId)}"
+               aria-label="Expand trophy groups" aria-expanded="false">▶</button>`
+        : '';
+
+    const refreshDisabled = rateLimited;
+    const refreshHtml = `<button
+        class="ptsd-card-refresh-btn${refreshDisabled ? ' ptsd-card-refresh-btn--disabled' : ''}"
+        data-npcommid="${escHtml(game.npCommId)}"
+        data-action="refresh-game"
+        aria-label="Refresh ${escHtml(game.name)}"
+        ${refreshDisabled ? 'aria-disabled="true"' : ''}
+    >⟳</button>`;
+
+    const topRow = `<div class="ptsd-card-top-row">
+        ${pinHtml}
+        ${_renderThumb(game.thumbnailUrl)}
+        <span class="ptsd-card-name">${escHtml(game.name)}</span>
+        ${expandHtml}
+        <span class="th-platform-badge">${escHtml(game.platform)}</span>
+        ${refreshHtml}
+    </div>`;
+
+    // ── Pinned-but-filtered: simplified body ──
+    if (pinnedFiltered) {
+        return `<div class="ptsd-game-card ptsd-game-card--pinned-filtered"
+            data-id="${escHtml(game.id)}" data-npcommid="${escHtml(game.npCommId)}">
+            ${topRow}
+            <span class="ptsd-card-pinned-label">📌 pinned</span>
+        </div>`;
+    }
+
+    // ── Tier chips row ──
+    const tiers = ['platinum', 'gold', 'silver', 'bronze'];
+    const chipsHtml = tiers.map(tier => {
+        const count = game.tierEarned?.[tier] || 0;
+        const delta = deltas[tier];
+        const color = TIER_COLORS[tier];
+        const deltaHtml = delta
+            ? `<span class="ptsd-delta">+${delta}</span>`
+            : '';
+        return `<span class="ptsd-tier-chip">
+            ${_trophyIcon(tier, 15)}
+            <span class="ptsd-tier-count" style="color:${color}">${count}</span>${deltaHtml}
+        </span>`;
+    }).join('');
+
+    const chipsRow = `<div class="ptsd-card-chips-row">
+        ${chipsHtml}
+        <span class="ptsd-card-pct">${pct}%</span>
+    </div>`;
+
+    // ── Delta row — only if any delta > 0 ──
+    // Monospace columns aligned under tier chips. Empty cells hold width.
+    let deltaRow = '';
+    if (hasDeltas) {
+        const cells = tiers.map(tier => {
+            const delta = deltas[tier];
+            return delta
+                ? `<span class="ptsd-card-delta-cell">+${delta}</span>`
+                : `<span class="ptsd-card-delta-cell ptsd-card-delta-cell--empty">+0</span>`;
+        }).join('');
+        deltaRow = `<div class="ptsd-card-delta-row" aria-label="Trophies since last refresh">
+            ${cells}
+        </div>`;
+    }
+
+    // ── Progress bar ──
+    const progressRow = `<div class="ptsd-card-progress-row">
+        <div class="th-progress-track" role="progressbar"
+            aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"
+            aria-label="${escHtml(game.name)} ${pct}% complete">
+            <div class="th-progress-fill" style="width:${pct}%"></div>
+        </div>
+    </div>`;
+
+    return `<div class="ptsd-game-card"
+        data-id="${escHtml(game.id)}" data-npcommid="${escHtml(game.npCommId)}">
+        ${topRow}
+        ${chipsRow}
+        ${deltaRow}
+        ${progressRow}
+    </div>`;
+}
+
+// ── renderGameList ────────────────────────────────────────────────────────────
 
 export function renderGameList(profile) {
-    const count = (profile.games || []).length;
-    if (count === 0) {
+    const vs = profile.viewState || {};
+    const allGames = profile.games || [];
+
+    if (allGames.length === 0) {
         return `<div class="ptsd-empty-games empty-state">
             <div class="big">🎮</div>
             No games found in your PlayStation library.
         </div>`;
     }
+
+    // Pinned games always float above, bypassing all filters.
+    const pinned = allGames.filter(g => g.pinned);
+    const unpinned = allGames.filter(g => !g.pinned);
+
+    // Split unpinned into passing and filtered-out.
+    const visible = unpinned.filter(g => _passesFilter(g, vs));
+    const hidden = unpinned.filter(g => !_passesFilter(g, vs));
+
+    // Sort visible games. Pinned games sorted among themselves by the same key.
+    const sort = vs.sort || 'recent';
+    const sortedPinned = _sortGames(pinned, sort);
+    const sortedVisible = _sortGames(visible, sort);
+
+    // Pinned games that don't pass the active filters render at reduced opacity.
+    const pinnedFiltered = pinned.filter(g => !_passesFilter(g, vs));
+    const pinnedPassing = pinned.filter(g => _passesFilter(g, vs));
+
+    const cards = [
+        ..._sortGames(pinnedPassing, sort).map(g => renderGameCard(g, false)),
+        ..._sortGames(pinnedFiltered, sort).map(g => renderGameCard(g, true)),
+        ...sortedVisible.map(g => renderGameCard(g, false)),
+    ];
+
+    const hiddenNote = hidden.length > 0
+        ? `<div class="ptsd-filtered-note" aria-live="polite">
+               ${hidden.length} game${hidden.length !== 1 ? 's' : ''} hidden by filters
+           </div>`
+        : '';
+
     return `<div class="ptsd-game-list" id="ptsd-game-list">
-        <div class="empty-state" style="padding:24px">
-            ${count} game${count !== 1 ? 's' : ''} in library — game cards coming in Step 5.
-        </div>
+        ${cards.join('')}
+        ${hiddenNote}
     </div>`;
 }
 
