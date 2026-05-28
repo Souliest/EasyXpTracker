@@ -138,14 +138,10 @@ select#gameSelect:focus {
   margin-bottom: 10px;
 }
 
+/* .th-game-icon base in common/theme.css — geometry override only */
 .th-game-icon {
   width: 40px;
   height: 40px;
-  border-radius: 6px;
-  object-fit: contain;
-  flex-shrink: 0;
-  border: 1px solid var(--border);
-  background: var(--input-bg);
 }
 
 .th-game-title {
@@ -162,16 +158,7 @@ select#gameSelect:focus {
   line-height: 1.3;
 }
 
-.th-platform-badge {
-  font-size: 0.65rem;
-  color: var(--muted);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 2px 6px;
-  flex-shrink: 0;
-  font-family: 'Share Tech Mono', monospace;
-  letter-spacing: 0.06em;
-}
+/* .th-platform-badge base in common/theme.css — no local override needed */
 
 .th-header-stats {
   display: flex;
@@ -293,23 +280,12 @@ select#gameSelect:focus {
   text-align: right;
 }
 
-/* ── Progress bar ── */
+/* .th-progress-track/.th-progress-fill base in common/theme.css — geometry override only */
 .th-progress-track {
   flex: 1;
   min-width: 40px;
   max-width: 160px;
   height: 8px;
-  background: var(--stat-bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.th-progress-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 4px;
-  transition: width 0.35s ease;
 }
 
 /* ══════════════════════════════════════

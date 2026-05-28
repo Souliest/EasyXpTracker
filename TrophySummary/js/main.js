@@ -15,6 +15,7 @@ import {
 import {workerFetchProfile} from './psn.js';
 import {renderProfileCard, renderFilterBar, renderGameList, renderEmptyState} from './render.js';
 import {openSettingsModal, openMissingGamePrompt} from './modal.js';
+import {attachLongPress} from '../../common/utils.js';
 import {initAuth} from '../../common/auth-ui.js';
 import {getUser} from '../../common/auth.js';
 import {supabase} from '../../common/supabase.js';
@@ -211,10 +212,62 @@ function _updateViewState(patch) {
     _doRender();
 }
 
-// ── Game card wiring (stub — wired fully in Steps 5–7) ───────────────────────
+// ── Game card wiring ──────────────────────────────────────────────────────────
 
 function _wireGameCards() {
-    // Placeholder — game card interactions wired in Step 5.
+    if (!_profile) return;
+
+    const list = document.getElementById('ptsd-game-list');
+    if (!list) return;
+
+    // ── Pin toggle (long-press) ──
+    list.querySelectorAll('.ptsd-game-card').forEach(card => {
+        attachLongPress(card, () => {
+            const id = card.dataset.id;
+            if (!id) return;
+            const game = _profile.games.find(g => g.id === id);
+            if (!game) return;
+            game.pinned = !game.pinned;
+            saveData(_profile);
+            _doRender();
+        });
+    });
+
+    // ── Refresh button (rate-limit feedback only — actual call in Step 7) ──
+    list.querySelectorAll('[data-action="refresh-game"]').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            const npCommId = btn.dataset.npcommid;
+            if (!npCommId) return;
+            if (!isRateLimited(npCommId)) return;
+            _showCardRateLimitFeedback(btn, npCommId);
+        });
+    });
+
+    // ── Expand button (stub — wired fully in Step 6) ──
+    list.querySelectorAll('.ptsd-card-expand-btn').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            // Step 6 will wire the actual expand/collapse and group fetch here.
+        });
+    });
+}
+
+// Shows "Available in Xm" beside the refresh button for 3 seconds
+// when tapped while rate-limited.
+function _showCardRateLimitFeedback(btn, npCommId) {
+    const existing = btn.parentElement.querySelector('.ptsd-card-rate-msg');
+    if (existing) return; // already showing
+
+    const secs = getRateLimitRemaining(npCommId);
+    const mins = Math.ceil(secs / 60);
+
+    const msg = document.createElement('span');
+    msg.className = 'ptsd-card-rate-msg';
+    msg.textContent = `Available in ${mins}m`;
+    btn.insertAdjacentElement('beforebegin', msg);
+
+    setTimeout(() => msg.remove(), 3000);
 }
 
 // ── Global refresh ─────────────────────────────────────────────────────────────

@@ -469,14 +469,205 @@ body.light .ptsd-pill--active {
   font-size: 0.68rem;
 }
 
+/* ── Shared primitive geometry overrides ── */
+
+/* .th-game-icon base in common/theme.css */
+.th-game-icon {
+  width: 40px;
+  height: 40px;
+}
+
+/* .th-progress-track base in common/theme.css */
+.th-progress-track {
+  flex: 1;
+  height: 6px;
+}
+
 /* ══════════════════════════════════════
-   Game list (Step 5 stub)
+   Game list + game cards
 ══════════════════════════════════════ */
 
 .ptsd-game-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* ── Game card ── */
+.ptsd-game-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s;
+  user-select: none;
+}
+
+.ptsd-game-card:hover {
+  border-color: var(--muted);
+}
+
+.ptsd-game-card--pinned-filtered {
+  opacity: 0.5;
+}
+
+/* ── Card top row: [pin?] [thumb] [name] [platform] [refresh] ── */
+.ptsd-card-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ptsd-card-pin {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.ptsd-card-name {
+  flex: 1;
+  font-family: 'Orbitron', sans-serif;
+  font-size: clamp(0.7rem, 2.5vw, 0.85rem);
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.ptsd-card-refresh-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  padding: 2px 7px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+  height: 26px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.ptsd-card-refresh-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ptsd-card-refresh-btn--disabled {
+  color: var(--border);
+  cursor: default;
+  pointer-events: auto;
+}
+
+.ptsd-card-refresh-btn--disabled:hover {
+  border-color: var(--border);
+  color: var(--border);
+}
+
+/* ── Tier + pct row ── */
+.ptsd-card-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ptsd-card-pct {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ── Delta row — monospace column alignment ── */
+.ptsd-card-delta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 48px; /* aligns under tier chips, accounting for thumb */
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--accent3);
+}
+
+.ptsd-card-delta-cell {
+  min-width: 32px; /* matches tier chip column width */
+  text-align: left;
+}
+
+.ptsd-card-delta-cell--empty {
+  color: transparent;
+}
+
+/* ── Progress bar row ── */
+.ptsd-card-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Pinned-but-filtered label ── */
+.ptsd-card-pinned-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+
+/* ── Expand affordance (hasTrophyGroups) ── */
+.ptsd-card-expand-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.65rem;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 14px;
+  text-align: center;
+  transition: color 0.15s;
+}
+
+.ptsd-card-expand-btn:hover {
+  color: var(--accent);
+}
+
+/* ── Thumbnail glyph fallback ── */
+.ptsd-thumb--glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+/* ── Filtered games count note ── */
+.ptsd-filtered-note {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 8px 0 4px;
+}
+
+/* ── Rate limit flash message on card ── */
+.ptsd-card-rate-msg {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  color: #ff4444;
+  letter-spacing: 0.04em;
 }
 
 /* ══════════════════════════════════════
