@@ -522,20 +522,7 @@ async function _runMissingGamePrompt(queue, mergedGames) {
 
 function _openSettings() {
     openSettingsModal(_profile, {
-        onUsernameChange: async (newUsername) => {
-            if (!_profile) {
-                _profile = {
-                    psUsername: newUsername,
-                    viewState: _defaultViewState(),
-                    games: [],
-                };
-            } else {
-                _profile = {..._profile, psUsername: newUsername};
-            }
-            await saveData(_profile);
-            _doRender();
-            _startGlobalRefresh();
-        },
+        onUsernameChangeAttempt: _attemptUsernameChange,
         onHiddenGamesChange: async (updatedProfile) => {
             _profile = updatedProfile;
             await saveData(_profile);
@@ -548,7 +535,23 @@ function _openSettings() {
 
 function _promptFirstRun() {
     openSettingsModal(null, {
-        onUsernameChange: async (newUsername) => {
+        onUsernameChangeAttempt: _attemptUsernameChange,
+        onHiddenGamesChange: async () => {},
+    });
+}
+
+// ── Username change (atomic) ──────────────────────────────────────────────────
+// Called by the settings modal on submit (both first-run and change flows).
+// Fetches /profile for the new username before saving anything.
+// Returns { ok: true } on success, or { ok: false, rateLimited, retryAfter } on failure.
+// The modal stays open until this resolves — it only closes on ok: true.
+
+async function _attemptUsernameChange(newUsername) {
+    try {
+        const result = await workerFetchProfile(newUsername);
+
+        // Ensure there is a profile stub with viewState before applying the refresh.
+        if (!_profile) {
             _profile = {
                 psUsername: newUsername,
                 avatarUrl: null,
@@ -561,13 +564,18 @@ function _promptFirstRun() {
                 viewState: _defaultViewState(),
                 games: [],
             };
-            await saveData(_profile);
-            _doRender();
-            _startGlobalRefresh();
-        },
-        onHiddenGamesChange: async () => {
-        },
-    });
+        }
+
+        await _applyGlobalRefresh(result);
+        _doRender();
+        return {ok: true};
+    } catch (err) {
+        if (err.rateLimited) {
+            setRateLimit('global', err.retryAfter);
+            return {ok: false, rateLimited: true, retryAfter: err.retryAfter};
+        }
+        return {ok: false, rateLimited: false};
+    }
 }
 
 // ── Realtime incoming update handler ─────────────────────────────────────────

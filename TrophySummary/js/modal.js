@@ -73,15 +73,37 @@ export function openSettingsModal(profile, callbacks) {
     const manageBtn = document.getElementById('ptsd-manage-hidden');
     const errorEl = document.getElementById('ptsd-settings-error');
 
-    const doSave = () => {
+    const doSave = async () => {
         const val = input.value.trim();
         if (!val) {
             errorEl.textContent = 'Please enter a PlayStation username.';
             errorEl.style.display = '';
             return;
         }
-        _closeSettingsModal();
-        callbacks.onUsernameChange(val);
+
+        // Loading state — keep modal open until fetch resolves.
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Checking…';
+        errorEl.style.display = 'none';
+
+        const outcome = await callbacks.onUsernameChangeAttempt(val);
+
+        if (outcome.ok) {
+            _closeSettingsModal();
+            return;
+        }
+
+        // Restore button so user can retry.
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+
+        if (outcome.rateLimited) {
+            const mins = Math.ceil((outcome.retryAfter || 3600) / 60);
+            errorEl.textContent = `Rate limited. Try again in ${mins}m.`;
+        } else {
+            errorEl.textContent = 'Could not fetch PlayStation data. Please try again.';
+        }
+        errorEl.style.display = '';
     };
 
     saveBtn.addEventListener('click', doSave);
