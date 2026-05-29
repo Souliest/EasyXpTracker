@@ -211,8 +211,9 @@ body.light .ptsd-profile-card {
   to   { transform: rotate(360deg); }
 }
 
-.ptsd-refresh-btn--spinning {
+.ptsd-refresh-btn--spinning .ptsd-refresh-icon {
   animation: ptsd-spin 0.8s linear infinite;
+  display: inline-block;
 }
 
 .ptsd-refresh-btn--disabled:hover {
@@ -652,8 +653,9 @@ body.light .ptsd-pill--include {
   color: var(--border);
 }
 
-.ptsd-card-refresh-btn--spinning {
+.ptsd-card-refresh-btn--spinning .ptsd-refresh-icon {
   animation: ptsd-spin 0.8s linear infinite;
+  display: inline-block;
 }
 
 /* ── Tier + pct row ── */
