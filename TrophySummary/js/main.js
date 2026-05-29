@@ -23,9 +23,10 @@ import {subscribeToProfileChanges, unsubscribeFromProfileChanges, REALTIME_ENABL
 
 // ── Module-level state ────────────────────────────────────────────────────────
 
-let _profile = null;       // full profile blob or null
-let _refreshing = false;   // global refresh in progress
-let _filtersOpen = false;  // session-only — not persisted
+let _profile = null;          // full profile blob or null
+let _refreshing = false;      // global refresh in progress
+let _refreshingGames = new Set(); // npCommIds with a per-game refresh in flight
+let _filtersOpen = false;     // session-only — not persisted
 let _expandedIds = new Set(); // session-only — cleared on re-render
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -44,7 +45,7 @@ function _doRender() {
         renderProfileCard(_profile, _refreshing),
         renderFilterBar(_profile, _filtersOpen),
         `</div>`,
-        renderGameList(_profile, _expandedIds),
+        renderGameList(_profile, _expandedIds, _refreshingGames),
     ].join('');
 
     _wireProfileCard();
@@ -217,14 +218,17 @@ function _wireGameCards() {
         });
     });
 
-    // ── Refresh button (rate-limit feedback only — actual call in Step 7) ──
+    // ── Refresh button ──
     list.querySelectorAll('[data-action="refresh-game"]').forEach(btn => {
         btn.addEventListener('click', e => {
             e.stopPropagation();
             const npCommId = btn.dataset.npcommid;
             if (!npCommId) return;
-            if (!isRateLimited(npCommId)) return;
-            _showCardRateLimitFeedback(btn, npCommId);
+            if (isRateLimited(npCommId)) {
+                _showCardRateLimitFeedback(btn, npCommId);
+                return;
+            }
+            _handleGameRefresh(npCommId);
         });
     });
 
@@ -311,6 +315,60 @@ function _showCardRateLimitFeedback(btn, npCommId) {
     btn.insertAdjacentElement('beforebegin', msg);
 
     setTimeout(() => msg.remove(), 3000);
+}
+
+// ── Per-game (local) refresh ──────────────────────────────────────────────────
+
+async function _handleGameRefresh(npCommId) {
+    if (!_profile) return;
+    if (_refreshingGames.has(npCommId)) return;
+
+    const game = _profile.games.find(g => g.npCommId === npCommId);
+    if (!game) return;
+
+    _refreshingGames.add(npCommId);
+    _doRender();
+
+    try {
+        const result = await workerFetchSummary(
+            _profile.psUsername,
+            game.npCommId,
+            game.platform,
+            false  // no full — preserve tierTotal and group names
+        );
+
+        const now = new Date().toISOString();
+
+        // Merge title-level fields.
+        game.tierEarned         = result.tierEarned;
+        game.pct                = result.pct;
+        game.lastTrophyEarned   = result.lastTrophyEarned ?? game.lastTrophyEarned;
+        game.lastLocalRefresh   = now;
+
+        // Local refresh clears this game's delta.
+        game.tierEarnedAtLastGlobalRefresh = {...result.tierEarned};
+
+        // Merge per-group fields if groups are cached.
+        // Do NOT overwrite tierTotal or group names — worker returns null for both.
+        if (game.groups) {
+            for (const remoteGroup of result.groups) {
+                const local = game.groups.find(g => g.groupId === remoteGroup.groupId);
+                if (!local) continue;
+                local.tierEarned          = remoteGroup.tierEarned;
+                local.pct                 = remoteGroup.pct;
+                local.lastUpdatedDateTime = remoteGroup.lastUpdatedDateTime;
+            }
+        }
+
+        await saveData(_profile);
+    } catch (err) {
+        if (err.rateLimited) {
+            setRateLimit(game.npCommId, err.retryAfter);
+        }
+    } finally {
+        _refreshingGames.delete(npCommId);
+        _doRender();
+    }
 }
 
 // ── Global refresh ─────────────────────────────────────────────────────────────
