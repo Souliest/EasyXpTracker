@@ -128,12 +128,11 @@ function _renderTierChipsWithDeltas(tierEarned, deltas) {
 
 function _renderRefreshButton(refreshing, rateLimited) {
     const disabled = refreshing || rateLimited;
-    const label = refreshing ? 'Refreshing…' : '⥀';
-    return `<button class="ptsd-refresh-btn${disabled ? ' ptsd-refresh-btn--disabled' : ''}"
+    return `<button class="ptsd-refresh-btn${disabled ? ' ptsd-refresh-btn--disabled' : ''}${refreshing ? ' ptsd-refresh-btn--spinning' : ''}"
         id="ptsd-refresh-btn"
-        aria-label="Refresh profile"
+        aria-label="${refreshing ? 'Refreshing' : 'Refresh profile'}"
         ${disabled ? 'aria-disabled="true"' : ''}
-    >${label}</button>`;
+    >⟳</button>`;
 }
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
@@ -451,8 +450,9 @@ function _renderThumb(thumbnailUrl) {
 // pinnedFiltered — pinned game that doesn't pass the active filters.
 //   Rendered at reduced opacity with a "📌 pinned" label instead of normal chips.
 
-export function renderGameCard(game, pinnedFiltered = false, expandedIds = new Set()) {
+export function renderGameCard(game, pinnedFiltered = false, expandedIds = new Set(), refreshingGames = new Set()) {
     const rateLimited = isRateLimited(game.npCommId);
+    const refreshing = refreshingGames.has(game.npCommId);
     const deltas = computeDeltas(game.tierEarned, game.tierEarnedAtLastGlobalRefresh);
     const hasDeltas = Object.keys(deltas).length > 0;
     const pct = game.pct ?? 0;
@@ -470,12 +470,12 @@ export function renderGameCard(game, pinnedFiltered = false, expandedIds = new S
             : ''
     }</div>`;
 
-    const refreshDisabled = rateLimited;
+    const refreshDisabled = rateLimited || refreshing;
     const refreshHtml = `<button
-        class="ptsd-card-refresh-btn${refreshDisabled ? ' ptsd-card-refresh-btn--disabled' : ''}"
+        class="ptsd-card-refresh-btn${refreshDisabled ? ' ptsd-card-refresh-btn--disabled' : ''}${refreshing ? ' ptsd-card-refresh-btn--spinning' : ''}"
         data-npcommid="${escHtml(game.npCommId)}"
         data-action="refresh-game"
-        aria-label="Refresh ${escHtml(game.name)}"
+        aria-label="${refreshing ? 'Refreshing' : 'Refresh ' + escHtml(game.name)}"
         ${refreshDisabled ? 'aria-disabled="true"' : ''}
     >⟳</button>`;
 
@@ -646,9 +646,9 @@ export function renderGameList(profile, expandedIds = new Set()) {
     const visible        = unpinned.filter(g => _passesFilter(g, filterState));
 
     const cards = [
-        ..._sortGames(pinnedPassing,  sort).map(g => renderGameCard(g, false, expandedIds)),
-        ..._sortGames(pinnedFiltered, sort).map(g => renderGameCard(g, true,  expandedIds)),
-        ..._sortGames(visible,        sort).map(g => renderGameCard(g, false, expandedIds)),
+        ..._sortGames(pinnedPassing,  sort).map(g => renderGameCard(g, false, expandedIds, refreshingGames)),
+        ..._sortGames(pinnedFiltered, sort).map(g => renderGameCard(g, true,  expandedIds, refreshingGames)),
+        ..._sortGames(visible,        sort).map(g => renderGameCard(g, false, expandedIds, refreshingGames)),
     ];
 
     return `<div class="ptsd-game-list" id="ptsd-game-list">
