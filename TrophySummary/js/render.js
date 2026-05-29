@@ -132,7 +132,7 @@ function _renderRefreshButton(refreshing, rateLimited) {
         id="ptsd-refresh-btn"
         aria-label="${refreshing ? 'Refreshing' : 'Refresh profile'}"
         ${disabled ? 'aria-disabled="true"' : ''}
-    >⟳</button>`;
+    ><span class="ptsd-refresh-icon">⟳</span></button>`;
 }
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
@@ -477,7 +477,7 @@ export function renderGameCard(game, pinnedFiltered = false, expandedIds = new S
         data-action="refresh-game"
         aria-label="${refreshing ? 'Refreshing' : 'Refresh ' + escHtml(game.name)}"
         ${refreshDisabled ? 'aria-disabled="true"' : ''}
-    >⟳</button>`;
+    ><span class="ptsd-refresh-icon">⟳</span></button>`;
 
     const topRow = `<div class="ptsd-card-top-row">
         ${expandSlot}
