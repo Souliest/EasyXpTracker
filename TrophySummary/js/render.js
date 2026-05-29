@@ -623,7 +623,7 @@ export function renderGroupRow(group) {
 
 // ── renderGameList ────────────────────────────────────────────────────────────
 
-export function renderGameList(profile, expandedIds = new Set()) {
+export function renderGameList(profile, expandedIds = new Set(), refreshingGames = new Set()) {
     const vs = profile.viewState || {};
     const filterState = vs.filterState || {};
     const allGames = profile.games || [];
