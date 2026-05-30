@@ -430,6 +430,89 @@ back to its previous sync behaviour with no other changes required.
 
 ---
 
+## PlayStation Trophy Summary Display
+
+PlayStation Trophy Summary Display (PTSD) shows your PlayStation trophy profile at a glance — your trophy level,
+lifetime tier counts, and completion status across your entire game library. It fetches data automatically; there's
+nothing to tick or enter manually.
+
+No PlayStation account credentials are required. The tool fetches data through a proxy using your public PlayStation
+username.
+
+### Getting Started
+
+1. Open **PlayStation Trophy Summary Display** from the main tools page.
+2. The Settings modal opens automatically. Enter your PlayStation username and press **Save**.
+3. The tool validates the username and fetches your full library from PlayStation. This may take a few seconds for large
+   libraries.
+
+### The Profile Card
+
+The profile card is sticky — it stays pinned to the top of the screen as you scroll through your games.
+
+It shows your trophy level, a progress bar toward the next level, and your lifetime platinum, gold, silver, and bronze
+counts. If you've earned trophies since the last full refresh, green `(+N)` deltas appear next to the affected tiers.
+
+The **⟳** button triggers a full refresh of your entire profile and game list. This is rate-limited to once per hour.
+When the button is grayed out, tapping it shows how long until the next refresh is available. If any game has been
+individually refreshed since the last full refresh, a **stale data** marker appears — the profile card counts may not
+reflect your most recent activity across all games.
+
+The **✎** button opens Settings, where you can change your linked PlayStation username or manage hidden games.
+
+### Game Cards
+
+Each game in your library has a card showing its thumbnail, platform, tier counts, completion percentage, and a progress
+bar. A per-game **⟳** button lets you refresh just that game without triggering a full library refresh — useful when
+you've been playing a specific title and want current numbers. Per-game refreshes have a 5-minute cooldown.
+
+Games with DLC or multiple trophy groups show a **▶** expand arrow. Tap it to load the group-level breakdown. Group data
+is fetched once and cached for the session.
+
+Long-press any game card to **pin** it. Pinned games float above the sorted list and stay visible even when filters
+would otherwise hide them (shown at reduced opacity with a pin label).
+
+### Filters and Sorting
+
+Tap **▶ Filters** to open the filter panel. You can sort by recent activity, completion percentage, alphabetical order,
+platform, or platinum status.
+
+Filter pills use a three-state cycle — tap once to include (green), tap again to exclude (red), tap a third time to
+clear. All active filters apply together: a game must match every include condition and violate no exclude condition to
+appear.
+
+Platform and visibility filters only show options that exist in your library. Completion and activity filters are
+single-select — activating one clears the others in the group.
+
+The toggle row shows a count of visible games (`72 / 304` when filtered, `304 games` when not) and a red `✕ Clear` pill
+when any filter is active.
+
+### Hidden Games
+
+If a game disappears from your PlayStation data — typically because you hid it on PlayStation — the tool prompts you
+after the next global refresh. For each missing game you can:
+
+- **Keep** — the game stays in your local list, flagged as hidden. It survives future global refreshes silently and is
+  excluded from the game count.
+- **Remove** — the game is deleted from your local list entirely.
+
+A "Do this for all remaining (N)" checkbox applies your choice to the rest of the queue at once. Hidden games can be
+reviewed and removed at any time from Settings → **Manage** under Hidden Games.
+
+### Changing Your Username
+
+Open Settings and enter the new username. The modal stays open while the tool validates it against PlayStation — it only
+closes once the fetch succeeds. If the worker is rate-limited or PlayStation is unreachable, an inline error explains
+why and the modal stays open for retry. Nothing is saved until the fetch succeeds.
+
+### Cross-device Sync
+
+When signed in, your trophy profile syncs across devices automatically. Changes on one device appear on others within
+seconds. Your display preferences (sort order, active filters) are local to each device and are never overwritten by
+sync events.
+
+---
+
 ## Common Features
 
 ### Fullscreen Mode

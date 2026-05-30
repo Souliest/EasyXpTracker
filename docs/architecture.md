@@ -496,27 +496,74 @@ See `docs/trophy-hunter.md` for Worker, PlayStation search flow, catalog cache, 
 - `psn.js` is a pure leaf — worker calls and URL constants only, no imports.
 - `stats.js` pure functions; re-exported from `render.js` for backward compatibility.
 
+#### TrophySummary (PTSD)
+
+See `TrophySummary/README.md` for user-facing documentation.
+
+- **Single-profile-per-user tool** — no game selector, no index, no LRU blob cache. One Supabase row keyed by `user_id`.
+  See `docs/storage.md` for the PTSD storage model.
+- **`_profile`** in `main.js` holds the entire profile blob (or `null`). All interaction handlers read and write it
+  directly, then call `saveData` and re-render.
+- **`psn.js`** is a pure leaf — `workerFetchProfile` and `workerFetchSummary` only, no imports from other PTSD modules.
+  Same pattern as TrophyHunter's `psn.js`.
+- **Rate limits** are tracked locally in a separate key (`bgt:trophy-summary:rate-limits`) keyed by scope (`'global'` or
+  `npCommId`). The worker enforces them server-side; the client tracks `retryAfter` for UI countdowns only.
+- **Two refresh scopes:**
+    - Global (`/profile`) — full library refresh, rate-limited 1/hour per username. Updates profile card and all games.
+      Freezes `tierEarnedAtLastGlobalRefresh` on every game and at profile level.
+    - Per-game (`/summary`) — single-game refresh, rate-limited 1/5 minutes per game. Updates tier counts and pct for
+      that game only. Clears that game's delta by setting its `tierEarnedAtLastGlobalRefresh` to the new `tierEarned`.
+      Profile card delta unaffected.
+- **Delta tracking** — `tierEarnedAtLastGlobalRefresh` stored on both the profile blob and each game blob. Deltas
+  computed at render time, never stored separately. A local refresh clears that game's delta; only a global refresh
+  clears the profile card delta.
+- **Stale marker** — computed at render time. Profile is stale if any game has `lastLocalRefresh` newer than
+  `profile.lastFullRefresh`. Four visual states: clean/rate-limited, stale/rate-limited, stale/available (red),
+  clean/available.
+- **Trophy group expansion** — lazy fetch via `/summary?full=true` on first expand. Subsequent expands render from
+  cached blob. Expanded state is a module-level `Set<gameId>` in `main.js` — session-only, cleared on global refresh,
+  not persisted.
+- **Missing game prompt** — fires after global refresh for games absent from PlayStation response and not already
+  `hiddenOnPs`. One at a time, Keep (default) or Remove, with "Do this for all remaining (N)" checkbox. Keep sets
+  `hiddenOnPs: true`.
+- **Filter system** — declarative `FILTER_REGISTRY` in `render.js`. Three-state pills (neutral/include/exclude). AND
+  logic. Single-select groups for completion and recency. Adding a new filter is one line in the registry.
+- **Username change is atomic** — `_attemptUsernameChange` in `main.js` calls `workerFetchProfile` before saving
+  anything. The settings modal stays open until the fetch resolves. On failure, inline error shown; nothing saved.
+  Applies to both first-run and username-change flows via a shared `onUsernameChangeAttempt` callback.
+- **Realtime sync uses the ping model** — Realtime carries only `updated_at`, not the full blob. The receiving device
+  fetches the full profile from Supabase directly when it detects a newer remote timestamp. This keeps the Realtime
+  payload bounded regardless of library size. See `docs/storage.md` for the PTSD Realtime section.
+- **`_savedAt` field** — stamped locally on every `saveData`, stripped before Supabase upsert. Used by `loadData` to
+  compare against remote `updated_at` when deciding whether to pull the remote blob. Local-only; never in Supabase.
+- **`REALTIME_ENABLED`** kill switch in `storage.js` — same pattern as TrophyHunter.
+- **CSS prefix** — `ptsd-` for all PTSD-specific classes. Shared visual primitives (`.th-game-icon`,
+  `.th-platform-badge`, `.th-progress-track/.fill`) reused from `common/theme.css` with local geometry overrides in
+  `styles.css`.
+
 ---
 
 ## localStorage Keys
 
-| Key                                     | Tool             | Contents                                  |
-|-----------------------------------------|------------------|-------------------------------------------|
-| `bgt:theme`                             | global           | `'light'` or `'dark'` (absent = dark)     |
-| `bgt:auth:nudge-seen`                   | global           | `'1'` once the sign-in nudge is dismissed |
-| `bgt:xp-tracker:gains`                  | XpTracker        | JSON array of `{ xp, ts }` objects        |
-| `bgt:xp-tracker:start`                  | XpTracker        | Session start timestamp                   |
-| `bgt:clm:v2`                            | ChecklistManager | `{ version, index, blobs, lruOrder }`     |
-| `bgt:clm:selected-project`              | ChecklistManager | Selected project UUID                     |
-| `bgt:level-goal-tracker:v2`             | LevelGoalTracker | `{ version, index, blobs, lruOrder }`     || `bgt:level-goal-tracker:selected-game`  | LevelGoalTracker | Selected game UUID                        |
-| `bgt:thing-counter:v2`                  | ThingCounter     | `{ version, index, blobs, lruOrder }`     |
-| `bgt:thing-counter:selected-game`       | ThingCounter     | Selected game UUID                        |
-| `bgt:thing-counter:quick-counter-val`   | ThingCounter     | Quick Counter current value               |
-| `bgt:thing-counter:quick-counter-step`  | ThingCounter     | Quick Counter step size                   |
-| `bgt:thing-counter:quick-counter-color` | ThingCounter     | Quick Counter accent color (hex string)   |
-| `bgt:trophy-hunter:v2`                  | TrophyHunter     | `{ version, index, blobs, lruOrder }`     |
-| `bgt:trophy-hunter:selected-game`       | TrophyHunter     | Selected game UUID                        |
-| `bgt:trophy-hunter:catalog-cache`       | TrophyHunter     | LRU cache of up to 3 trophy list blobs    |
+| Key                                     | Tool             | Contents                                                               |
+|-----------------------------------------|------------------|------------------------------------------------------------------------|
+| `bgt:theme`                             | global           | `'light'` or `'dark'` (absent = dark)                                  |
+| `bgt:auth:nudge-seen`                   | global           | `'1'` once the sign-in nudge is dismissed                              |
+| `bgt:xp-tracker:gains`                  | XpTracker        | JSON array of `{ xp, ts }` objects                                     |
+| `bgt:xp-tracker:start`                  | XpTracker        | Session start timestamp                                                |
+| `bgt:clm:v2`                            | ChecklistManager | `{ version, index, blobs, lruOrder }`                                  |
+| `bgt:clm:selected-project`              | ChecklistManager | Selected project UUID                                                  |
+| `bgt:level-goal-tracker:v2`             | LevelGoalTracker | `{ version, index, blobs, lruOrder }`                                  || `bgt:level-goal-tracker:selected-game`  | LevelGoalTracker | Selected game UUID                        |
+| `bgt:thing-counter:v2`                  | ThingCounter     | `{ version, index, blobs, lruOrder }`                                  |
+| `bgt:thing-counter:selected-game`       | ThingCounter     | Selected game UUID                                                     |
+| `bgt:thing-counter:quick-counter-val`   | ThingCounter     | Quick Counter current value                                            |
+| `bgt:thing-counter:quick-counter-step`  | ThingCounter     | Quick Counter step size                                                |
+| `bgt:thing-counter:quick-counter-color` | ThingCounter     | Quick Counter accent color (hex string)                                |
+| `bgt:trophy-hunter:v2`                  | TrophyHunter     | `{ version, index, blobs, lruOrder }`                                  |
+| `bgt:trophy-hunter:selected-game`       | TrophyHunter     | Selected game UUID                                                     |
+| `bgt:trophy-hunter:catalog-cache`       | TrophyHunter     | LRU cache of up to 3 trophy list blobs                                 |
+| `bgt:trophy-summary:v2`                 | TrophySummary    | `{ version, profile }` — full profile blob or null                     |
+| `bgt:trophy-summary:rate-limits`        | TrophySummary    | Rate limit expiry timestamps keyed by scope (`'global'` or `npCommId`) |
 
 **Rules:** use named constants in `storage.js`, never inline string literals elsewhere.
 
@@ -640,7 +687,7 @@ See `docs/trophy-hunter.md` for Worker, PlayStation search flow, catalog cache, 
   offline when a deletion occurred never receives the event. Comparing the local index against the
   remote ID set on every `loadData()` catches missed events at no extra query cost — the lightweight
   select that already runs for the selector provides the remote ID set.
-- - **Stale-delete cleanup in `loadData()` (LGT, TC)** — Realtime handles live deletes...
+- **Stale-delete cleanup in `loadData()` (LGT, TC)** — Realtime handles live deletes...
 - **ChecklistManager: two tag types** — item tags and step tags serve fundamentally different filtering
   purposes (hide whole items vs hide steps within items). A single tag list with a type flag was
   considered but two separate lists (`itemTags`, `stepTags`) are cleaner to reason about, impossible
@@ -662,3 +709,16 @@ See `docs/trophy-hunter.md` for Worker, PlayStation search flow, catalog cache, 
   device-local by nature. Persisting it to Supabase would add write overhead for a preference that
   resets naturally (pinned items re-expand on focus mode entry). Injecting it via session overlay
   keeps render.js unaware of the distinction between persisted and ephemeral state.
+- **PTSD as a separate tool, not a TrophyHunter mode** — read-only profile summary vs interactive trophy tracking are fundamentally different use cases. Separate tools share visual language (`.th-*` primitives, same CSS variables) without coupling code.
+- **Single blob per user, no index or LRU cache** — PTSD is a single-profile-per-user tool. The multi-game index and LRU blob cache exist to handle large personal libraries with O(1) game selection. PTSD has no game selector; one Supabase row covers everything.
+- **`_savedAt` stripped before Supabase upsert** — it is a local-only field used to compare against `updated_at` when deciding whether to pull the remote blob on load. Storing it in Supabase would be noise with no benefit.
+- **Realtime ping model for PTSD** — PTSD's profile blob can reach 200KB+ for large libraries and grows proportionally with library size. Carrying the full blob through Supabase Realtime works at typical sizes but approaches and exceeds the 1MB Realtime payload limit for the top end of the user base (estimated 2–3MB for the largest libraries). The ping model — Realtime carries only `updated_at`, receiving device fetches the full blob from Supabase directly — keeps the Realtime payload bounded at ~100 bytes regardless of library size, at the cost of one extra round trip per sync event. For a read-only summary tool where sync is a convenience, this is the correct tradeoff. See `docs/storage.md`.
+- **Rate limits in a separate localStorage key** — rate limits are per-device by nature (each device tracks its own countdown independently). Keeping them in a dedicated key (`bgt:trophy-summary:rate-limits`) separate from the profile blob means they survive profile reloads and Realtime overwrites without requiring special handling.
+- **`onUsernameChangeAttempt` callback (atomic username change)** — the original `onUsernameChange` callback closed the modal and saved immediately, leaving the profile in an inconsistent state if the worker then rate-limited the subsequent refresh (name updated, data unchanged). The atomic approach — fetch first, save only on success, modal stays open on failure — eliminates the inconsistent state entirely. The same callback handles both first-run and username-change flows.
+- **Missing game prompt one-at-a-time with "do for all"** — games hidden on PlayStation often disappear in batches (a user hides 40 titles at once). A per-game confirm loop would require 40 modal interactions. The "do for all" checkbox handles the common batch case in one tap while still surfacing individual decisions for the uncommon case. Keep is the default because hidden-on-PlayStation is the far more common reason a game goes missing.
+- **`groups` lazily populated on first expand** — group data requires a separate `/summary?full=true` worker call per game. Fetching it eagerly for all games on global refresh would add hundreds of worker calls for large libraries. Lazy fetch on first expand means the cost is paid only for games the user actually inspects.
+- **Expand state session-only** — group expansion is trivial to re-trigger and most sessions don't need any group open. Persisting it would add write overhead and Realtime sync complexity for a preference that resets naturally.
+- **`Math.floor` for all percentages** — matches PlayStation's display convention. A game with one unearned trophy never shows 100% until the last one is earned.
+- **`levelProgress` is the only profile-level percentage** — `overallPct` does not exist in the PlayStation API and was not implemented. `levelProgress` (Sony-calculated, 0–100) is the only percentage on the profile card.
+- **Profile-level `tierEarned` aggregated from `trophyTitles`** — the PlayStation `profile2` endpoint returns `level` and `progress` in `trophySummary` but not `earnedTrophies`. The worker computes lifetime tier counts by summing `earnedTrophies` across all `trophyTitles` entries. No extra API call required.
+- **`psUsername` not `psnUsername`** — Sony has rebranded. All new code uses `psUsername`, `PS`, or `PlayStation`. The Sony API scope value (`psn:mobile.v2.core`) is unchanged — it is a Sony internal identifier, not user-facing copy.
