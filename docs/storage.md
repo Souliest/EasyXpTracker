@@ -1,7 +1,9 @@
 # BasicGamingTools — Storage Architecture
 
-Applies to LevelGoalTracker, ThingCounter, and TrophyHunter.
+Applies to LevelGoalTracker, ThingCounter, TrophyHunter, and TrophySummary (PTSD).
+TrophySummary uses a simplified variant of the hybrid model — documented in its own section below.
 XpTracker uses synchronous localStorage-only storage and is not covered here.
+
 
 ---
 
@@ -139,9 +141,14 @@ One row per game in each tool's personal games table. Schema unchanged from v1.
 | `bgt_level_goal_tracker_games` | LevelGoalTracker |
 | `bgt_thing_counter_games`      | ThingCounter     |
 | `bgt_trophy_hunter_games`      | TrophyHunter     |
+| `bgt_trophy_summary_profiles`  | TrophySummary    |
 
-Schema per table: `id uuid pk`, `user_id uuid → auth.users`, `name text`, `data jsonb`, `updated_at timestamptz`.
-RLS restricts all operations to `auth.uid() = user_id`.
+Schema per table (multi-game tools): `id uuid pk`, `user_id uuid → auth.users`, `name text`, `data jsonb`,
+`updated_at timestamptz`. RLS restricts all operations to `auth.uid() = user_id`.
+
+TrophySummary uses a different schema: `user_id uuid pk → auth.users`, `ps_username text`, `data jsonb`,
+`updated_at timestamptz`. One row per BGT user account (not per game). RLS restricts all operations to
+`auth.uid() = user_id`.
 
 **Realtime publication:** all three tables are in the `supabase_realtime` publication with both UPDATE
 and DELETE events enabled. A single shared publication is the correct pattern — channel-level filtering
@@ -316,6 +323,108 @@ and simpler since those tools don't hold module-level game data.
 
 ---
 
+## TrophySummary (PTSD) Storage Model
+
+PTSD is a single-profile-per-user tool and uses a simplified variant of the hybrid storage model. There is no index, no
+LRU blob cache, and no per-game rows.
+
+### Local storage shape
+
+```js
+// Key: 'bgt:trophy-summary:v2'
+{
+    version: 2,
+    profile: { /* full profile blob */ } | null
+}
+```
+
+The profile blob is the entire tool state — username, avatar, level, tier counts, game list, view state. It is read and
+written as a unit.
+
+Rate limits are stored separately:
+
+```js
+// Key: 'bgt:trophy-summary:rate-limits'
+{
+    'global': 1234567890123,  // Date.now() + retryAfterSeconds * 1000
+    'NPWR12345_00': 1234567890123, // per-game scope
+}
+```
+
+### `_savedAt` field
+
+`saveData` stamps `_savedAt: now` onto the profile before writing to localStorage. This field is stripped before
+upserting to Supabase. `loadData` uses `profile._savedAt` (not `lastFullRefresh`) to compare against Supabase
+`updated_at` when deciding whether to fetch the remote blob — it reflects when the profile was last saved locally, not
+when the user last triggered a refresh.
+
+### Read path
+
+On every `loadData()` call:
+
+1. Read localStorage immediately. Return if no user is signed in.
+2. Fetch only `updated_at` from Supabase (`SELECT updated_at WHERE user_id = ?`).
+3. Compare against `profile._savedAt`. If remote is newer (or no local profile exists), fetch the full blob from the
+   `data` column.
+4. Write the remote blob to localStorage and return it.
+   This is a simplified version of the multi-game read path — one lightweight query, one conditional full fetch.
+
+### Write path
+
+`saveData(profile)`:
+
+1. Stamps `_savedAt: now` on the profile.
+2. Writes to localStorage immediately.
+3. Upserts to Supabase — strips `_savedAt`, sets `updated_at: now`.
+   There is no debounce. PTSD writes are infrequent (global refresh, per-game refresh, pin toggle, filter change) and
+   the blob is written as a unit.
+
+### Realtime sync — ping model
+
+PTSD uses the **ping model** rather than carrying the full blob through Realtime.
+
+**Why:** The profile blob grows proportionally with library size. At the median it is around 200KB; for the largest
+libraries it is estimated at 2–3MB. Supabase Realtime has a 1MB payload limit per broadcast message. Carrying the full
+blob would work for most users but silently fail for the top end of the user base.
+
+**How it works:**
+
+Device A saves (global refresh, per-game refresh, etc.) → Supabase upsert writes the full blob to the `data` column and
+sets `updated_at`. Realtime broadcasts the row UPDATE to subscribers, but the receiving device only reads `updated_at`
+from the payload — it does not read `data` from it.
+
+Device B receives the Realtime event → compares the remote `updated_at` against its local `profile._savedAt`. If remote
+is newer, Device B fetches the full blob from Supabase directly via a normal `SELECT data WHERE user_id = ?`. This is
+the same fetch that `loadData` already performs on page open.
+
+**Implementation:**
+
+`subscribeToProfileChanges` in `storage.js` receives the raw Realtime payload. It extracts `row.updated_at` and passes
+`{ updatedAt }` to `_onRemoteUpdate` in `main.js` — not the full row data.
+
+`_onRemoteUpdate` in `main.js` compares `remoteUpdatedAt` against `_profile._savedAt`. If remote is newer, it calls
+`loadData()` to fetch the full blob, then re-renders.
+
+**Payload size through Realtime:** approximately 100 bytes regardless of library size.
+
+**Tradeoff:** one extra round trip per sync event (Realtime ping → Supabase fetch). For a read-only summary tool where
+sync is a convenience rather than a core feature, this is acceptable.
+
+**Local viewState preservation:** `_onRemoteUpdate` preserves the local `viewState` (sort, filterState) over the
+incoming remote profile, same as TrophyHunter's approach. Each device keeps its own display preferences during a
+session.
+
+### Realtime subscription setup
+
+`createRealtimeSubscription('ptsd-profile', TABLE)` from `common/realtime.js` — same factory as the other tools. The
+`subscribeToProfileChanges` wrapper enforces the `REALTIME_ENABLED` guard and filters out DELETE events (a deleted row
+means the user signed out on another device — no action needed on the receiving device).
+
+Subscribe/unsubscribe lifecycle: same as the other hybrid tools — subscribe after `loadData()` if signed in, subscribe
+on `SIGNED_IN`, unsubscribe on `SIGNED_OUT`.
+
+---
+
 ## Decisions & Rationale
 
 - **Two-tier local storage** — the original design stored every game's full blob indefinitely. The per-game Supabase row
@@ -370,3 +479,17 @@ and simpler since those tools don't hold module-level game data.
   `_localLoad()` — equally cheap, simpler since those tools don't cache game data at the module level.
 - **`_afterSelectExisting` uses index not blobs** — finds the game by `npCommId` in `_personalData.index` (always
   complete) rather than blobs (may not contain the game). Index is the correct layer for existence checks.
+- **PTSD: no index or LRU cache** — PTSD is single-profile-per-user. The index exists to populate a game selector; the
+  LRU cache exists to avoid fetching blobs for games the user isn't currently viewing. Neither concept applies when
+  there is only one blob and no selector.
+- **PTSD: full blob written as a unit** — unlike the multi-game tools which can upsert a single changed game row, PTSD's
+  entire state is one blob. This simplifies the write path at the cost of writing more data per save. Given the write
+  frequency (infrequent, user-triggered), this is the right tradeoff.
+- **PTSD: Realtime ping model** — see the TrophySummary section above. The core reason is payload size. The ping model
+  also has a secondary benefit: it unifies the sync path with `loadData`, meaning the same fetch logic handles both
+  initial load and live updates, with no separate merge code needed for incoming Realtime data.
+- **PTSD: `_savedAt` not `lastFullRefresh` for remote comparison** — `lastFullRefresh` records when the user last
+  triggered a global PlayStation fetch. `_savedAt` records when the profile was last written to localStorage, which may
+  be more recent (a pin toggle, a filter change, a per-game refresh all update `_savedAt` without changing
+  `lastFullRefresh`). Using `_savedAt` for the Supabase comparison ensures that any local change, however small,
+  correctly blocks an older remote version from overwriting it.
